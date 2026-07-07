@@ -372,6 +372,34 @@ function SignaturePadModal({ label, nome, onClose, onSave }) {
   );
 }
 
+function SignatureActionButton({ assinatura, onOpen }) {
+  const activatedAtRef = useRef(0);
+
+  function openSignature(event) {
+    event.preventDefault();
+    const now = Date.now();
+
+    if (now - activatedAtRef.current < 350) return;
+
+    activatedAtRef.current = now;
+    onOpen();
+  }
+
+  return (
+    <button
+      type="button"
+      className={`mt-3 inline-flex min-h-11 w-full touch-manipulation items-center justify-center rounded-md px-3 font-bold ${
+        assinatura ? "bg-cicopal-green text-white" : "bg-cicopal-blue text-white"
+      }`}
+      onClick={openSignature}
+      onPointerUp={openSignature}
+      onTouchEnd={openSignature}
+    >
+      {assinatura ? "Assinar novamente" : "Assinar"}
+    </button>
+  );
+}
+
 function AssinaturasRegistro({ registro }) {
   const assinaturas = registro?.subregistros?.[0]?.assinaturas ?? {};
   const [signed, setSigned] = useState(assinaturas);
@@ -415,15 +443,7 @@ function AssinaturasRegistro({ registro }) {
                 <img src={assinatura.imagem} alt={`Assinatura ${label}`} className="h-full w-full object-contain" />
               </div>
             ) : null}
-            <button
-              type="button"
-              className={`mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-md px-3 font-bold ${
-                assinatura ? "bg-cicopal-green text-white" : "bg-cicopal-blue text-white"
-              }`}
-              onClick={() => setActiveSigner(label)}
-            >
-              {assinatura ? "Assinar novamente" : "Assinar"}
-            </button>
+            <SignatureActionButton assinatura={assinatura} onOpen={() => setActiveSigner(label)} />
           </div>
         ))}
       </div>
