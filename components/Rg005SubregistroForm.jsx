@@ -375,8 +375,7 @@ function SignaturePadModal({ label, nome, onClose, onSave }) {
 function SignatureActionButton({ assinatura, onOpen }) {
   const activatedAtRef = useRef(0);
 
-  function openSignature(event) {
-    event.preventDefault();
+  function openSignature() {
     const now = Date.now();
 
     if (now - activatedAtRef.current < 350) return;
@@ -392,7 +391,10 @@ function SignatureActionButton({ assinatura, onOpen }) {
         assinatura ? "bg-cicopal-green text-white" : "bg-cicopal-blue text-white"
       }`}
       onClick={openSignature}
+      onMouseDown={openSignature}
+      onPointerDown={openSignature}
       onPointerUp={openSignature}
+      onTouchStart={openSignature}
       onTouchEnd={openSignature}
     >
       {assinatura ? "Assinar novamente" : "Assinar"}
