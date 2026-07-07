@@ -4,6 +4,13 @@
 
 :root {
   color-scheme: light;
+  --cicopal-blue: #1e22a8;
+  --cicopal-blue-dark: #11146f;
+  --cicopal-red: #e30613;
+  --cicopal-green: #198754;
+  --cicopal-surface: #f3f5f9;
+  --cicopal-border: #d9dee8;
+  --cicopal-ink: #232936;
 }
 
 * {
@@ -12,14 +19,16 @@
 
 html {
   min-height: 100%;
-  background: #f8f9fa;
+  background: var(--cicopal-surface);
 }
 
 body {
   min-height: 100vh;
   margin: 0;
-  background: #f8f9fa;
-  color: #333333;
+  background:
+    linear-gradient(180deg, rgba(30,34,168,.06), rgba(243,245,249,0) 280px),
+    var(--cicopal-surface);
+  color: var(--cicopal-ink);
 }
 
 button,
@@ -34,28 +43,29 @@ button {
 }
 
 .quality-card {
-  border-top: 5px solid #1e22a8;
+  border-top: 5px solid var(--cicopal-blue);
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+  box-shadow: 0 10px 24px rgba(20, 25, 60, .08);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
 }
 
 .quality-card-danger {
-  border-top-color: #e30613;
+  border-top-color: var(--cicopal-red);
 }
 
 .audit-card {
-  border-top: 5px solid #1e22a8;
+  border: 1px solid var(--cicopal-border);
+  border-top: 5px solid var(--cicopal-blue);
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+  box-shadow: 0 12px 28px rgba(20, 25, 60, .08);
 }
 
 .audit-card-danger {
-  border-top-color: #e30613;
+  border-top-color: var(--cicopal-red);
 }
 
 .audit-table {
@@ -64,8 +74,8 @@ button {
 }
 
 .audit-table thead {
-  background: #f8f9fa;
-  color: #495057;
+  background: #f1f3f8;
+  color: #3d4454;
   font-size: .75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -73,7 +83,7 @@ button {
 
 .audit-table th,
 .audit-table td {
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--cicopal-border);
 }
 
 .audit-badge {
@@ -84,4 +94,19 @@ button {
   padding: 0 .65rem;
   font-size: .75rem;
   font-weight: 700;
+}
+
+.brand-header {
+  position: relative;
+  background: linear-gradient(90deg, var(--cicopal-blue-dark), var(--cicopal-blue));
+}
+
+.brand-header::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  content: "";
+  background: var(--cicopal-red);
 }

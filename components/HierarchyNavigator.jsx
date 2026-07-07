@@ -503,6 +503,10 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
 
   const calendarDays = useMemo(() => makeCalendarDays(monthDate), [monthDate]);
   const monthTitle = monthDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const todayDateId = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  }, []);
   const selectedDateLabel = formatDateLabel(selection.dataId);
   const generatedLoteId = selected.linha && selection.dataId ? generateLoteId(selected.linha.id, selection.dataId) : "";
   const documentosDoDia = rgCatalog.map((documento) => {
@@ -705,13 +709,16 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                 const filledDate = datesById.get(day.dateId);
                 const hasNc = filledDate ? dateHasNc(filledDate) : false;
                 const selectedDay = selection.dataId === day.dateId;
+                const today = todayDateId === day.dateId;
                 const tone = selectedDay
                   ? "border-cicopal-blue bg-cicopal-blue text-white"
                   : hasNc
                     ? "border-cicopal-red bg-red-50 text-cicopal-red"
                     : filledDate
                       ? "border-cicopal-green bg-green-50 text-cicopal-green"
-                      : "border-gray-200 bg-white text-gray-500";
+                      : today
+                        ? "border-cicopal-blue bg-white text-cicopal-blue ring-2 ring-cicopal-red/30"
+                        : "border-gray-200 bg-white text-gray-500";
 
                 return (
                   <button
@@ -727,7 +734,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                         {hasNc ? "NC" : "OK"}
                       </span>
                     ) : (
-                      <span className="mt-1 text-[11px] font-bold">Vazio</span>
+                      <span className="mt-1 text-[11px] font-bold">{today ? "Hoje" : "Vazio"}</span>
                     )}
                   </button>
                 );

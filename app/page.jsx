@@ -33,7 +33,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-cicopal-surface">
-      <header className="sticky top-0 z-10 bg-cicopal-blue text-white shadow-sm">
+      <header className="brand-header sticky top-0 z-10 text-white shadow-sm">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
             <ShieldCheck size={28} />
