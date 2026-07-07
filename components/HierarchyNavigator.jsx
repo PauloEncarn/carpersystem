@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -79,7 +79,32 @@ function getBaseMonth() {
   return new Date();
 }
 
-function CardButton({ selected, danger, title, meta, icon: Icon, onClick }) {
+const processDisplayPrefixes = {
+  higienizacao: "HIG",
+  produto_liberacao: "LIBP",
+  produto_avaliacao: "AVP",
+  processo: "RGP",
+  fotografico: "REGF"
+};
+
+function getShortRegistroId(registroId = "", processoId = "") {
+  const idSemRg = registroId.replace(/^RG\d+-/, "");
+  const parts = idSemRg.split("-");
+  const suffix = parts.at(-1) ?? "";
+  const letters = suffix.match(/^[A-Z]+/)?.[0] ?? processDisplayPrefixes[processoId] ?? "REG";
+  const number = suffix.match(/\d+$/)?.[0] ?? "01";
+  const displayPrefix = letters === "HG" ? "HIG" : letters;
+  const displayNumber = number.length > 2 ? number.slice(-2) : number.padStart(2, "0");
+
+  if (parts.length >= 3) {
+    return `${parts[0]}-${parts[1]}-${displayPrefix}${displayNumber}`;
+  }
+
+  return registroId;
+}
+
+function CardButton({ selected, danger, title, meta, icon: Icon, onClick, onDoubleTap }) {
+  const lastTapRef = useRef(0);
   const tone = selected
     ? danger
       ? "border-cicopal-red bg-cicopal-red text-white"
@@ -93,12 +118,51 @@ function CardButton({ selected, danger, title, meta, icon: Icon, onClick }) {
       type="button"
       className={`flex min-h-24 w-full items-center gap-3 rounded-md border border-t-[5px] p-4 text-left shadow-soft ${tone}`}
       onClick={onClick}
+      onDoubleClick={onDoubleTap}
+      onPointerUp={() => {
+        if (!onDoubleTap) return;
+        const now = Date.now();
+        if (now - lastTapRef.current < 320) {
+          onDoubleTap();
+        }
+        lastTapRef.current = now;
+      }}
     >
       {Icon ? <Icon size={26} className="shrink-0" /> : null}
       <span className="min-w-0">
         <span className="block truncate text-xl font-bold">{title}</span>
         {meta ? <span className="block truncate text-sm font-semibold opacity-80">{meta}</span> : null}
       </span>
+    </button>
+  );
+}
+
+function CalendarDateButton({ day, tone, filledDate, hasNc, today, onClick, onDoubleTap }) {
+  const lastTapRef = useRef(0);
+
+  return (
+    <button
+      type="button"
+      className={`flex min-h-20 flex-col items-center justify-center rounded-md border p-2 font-bold ${tone}`}
+      onClick={onClick}
+      onDoubleClick={onDoubleTap}
+      onPointerUp={() => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 320) {
+          onDoubleTap();
+        }
+        lastTapRef.current = now;
+      }}
+    >
+      <span className="text-lg">{day.day}</span>
+      {filledDate ? (
+        <span className="mt-1 flex items-center gap-1 text-[11px] font-bold">
+          {hasNc ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
+          {hasNc ? "NC" : "OK"}
+        </span>
+      ) : (
+        <span className="mt-1 text-[11px] font-bold">{today ? "Hoje" : "Vazio"}</span>
+      )}
     </button>
   );
 }
@@ -125,10 +189,15 @@ function Stepper({ currentStep }) {
   );
 }
 
-function StageHeader({ title }) {
+function StageHeader({ title, meta }) {
   return (
-    <div className="mb-4 flex min-h-12 items-center border-b border-gray-200 pb-3">
+    <div className="mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3">
       <h2 className="text-2xl font-bold text-cicopal-blue">{title}</h2>
+      {meta ? (
+        <span className="rounded-md border border-cicopal-blue bg-blue-50 px-3 py-2 text-sm font-bold text-cicopal-blue">
+          {meta}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -137,6 +206,8 @@ function getRgPrefix(documentoId = "") {
   const number = documentoId.match(/\d+/g)?.at(-1) ?? "000";
   return `RG${number.padStart(3, "0")}`;
 }
+
+export { getShortRegistroId };
 
 function ChecklistMirrorModal({ registro, processoId, onClose, onOpenRegistro }) {
   if (!registro) return null;
@@ -369,12 +440,8 @@ function NcDetailModal({ nc, onClose }) {
   );
 }
 
-function getRegistroProcessId(registroId = "") {
-  return registroId.split("-").at(-1) || registroId;
-}
-
 function RegistroCard({ registro, danger, onPreview }) {
-  const processId = getRegistroProcessId(registro.id);
+  const processId = getShortRegistroId(registro.id, registro.processoId);
 
   return (
     <button
@@ -384,9 +451,9 @@ function RegistroCard({ registro, danger, onPreview }) {
       }`}
       onClick={onPreview}
     >
-      <div className="grid min-h-20 items-center gap-3 px-4 py-3 md:grid-cols-[64px_1.3fr_120px_1.2fr_130px]">
+      <div className="grid min-h-20 items-center gap-3 px-4 py-3 md:grid-cols-[210px_1.3fr_120px_1.2fr_130px]">
         <div className="text-center">
-          <span className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-bold text-white">
+          <span className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 text-xs font-bold text-white md:text-sm">
             {processId}
           </span>
         </div>
@@ -593,15 +660,8 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   }
 
   function novoRegistroProcesso() {
-    const prefixes = {
-      higienizacao: "HG",
-      produto_liberacao: "LIBP",
-      produto_avaliacao: "AVP",
-      processo: "RGP",
-      fotografico: "REGF"
-    };
-    const prefix = prefixes[selection.subregistroId] ?? "REG";
-    const nextNumber = String(registrosDoProcesso.length + 1).padStart(3, "0");
+    const prefix = processDisplayPrefixes[selection.subregistroId] ?? "REG";
+    const nextNumber = String(registrosDoProcesso.length + 1).padStart(2, "0");
     const rgPrefix = getRgPrefix(selection.documentoId);
 
     onSelectionChange({
@@ -664,6 +724,10 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                   title={linha.nome}
                   meta={`${linha.datas.length} dias com preenchimento - ${countRegistros(linha)} registros`}
                   onClick={() => selectLinha(linha)}
+                  onDoubleTap={() => {
+                    selectLinha(linha);
+                    onStepChange(2);
+                  }}
                 />
               ))}
             </div>
@@ -721,22 +785,19 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                         : "border-gray-200 bg-white text-gray-500";
 
                 return (
-                  <button
+                  <CalendarDateButton
                     key={day.dateId}
-                    type="button"
-                    className={`flex min-h-20 flex-col items-center justify-center rounded-md border p-2 font-bold ${tone}`}
+                    day={day}
+                    tone={tone}
+                    filledDate={filledDate}
+                    hasNc={hasNc}
+                    today={today}
                     onClick={() => selectDate(day.dateId)}
-                  >
-                    <span className="text-lg">{day.day}</span>
-                    {filledDate ? (
-                      <span className="mt-1 flex items-center gap-1 text-[11px] font-bold">
-                        {hasNc ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
-                        {hasNc ? "NC" : "OK"}
-                      </span>
-                    ) : (
-                      <span className="mt-1 text-[11px] font-bold">{today ? "Hoje" : "Vazio"}</span>
-                    )}
-                  </button>
+                    onDoubleTap={() => {
+                      selectDate(day.dateId);
+                      onStepChange(3);
+                    }}
+                  />
                 );
               })}
             </div>
@@ -757,6 +818,10 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                   title={documento.nome}
                   meta={`Lote automatico: ${documento.loteId}`}
                   onClick={() => selectDocumento(documento)}
+                  onDoubleTap={() => {
+                    selectDocumento(documento);
+                    onStepChange(4);
+                  }}
                 />
               ))}
             </div>
@@ -782,6 +847,10 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                   title={processo.nome}
                   meta={`${processo.frequencia} - ${registros.length} registro(s)`}
                   onClick={() => selectProcesso(processo.id)}
+                  onDoubleTap={() => {
+                    selectProcesso(processo.id);
+                    onStepChange(5);
+                  }}
                 />
                 );
               })}
@@ -842,6 +911,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
           <>
             <StageHeader
               title={selected.subregistro?.nome}
+              meta={selected.registro ? getShortRegistroId(selected.registro.id, selected.subregistro?.id) : ""}
             />
             {children}
           </>
