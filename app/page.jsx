@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
+import { RgConfigurator } from "@/components/RgConfigurator";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
-import { ShieldCheck } from "lucide-react";
+import { FileCog, ShieldCheck } from "lucide-react";
 import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/rastreabilidade";
 
 export default function HomePage() {
+  const [workspace, setWorkspace] = useState("operacao");
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
   const currentStepRef = useRef(currentStep);
@@ -53,23 +55,50 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        <HierarchyNavigator
-          tree={rastreabilidadeTree}
-          selection={selection}
-          selected={selected}
-          onSelectionChange={setSelection}
-          currentStep={currentStep}
-          onStepChange={setCurrentStep}
-        >
-          {selected.registro ? (
-            <Rg005SubregistroForm
-              documentName={selected.documento?.nome}
-              loteId={selected.lote?.id}
-              registro={selected.registro}
-              subregistro={selected.subregistro}
-            />
-          ) : null}
-        </HierarchyNavigator>
+        <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-200 p-1">
+          <button
+            type="button"
+            className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-4 text-base font-bold ${
+              workspace === "operacao" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
+            }`}
+            onClick={() => setWorkspace("operacao")}
+          >
+            <ShieldCheck size={20} />
+            Operacao
+          </button>
+          <button
+            type="button"
+            className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-4 text-base font-bold ${
+              workspace === "configurador" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
+            }`}
+            onClick={() => setWorkspace("configurador")}
+          >
+            <FileCog size={20} />
+            Configurador
+          </button>
+        </div>
+
+        {workspace === "configurador" ? (
+          <RgConfigurator lines={rastreabilidadeTree} />
+        ) : (
+          <HierarchyNavigator
+            tree={rastreabilidadeTree}
+            selection={selection}
+            selected={selected}
+            onSelectionChange={setSelection}
+            currentStep={currentStep}
+            onStepChange={setCurrentStep}
+          >
+            {selected.registro ? (
+              <Rg005SubregistroForm
+                documentName={selected.documento?.nome}
+                loteId={selected.lote?.id}
+                registro={selected.registro}
+                subregistro={selected.subregistro}
+              />
+            ) : null}
+          </HierarchyNavigator>
+        )}
       </div>
     </main>
   );
