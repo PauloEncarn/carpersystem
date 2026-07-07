@@ -13,6 +13,7 @@ import {
   Settings2,
   Trash2
 } from "lucide-react";
+import { checklistGroups } from "@/lib/checklist";
 
 const menus = [
   { id: "rg", label: "RG", icon: FileText },
@@ -41,6 +42,127 @@ const fieldTypes = [
 
 const frequencies = ["Por registro", "Por setup", "Por horario liberado", "Hora em hora", "Turno"];
 
+const liberacaoProdutoComponents = [
+  "Sabor e odor",
+  "Textura",
+  "Aspecto visual",
+  "Peso do pacote",
+  "Selagem",
+  "Datador",
+  "Impressao",
+  "Microfuro maq. 1",
+  "Temp. oleo",
+  "Tempo residencia"
+];
+
+const avaliacaoProdutoComponents = [
+  { name: "Umidade produto final", type: "percentual" },
+  { name: "Sal", type: "percentual" },
+  { name: "Temperatura de envase", type: "temperatura" }
+];
+
+const processoComponents = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
+
+function makeField(id, name, type = "c_nc", category = "Geral", overrides = {}) {
+  return {
+    id,
+    name,
+    type,
+    category,
+    required: true,
+    nc: type === "c_nc",
+    ...overrides
+  };
+}
+
+function makeFields(prefix, items, category, type = "c_nc") {
+  return items.map((item, index) => {
+    if (typeof item === "string") {
+      return makeField(`${prefix}-${index + 1}`, item, type, category);
+    }
+
+    return makeField(`${prefix}-${index + 1}`, item.name, item.type ?? type, item.category ?? category, item);
+  });
+}
+
+const higienizacaoFields = [
+  makeField("hig-context-1", "Operador logado", "texto", "Cabecalho", { nc: false }),
+  makeField("hig-context-2", "Turno operador", "texto", "Cabecalho", { nc: false }),
+  makeField("hig-context-3", "Tipo de setup", "texto", "Cabecalho", { nc: false }),
+  makeField("hig-context-4", "Troca de sabor/produto de", "texto", "Cabecalho", { nc: false, required: false }),
+  makeField("hig-context-5", "Para", "texto", "Cabecalho", { nc: false, required: false }),
+  makeField("hig-context-6", "Matriz de troca", "texto", "Cabecalho", { nc: false }),
+  ...checklistGroups.flatMap((group) => makeFields(`hig-${group.id}`, group.items, group.title)),
+  makeField("hig-nc-1", "Horario do desvio", "hora", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-nc-2", "Quantidade / impacto", "numero", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-nc-3", "Causa", "texto", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-nc-4", "Acao corretiva", "texto", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-nc-5", "Disposicao imediata", "texto", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-nc-6", "Disposicao final", "texto", "Detalhamento da NC", { required: false, nc: true }),
+  makeField("hig-sign-1", "Assinatura operador", "assinatura", "Assinaturas", { nc: false }),
+  makeField("hig-sign-2", "Assinatura qualidade", "assinatura", "Assinaturas", { nc: false }),
+  makeField("hig-sign-3", "Assinatura supervisor", "assinatura", "Assinaturas", { nc: false })
+];
+
+const produtoContextFields = [
+  makeField("prod-context-1", "Marca", "texto", "Cabecalho", { nc: false }),
+  makeField("prod-context-2", "Sabor", "texto", "Cabecalho", { nc: false }),
+  makeField("prod-context-3", "Gramatura", "texto", "Cabecalho", { nc: false }),
+  makeField("prod-context-4", "Operador logado", "texto", "Cabecalho", { nc: false }),
+  makeField("prod-context-5", "Turno operador", "texto", "Cabecalho", { nc: false }),
+  makeField("prod-context-6", "Data/Hora do registro", "hora", "Cabecalho", { nc: false })
+];
+
+const signatureFields = [
+  makeField("sign-1", "Assinatura operador", "assinatura", "Assinaturas", { nc: false }),
+  makeField("sign-2", "Assinatura qualidade", "assinatura", "Assinaturas", { nc: false }),
+  makeField("sign-3", "Assinatura supervisor", "assinatura", "Assinaturas", { nc: false })
+];
+
+function defaultFieldsForProcess(type) {
+  if (type === "higienizacao") return higienizacaoFields;
+  if (type === "produto_liberacao") {
+    return [
+      ...produtoContextFields,
+      makeField("libp-time-1", "Horario de liberacao", "hora", "Lancamentos"),
+      ...makeFields("libp", liberacaoProdutoComponents, "Controle de liberacao"),
+      ...signatureFields
+    ];
+  }
+  if (type === "produto_avaliacao") {
+    return [
+      ...produtoContextFields,
+      makeField("avp-time-1", "Horario da avaliacao", "hora", "Hora em hora"),
+      ...makeFields("avp", avaliacaoProdutoComponents, "Hora em hora"),
+      ...signatureFields
+    ];
+  }
+  if (type === "processo") {
+    return [
+      makeField("rgp-time-1", "Horario", "hora", "Hora em hora"),
+      ...makeFields("rgp", processoComponents, "Hora em hora"),
+      ...signatureFields
+    ];
+  }
+  if (type === "fotografico") {
+    return [
+      makeField("regf-time-1", "Horario", "hora", "Hora em hora"),
+      makeField("regf-photo-1", "Foto", "foto", "Registro visual", { nc: false }),
+      makeField("regf-obs-1", "Observacao", "texto", "Registro visual", { required: false, nc: false }),
+      ...signatureFields
+    ];
+  }
+
+  return [];
+}
+
+function defaultFrequencyForProcess(type) {
+  if (type === "higienizacao") return "Por setup";
+  if (type === "produto_liberacao") return "Por horario liberado";
+  if (type === "produto_avaliacao" || type === "processo" || type === "fotografico") return "Hora em hora";
+  return "Por registro";
+}
+
 const initialRgs = [
   {
     id: "rg-005",
@@ -54,22 +176,35 @@ const initialRgs = [
         type: "higienizacao",
         name: "RG - Higienizacao",
         frequency: "Por setup",
-        fields: [
-          { id: "field-1", name: "Equipamento / area", type: "c_nc", required: true, nc: true },
-          { id: "field-2", name: "Horario do desvio", type: "hora", required: false, nc: true },
-          { id: "field-3", name: "Acao corretiva", type: "texto", required: false, nc: true }
-        ]
+        fields: defaultFieldsForProcess("higienizacao")
       },
       {
         id: "proc-2",
+        type: "produto_liberacao",
+        name: "Liberacao do Produto",
+        frequency: "Por horario liberado",
+        fields: defaultFieldsForProcess("produto_liberacao")
+      },
+      {
+        id: "proc-3",
         type: "produto_avaliacao",
         name: "Avaliacao do Produto",
         frequency: "Hora em hora",
-        fields: [
-          { id: "field-4", name: "Umidade produto final", type: "percentual", required: true, nc: false },
-          { id: "field-5", name: "Sal", type: "percentual", required: true, nc: false },
-          { id: "field-6", name: "Temperatura de envase", type: "temperatura", required: true, nc: false }
-        ]
+        fields: defaultFieldsForProcess("produto_avaliacao")
+      },
+      {
+        id: "proc-4",
+        type: "processo",
+        name: "RG - Processo",
+        frequency: "Hora em hora",
+        fields: defaultFieldsForProcess("processo")
+      },
+      {
+        id: "proc-5",
+        type: "fotografico",
+        name: "Registro Fotografico",
+        frequency: "Hora em hora",
+        fields: defaultFieldsForProcess("fotografico")
       }
     ]
   }
@@ -104,6 +239,15 @@ function fieldTypeLabel(type) {
   return fieldTypes.find((item) => item.id === type)?.label ?? type;
 }
 
+function groupFieldsByType(fields) {
+  return fieldTypes
+    .map((type) => ({
+      ...type,
+      fields: fields.filter((field) => field.type === type.id)
+    }))
+    .filter((group) => group.fields.length > 0);
+}
+
 export function RgConfigurator({ lines }) {
   const [activeMenu, setActiveMenu] = useState("rg");
   const [rgs, setRgs] = useState(initialRgs);
@@ -118,6 +262,9 @@ export function RgConfigurator({ lines }) {
     if (!selectedRg) return [];
     return lines.filter((line) => selectedRg.linkedLines.includes(line.id)).map((line) => line.nome);
   }, [lines, selectedRg]);
+  const selectedProcessFieldGroups = useMemo(() => {
+    return selectedProcess ? groupFieldsByType(selectedProcess.fields) : [];
+  }, [selectedProcess]);
 
   function updateSelectedRg(field, value) {
     setRgs((current) => current.map((rg) => (rg.id === selectedRg.id ? { ...rg, [field]: value } : rg)));
@@ -168,8 +315,8 @@ export function RgConfigurator({ lines }) {
       id: makeId("proc"),
       type: type.id,
       name: type.label,
-      frequency: "Por registro",
-      fields: []
+      frequency: defaultFrequencyForProcess(type.id),
+      fields: defaultFieldsForProcess(type.id)
     };
 
     setRgs((current) =>
@@ -191,7 +338,9 @@ export function RgConfigurator({ lines }) {
                 return {
                   ...process,
                   [field]: value,
-                  name: field === "type" && typeInfo ? typeInfo.label : process.name
+                  name: field === "type" && typeInfo ? typeInfo.label : process.name,
+                  frequency: field === "type" ? defaultFrequencyForProcess(value) : process.frequency,
+                  fields: field === "type" ? defaultFieldsForProcess(value) : process.fields
                 };
               })
             }
@@ -577,56 +726,72 @@ export function RgConfigurator({ lines }) {
 
           {selectedProcess ? (
             <div className="grid gap-3">
-              {selectedProcess.fields.map((field, index) => (
-                <article key={field.id} className="rounded-md border border-gray-200 bg-white p-3">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <button
-                      type="button"
-                      className="inline-flex size-11 items-center justify-center rounded-md border border-red-200 bg-red-50 text-cicopal-red"
-                      onClick={() => removeField(field.id)}
-                      aria-label="Remover componente"
-                    >
-                      <Trash2 size={19} />
-                    </button>
+              {selectedProcessFieldGroups.map((group) => (
+                <section key={group.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-lg font-bold text-gray-950">{group.label}</h4>
+                    <span className="audit-badge bg-white text-gray-700">{group.fields.length} componente(s)</span>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-[1.5fr_180px_150px_150px]">
-                    <label>
-                      <FieldLabel>Nome do componente</FieldLabel>
-                      <ConfigInput value={field.name} onChange={(event) => updateField(field.id, "name", event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel>Tipo</FieldLabel>
-                      <ConfigSelect value={field.type} onChange={(event) => updateField(field.id, "type", event.target.value)}>
-                        {fieldTypes.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {type.label}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
-                    <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={field.required}
-                        onChange={(event) => updateField(field.id, "required", event.target.checked)}
-                      />
-                      Obrigatorio
-                    </label>
-                    <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={field.nc}
-                        onChange={(event) => updateField(field.id, "nc", event.target.checked)}
-                      />
-                      Gera NC
-                    </label>
+                  <div className="grid gap-3">
+                    {group.fields.map((field) => {
+                      const index = selectedProcess.fields.findIndex((item) => item.id === field.id);
+                      return (
+                        <article key={field.id} className="rounded-md border border-gray-200 bg-white p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+                              <span className="audit-badge bg-gray-100 text-gray-700">{field.category ?? "Geral"}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="inline-flex size-11 items-center justify-center rounded-md border border-red-200 bg-red-50 text-cicopal-red"
+                              onClick={() => removeField(field.id)}
+                              aria-label="Remover componente"
+                            >
+                              <Trash2 size={19} />
+                            </button>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-[1.5fr_180px_150px_150px]">
+                            <label>
+                              <FieldLabel>Nome do componente</FieldLabel>
+                              <ConfigInput value={field.name} onChange={(event) => updateField(field.id, "name", event.target.value)} />
+                            </label>
+                            <label>
+                              <FieldLabel>Tipo</FieldLabel>
+                              <ConfigSelect value={field.type} onChange={(event) => updateField(field.id, "type", event.target.value)}>
+                                {fieldTypes.map((type) => (
+                                  <option key={type.id} value={type.id}>
+                                    {type.label}
+                                  </option>
+                                ))}
+                              </ConfigSelect>
+                            </label>
+                            <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
+                              <input
+                                type="checkbox"
+                                className="size-6"
+                                checked={field.required}
+                                onChange={(event) => updateField(field.id, "required", event.target.checked)}
+                              />
+                              Obrigatorio
+                            </label>
+                            <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
+                              <input
+                                type="checkbox"
+                                className="size-6"
+                                checked={field.nc}
+                                onChange={(event) => updateField(field.id, "nc", event.target.checked)}
+                              />
+                              Gera NC
+                            </label>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
-                </article>
+                </section>
               ))}
               {!selectedProcess.fields.length ? (
                 <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
