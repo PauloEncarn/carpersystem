@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
 import { ShieldCheck } from "lucide-react";
@@ -9,7 +9,27 @@ import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/r
 export default function HomePage() {
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
+  const currentStepRef = useRef(currentStep);
   const selected = useMemo(() => findSelection(selection), [selection]);
+
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
+
+  useEffect(() => {
+    window.history.replaceState({ rgApp: true }, "");
+    window.history.pushState({ rgApp: true }, "");
+
+    function handlePopState() {
+      if (currentStepRef.current > 1) {
+        setCurrentStep((step) => Math.max(1, step - 1));
+      }
+      window.history.pushState({ rgApp: true }, "");
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   return (
     <main className="min-h-screen bg-cicopal-surface">

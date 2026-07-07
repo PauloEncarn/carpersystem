@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Check, Clock, Plus, Upload } from "lucide-react";
+import { Camera, Check, Clock, FileSignature, Plus, Upload } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
@@ -22,7 +22,7 @@ const liberacaoProdutoColumns = [
 const avaliacaoProdutoColumns = [
   { label: "Umidade produto final", unit: "%" },
   { label: "Sal", unit: "%" },
-  { label: "Temperatura de envase", unit: "°C" }
+  { label: "Temperatura de envase", unit: "deg C" }
 ];
 const processoColumns = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
 
@@ -226,7 +226,49 @@ function ProductEvaluationHourlyTable() {
   );
 }
 
+function AssinaturasRegistro({ registro }) {
+  const assinaturas = registro?.subregistros?.[0]?.assinaturas ?? {};
+
+  return (
+    <section className="mt-4 rounded-md border border-gray-200 bg-white p-3">
+      <div className="mb-3 flex items-center gap-2 text-lg font-bold text-gray-950">
+        <FileSignature size={22} className="text-cicopal-blue" />
+        Assinaturas
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {[
+          ["Operador", assinaturas.operador],
+          ["Qualidade", assinaturas.qualidade],
+          ["Supervisor", assinaturas.supervisor]
+        ].map(([label, assinatura]) => (
+          <div key={label} className="rounded-md border border-gray-200 p-3">
+            <p className="text-xs font-bold uppercase text-gray-500">{label}</p>
+            <p className="mt-1 min-h-6 font-semibold text-gray-800">{assinatura?.nome ?? "Pendente"}</p>
+            <p className="text-xs font-semibold text-gray-500">{assinatura?.dataHora ?? ""}</p>
+            <button
+              type="button"
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-cicopal-blue px-3 font-bold text-white"
+            >
+              Assinar
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PhotoHourlyGrid() {
+  const [photos, setPhotos] = useState({});
+
+  function updatePhoto(hour, file) {
+    if (!file) return;
+    setPhotos((current) => ({
+      ...current,
+      [hour]: file.name
+    }));
+  }
+
   return (
     <section className="rounded-md border border-gray-200 bg-white p-3">
       <div className="mb-4 flex items-center gap-3">
@@ -241,22 +283,36 @@ function PhotoHourlyGrid() {
           <article key={hour} className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-lg font-bold text-gray-950">{hour}</span>
-              <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">Pendente</span>
+              <span
+                className={`rounded-md px-2 py-1 text-xs font-bold ${
+                  photos[hour] ? "bg-green-100 text-cicopal-green" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {photos[hour] ? "Foto anexada" : "Pendente"}
+              </span>
             </div>
-            <button
-              type="button"
-              className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 font-bold text-gray-600"
-            >
+            <label className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 font-bold text-gray-600">
               <Camera size={24} />
               Tirar foto
-            </button>
-            <button
-              type="button"
-              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white font-bold text-gray-700"
-            >
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => updatePhoto(hour, event.target.files?.[0])}
+              />
+            </label>
+            <label className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-300 bg-white font-bold text-gray-700">
               <Upload size={20} />
               Anexar arquivo
-            </button>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => updatePhoto(hour, event.target.files?.[0])}
+              />
+            </label>
+            {photos[hour] ? <p className="mt-2 truncate text-xs font-semibold text-gray-500">{photos[hour]}</p> : null}
             <label className="mt-3 block">
               <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao</span>
               <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
@@ -319,6 +375,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           registro={registro}
           subregistro={subregistro}
         />
+        <AssinaturasRegistro registro={registro} />
       </>
     );
   }
@@ -328,6 +385,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         <ProdutoContexto registro={registro} />
         <LiberacaoProdutoTable />
+        <AssinaturasRegistro registro={registro} />
       </>
     );
   }
@@ -337,6 +395,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         <ProdutoContexto registro={registro} />
         <ProductEvaluationHourlyTable />
+        <AssinaturasRegistro registro={registro} />
       </>
     );
   }
@@ -345,6 +404,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return (
       <>
         <HourlyTable title="RG - Processo" columns={processoColumns} />
+        <AssinaturasRegistro registro={registro} />
       </>
     );
   }
@@ -353,6 +413,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return (
       <>
         <PhotoHourlyGrid />
+        <AssinaturasRegistro registro={registro} />
       </>
     );
   }
@@ -366,3 +427,4 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     </section>
   );
 }
+

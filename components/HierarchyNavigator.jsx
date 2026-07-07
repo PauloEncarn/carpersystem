@@ -75,9 +75,8 @@ function makeCalendarDays(monthDate) {
   return days;
 }
 
-function getBaseMonth(selection, linha) {
-  const dateId = selection.dataId || linha?.datas[0]?.id;
-  return dateId ? new Date(`${dateId}T00:00:00`) : new Date();
+function getBaseMonth() {
+  return new Date();
 }
 
 function CardButton({ selected, danger, title, meta, icon: Icon, onClick }) {
