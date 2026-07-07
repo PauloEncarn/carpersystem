@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Camera, Check, Clock, FileSignature, Plus, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
@@ -226,24 +226,169 @@ function ProductEvaluationHourlyTable() {
   );
 }
 
+function setupSignatureContext(canvas) {
+  const context = canvas.getContext("2d");
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = 3;
+  context.strokeStyle = "#111827";
+  return context;
+}
+
+function SignaturePadModal({ label, nome, onClose, onSave }) {
+  const canvasRef = useRef(null);
+  const lastPointRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const [hasInk, setHasInk] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(rect.width * ratio);
+    canvas.height = Math.floor(rect.height * ratio);
+
+    const context = setupSignatureContext(canvas);
+    context.scale(ratio, ratio);
+  }, []);
+
+  function getPoint(event) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function startDrawing(event) {
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    canvas.setPointerCapture?.(event.pointerId);
+    isDrawingRef.current = true;
+    lastPointRef.current = getPoint(event);
+  }
+
+  function draw(event) {
+    if (!isDrawingRef.current) return;
+
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+    const point = getPoint(event);
+    const lastPoint = lastPointRef.current ?? point;
+
+    context.beginPath();
+    context.moveTo(lastPoint.x, lastPoint.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+
+    lastPointRef.current = point;
+    setHasInk(true);
+  }
+
+  function stopDrawing(event) {
+    event.preventDefault();
+    isDrawingRef.current = false;
+    lastPointRef.current = null;
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.restore();
+    setHasInk(false);
+  }
+
+  function saveSignature() {
+    if (!hasInk) return;
+
+    onSave({
+      nome,
+      dataHora: new Date().toLocaleString("pt-BR"),
+      imagem: canvasRef.current.toDataURL("image/png")
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <section className="w-full max-w-3xl overflow-hidden rounded-md border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <div>
+            <h2 className="text-xl font-bold text-gray-950">Assinatura - {label}</h2>
+            <p className="text-sm font-semibold text-gray-500">{nome}</p>
+          </div>
+          <button
+            type="button"
+            className="inline-flex size-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700"
+            onClick={onClose}
+            aria-label="Fechar assinatura"
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <canvas
+            ref={canvasRef}
+            className="h-72 w-full touch-none rounded-md border-2 border-dashed border-gray-300 bg-white"
+            onPointerDown={startDrawing}
+            onPointerMove={draw}
+            onPointerUp={stopDrawing}
+            onPointerCancel={stopDrawing}
+            onPointerLeave={(event) => {
+              if (isDrawingRef.current) stopDrawing(event);
+            }}
+          />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              className="inline-flex min-h-12 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+              onClick={clearSignature}
+            >
+              <RotateCcw size={20} />
+              Limpar
+            </button>
+            <button
+              type="button"
+              className={`inline-flex min-h-12 items-center gap-2 rounded-md px-5 font-bold text-white ${
+                hasInk ? "bg-cicopal-blue" : "bg-gray-300"
+              }`}
+              onClick={saveSignature}
+              disabled={!hasInk}
+            >
+              <Check size={20} />
+              Salvar assinatura
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AssinaturasRegistro({ registro }) {
   const assinaturas = registro?.subregistros?.[0]?.assinaturas ?? {};
   const [signed, setSigned] = useState(assinaturas);
+  const [activeSigner, setActiveSigner] = useState(null);
 
-  function assinar(label) {
-    const names = {
-      Operador: registro?.operador ?? "Operador logado",
-      Qualidade: "Qualidade",
-      Supervisor: "Supervisor"
-    };
+  const names = {
+    Operador: registro?.operador ?? "Operador logado",
+    Qualidade: "Qualidade",
+    Supervisor: "Supervisor"
+  };
 
+  function salvarAssinatura(assinatura) {
     setSigned((current) => ({
       ...current,
-      [label.toLowerCase()]: {
-        nome: names[label],
-        dataHora: new Date().toLocaleString("pt-BR")
-      }
+      [activeSigner.toLowerCase()]: assinatura
     }));
+    setActiveSigner(null);
   }
 
   return (
@@ -265,18 +410,31 @@ function AssinaturasRegistro({ registro }) {
             <p className="text-xs font-bold uppercase text-gray-500">{label}</p>
             <p className="mt-1 min-h-6 font-semibold text-gray-800">{assinatura?.nome ?? "Pendente"}</p>
             <p className="text-xs font-semibold text-gray-500">{assinatura?.dataHora ?? ""}</p>
+            {assinatura?.imagem ? (
+              <div className="mt-2 flex h-20 items-center rounded-md border border-green-200 bg-white p-2">
+                <img src={assinatura.imagem} alt={`Assinatura ${label}`} className="h-full w-full object-contain" />
+              </div>
+            ) : null}
             <button
               type="button"
               className={`mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-md px-3 font-bold ${
                 assinatura ? "bg-cicopal-green text-white" : "bg-cicopal-blue text-white"
               }`}
-              onClick={() => assinar(label)}
+              onClick={() => setActiveSigner(label)}
             >
-              {assinatura ? "Assinado" : "Assinar"}
+              {assinatura ? "Assinar novamente" : "Assinar"}
             </button>
           </div>
         ))}
       </div>
+      {activeSigner ? (
+        <SignaturePadModal
+          label={activeSigner}
+          nome={names[activeSigner]}
+          onClose={() => setActiveSigner(null)}
+          onSave={salvarAssinatura}
+        />
+      ) : null}
     </section>
   );
 }
