@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: #f8f9fa;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: #f8f9fa;
+  color: #333333;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  min-height: 48px;
+}
+
+.quality-card {
+  border-top: 5px solid #1e22a8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+}
+
+.quality-card-danger {
+  border-top-color: #e30613;
+}
+
+.audit-card {
+  border-top: 5px solid #1e22a8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.audit-card-danger {
+  border-top-color: #e30613;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.audit-table thead {
+  background: #f8f9fa;
+  color: #495057;
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.audit-table th,
+.audit-table td {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.audit-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 .65rem;
+  font-size: .75rem;
+  font-weight: 700;
+}

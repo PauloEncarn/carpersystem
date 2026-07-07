@@ -1,0 +1,878 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  Factory,
+  FileText,
+  X
+} from "lucide-react";
+import { checklistGroups, generateLoteId } from "@/lib/checklist";
+import { formatDateLabel, rgCatalog } from "@/lib/rastreabilidade";
+
+const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+
+const steps = [
+  { id: 1, label: "Linha" },
+  { id: 2, label: "Data" },
+  { id: 3, label: "RG" },
+  { id: 4, label: "Processo" },
+  { id: 5, label: "Registros" },
+  { id: 6, label: "Preenchimento" }
+];
+
+const processCatalog = [
+  { id: "higienizacao", nome: "Higienizacao", frequencia: "Por registro" },
+  { id: "produto_liberacao", nome: "Liberacao do Produto", frequencia: "Por horario liberado" },
+  { id: "produto_avaliacao", nome: "Avaliacao do Produto", frequencia: "Hora em hora" },
+  { id: "processo", nome: "RG - Processo", frequencia: "Hora em hora" },
+  { id: "fotografico", nome: "Registro Fotografico", frequencia: "Hora em hora" }
+];
+
+function countRegistros(linha) {
+  return linha.datas.reduce((total, data) => {
+    return (
+      total +
+      data.documentos.reduce((docTotal, documento) => {
+        return docTotal + documento.lotes.reduce((loteTotal, lote) => loteTotal + lote.registros.length, 0);
+      }, 0)
+    );
+  }, 0);
+}
+
+function dateHasNc(data) {
+  return data.documentos.some((documento) =>
+    documento.lotes.some((lote) =>
+      lote.registros.some((registro) =>
+        registro.subregistros?.some((subregistro) => (subregistro.ncs ?? []).length > 0)
+      )
+    )
+  );
+}
+
+function makeCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const days = [];
+
+  for (let index = 0; index < firstDay.getDay(); index += 1) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const dateId = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    days.push({ day, dateId });
+  }
+
+  return days;
+}
+
+function getBaseMonth(selection, linha) {
+  const dateId = selection.dataId || linha?.datas[0]?.id;
+  return dateId ? new Date(`${dateId}T00:00:00`) : new Date();
+}
+
+function CardButton({ selected, danger, title, meta, icon: Icon, onClick }) {
+  const tone = selected
+    ? danger
+      ? "border-cicopal-red bg-cicopal-red text-white"
+      : "border-cicopal-blue bg-cicopal-blue text-white"
+    : danger
+      ? "border-red-200 bg-red-50 text-cicopal-red"
+      : "border-gray-200 bg-white text-gray-900";
+
+  return (
+    <button
+      type="button"
+      className={`flex min-h-24 w-full items-center gap-3 rounded-md border border-t-[5px] p-4 text-left shadow-soft ${tone}`}
+      onClick={onClick}
+    >
+      {Icon ? <Icon size={26} className="shrink-0" /> : null}
+      <span className="min-w-0">
+        <span className="block truncate text-xl font-bold">{title}</span>
+        {meta ? <span className="block truncate text-sm font-semibold opacity-80">{meta}</span> : null}
+      </span>
+    </button>
+  );
+}
+
+function Stepper({ currentStep }) {
+  return (
+    <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+      {steps.map((step) => {
+        const active = step.id === currentStep;
+        const done = step.id < currentStep;
+        const tone = active
+          ? "border-cicopal-blue bg-cicopal-blue text-white"
+          : done
+            ? "border-cicopal-green bg-white text-cicopal-green"
+            : "border-gray-200 bg-white text-gray-500";
+
+        return (
+          <div key={step.id} className={`rounded-md border border-t-[5px] px-3 py-3 text-center text-sm font-bold shadow-soft ${tone}`}>
+            {step.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StageHeader({ title }) {
+  return (
+    <div className="mb-4 flex min-h-12 items-center border-b border-gray-200 pb-3">
+      <h2 className="text-2xl font-bold text-cicopal-blue">{title}</h2>
+    </div>
+  );
+}
+
+function getRgPrefix(documentoId = "") {
+  const number = documentoId.match(/\d+/g)?.at(-1) ?? "000";
+  return `RG${number.padStart(3, "0")}`;
+}
+
+function ChecklistMirrorModal({ registro, processoId, onClose, onOpenRegistro }) {
+  if (!registro) return null;
+
+  const processo = registro.subregistros?.find((subregistro) => subregistro.id === processoId) ?? registro.subregistros?.[0];
+  const ncs = processo?.ncs ?? [];
+  const avaliacoes = processo?.avaliacoes ?? [];
+  const apontamentos = processo?.apontamentos ?? [];
+  const isHigienizacao = processo?.id === "higienizacao";
+  const isFotografico = processo?.id === "fotografico";
+  const rows = isHigienizacao
+    ? checklistGroups.flatMap((group) =>
+        group.items.map((item) => {
+          const nc = ncs.find((entry) => entry.item === item);
+          const avaliacao = avaliacoes.find((entry) => entry.item === item);
+          return {
+            group: group.title,
+            item,
+            av1: avaliacao?.av1 ?? (nc ? "NC" : "-"),
+            av2: avaliacao?.av2 || "-",
+            nc
+          };
+        })
+      )
+    : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
+      <section className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-md border-t-[5px] border-cicopal-blue bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
+          <h2 className="text-2xl font-bold text-cicopal-blue">Detalhamento do Registro - RG.005</h2>
+          <button
+            type="button"
+            className="inline-flex min-h-10 w-10 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+            onClick={onClose}
+            aria-label="Fechar"
+          >
+            <X size={26} />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(88vh-80px)] overflow-y-auto bg-gray-50 p-4">
+          <div className="mb-4 grid gap-3 rounded-md bg-white p-3 shadow-soft md:grid-cols-5">
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">Processo</p>
+              <p className="text-base font-bold text-gray-950">{processo?.nome ?? "Registro"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">Motivo</p>
+              <p className="text-base font-bold text-gray-950">{registro.motivo ?? registro.tipo}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">Data/Hora</p>
+              <p className="text-base font-bold text-gray-950">{registro.dataRegistro}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">Produto</p>
+              <p className="text-base font-bold text-gray-950">{registro.produto ?? "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">{isFotografico ? "Contexto" : "Matriz"}</p>
+              <p className="text-base font-bold text-gray-950">{registro.matriz}</p>
+            </div>
+          </div>
+
+          {isHigienizacao ? (
+            <div className="overflow-x-auto rounded-md bg-white p-2">
+              <table className="audit-table min-w-[760px] text-left">
+                <thead className="bg-gray-900 text-white">
+                  <tr>
+                    <th className="px-3 py-2">Equipamento / Area</th>
+                    <th className="w-28 px-3 py-2 text-center">1 AV</th>
+                    <th className="w-28 px-3 py-2 text-center">2 AV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={`${row.group}-${row.item}`} className={row.nc ? "bg-red-100" : "bg-white"}>
+                      <td className="px-3 py-2 font-medium text-gray-950">{row.item}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span
+                          className={`audit-badge justify-center ${
+                            row.av1 === "NC"
+                              ? "bg-cicopal-red text-white"
+                              : row.av1 === "C"
+                                ? "bg-cicopal-green text-white"
+                                : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          {row.av1}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {row.av2 === "-" ? (
+                          <span className="font-bold text-gray-500">-</span>
+                        ) : (
+                          <span className="audit-badge justify-center bg-cicopal-green text-white">{row.av2}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md bg-white p-2">
+              <table className="audit-table min-w-[760px] text-left">
+                <thead className="bg-gray-900 text-white">
+                  <tr>
+                    <th className="w-28 px-3 py-2">Horario</th>
+                    <th className="px-3 py-2">{isFotografico ? "Foto / Evidencia" : "Item / Controle"}</th>
+                    <th className="w-44 px-3 py-2">Operador</th>
+                    <th className="w-32 px-3 py-2 text-center">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apontamentos.length ? (
+                    apontamentos.map((apontamento, index) => {
+                      const nc = ncs.find((entry) => entry.horario === apontamento.horario || entry.item === apontamento.item);
+                      const resultado = apontamento.resultado ?? (apontamento.fotoPath ? "Anexado" : "Pendente");
+
+                      return (
+                        <tr key={`${apontamento.horario ?? apontamento.item}-${index}`} className={nc ? "bg-red-100" : "bg-white"}>
+                          <td className="px-3 py-2 font-bold text-gray-950">{apontamento.horario ?? "-"}</td>
+                          <td className="px-3 py-2 font-medium text-gray-950">
+                            {isFotografico ? apontamento.fotoPath ?? "Foto pendente" : apontamento.item ?? registro.produto ?? registro.matriz}
+                          </td>
+                          <td className="px-3 py-2">{apontamento.operador ?? registro.operador ?? "-"}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span
+                              className={`audit-badge justify-center ${
+                                resultado === "NC"
+                                  ? "bg-cicopal-red text-white"
+                                  : resultado === "Pendente"
+                                    ? "bg-gray-200 text-gray-700"
+                                    : "bg-cicopal-green text-white"
+                              }`}
+                            >
+                              {resultado}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center font-bold text-gray-500">
+                        Nenhum apontamento salvo para este registro.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 font-bold text-white"
+              onClick={onOpenRegistro}
+            >
+              Abrir preenchimento
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NcDetailModal({ nc, onClose }) {
+  if (!nc) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
+      <section className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-md border-t-[5px] border-cicopal-red bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
+          <h2 className="text-2xl font-bold text-cicopal-red">{nc.id} - {nc.item}</h2>
+          <button
+            type="button"
+            className="inline-flex min-h-10 w-10 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+            onClick={onClose}
+            aria-label="Fechar"
+          >
+            <X size={26} />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(88vh-80px)] overflow-y-auto bg-gray-50 p-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              ["Produto", nc.produto],
+              ["Horario", nc.horario],
+              ["Quantidade", nc.quantidade],
+              ["Registro", nc.registroId],
+              ["Etapa", nc.etapa],
+              ["Aberta por", nc.operador]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md bg-white p-3 shadow-soft">
+                <p className="text-xs font-bold uppercase text-gray-500">{label}</p>
+                <p className="font-bold text-gray-950">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              ["Descricao", nc.descricao],
+              ["Causa raiz", nc.causa],
+              ["Acao corretiva", nc.acao],
+              ["Disposicao imediata", nc.disposicaoImediata],
+              ["Disposicao final", nc.disposicaoFinal],
+              ["Assinatura supervisor", nc.assinaturaSupervisorAt ? "Assinada" : "Pendente"]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md border border-gray-200 bg-white p-3">
+                <p className="text-xs font-bold uppercase text-gray-500">{label}</p>
+                <p className="mt-1 font-semibold text-gray-800">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-white p-5 text-center">
+            <p className="font-bold text-gray-700">Fotos / anexos</p>
+            <p className="text-sm font-semibold text-gray-500">{nc.fotoPath ?? "Nenhuma foto anexada"}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function getRegistroProcessId(registroId = "") {
+  return registroId.split("-").at(-1) || registroId;
+}
+
+function RegistroCard({ registro, danger, onPreview }) {
+  const processId = getRegistroProcessId(registro.id);
+
+  return (
+    <button
+      type="button"
+      className={`w-full rounded-md border-0 border-t-[5px] bg-white text-left shadow-soft ${
+        danger ? "border-cicopal-red" : "border-cicopal-blue"
+      }`}
+      onClick={onPreview}
+    >
+      <div className="grid min-h-20 items-center gap-3 px-4 py-3 md:grid-cols-[64px_1.3fr_120px_1.2fr_130px]">
+        <div className="text-center">
+          <span className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-bold text-white">
+            {processId}
+          </span>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-gray-950">{registro.tipo}</p>
+          <p className="text-xs font-semibold text-gray-500">
+            {registro.motivo ?? "Motivo nao informado"} - {registro.produto ?? registro.operador ?? "Operador"}
+          </p>
+        </div>
+        <div className="text-center">
+          <span className="audit-badge bg-cicopal-blue text-white">Turno {registro.turno}</span>
+        </div>
+        <div className="font-bold text-gray-950">{registro.dataRegistro}</div>
+        <div className="flex items-center justify-end gap-1 text-sm font-bold text-cicopal-blue">
+          VER TUDO <ChevronRight size={18} />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function collectNcsFromLote(lote) {
+  if (!lote) return [];
+
+  return lote.registros.flatMap((registro) =>
+    (registro.subregistros ?? []).flatMap((subregistro) =>
+      (subregistro.ncs ?? []).map((nc) => ({
+        ...nc,
+        registroId: registro.id,
+        turno: registro.turno,
+        etapa: subregistro.nome,
+        subregistroId: subregistro.id
+      }))
+    )
+  );
+}
+
+function CentralNc({ ncs, onDetail }) {
+  if (!ncs.length) {
+    return (
+      <div className="min-h-[430px] rounded-md border border-t-[5px] border-t-cicopal-red bg-white p-4">
+        <StageHeader title="Central de NC" />
+        <div className="rounded-md bg-gray-50 p-8 text-center">
+          <CheckCircle2 size={40} className="mx-auto text-cicopal-green" />
+          <p className="mt-3 text-xl font-bold text-gray-700">Nenhuma NC para o contexto selecionado.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[430px] overflow-hidden rounded-md border border-t-[5px] border-t-cicopal-red bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+        <h2 className="text-2xl font-bold text-cicopal-red">Central de NC</h2>
+        <span className="audit-badge bg-cicopal-red text-white">{ncs.length} NC</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="audit-table min-w-[980px] text-left">
+          <thead>
+            <tr>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Etapa</th>
+              <th className="px-4 py-3">Item</th>
+              <th className="px-4 py-3">Descricao</th>
+              <th className="px-4 py-3">Aberta por</th>
+              <th className="px-4 py-3">Data/Hora</th>
+              <th className="px-4 py-3">Supervisor</th>
+              <th className="px-4 py-3">Acao</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ncs.map((nc) => (
+              <tr key={nc.id} className="bg-white">
+                <td className="px-4 py-3">
+                  <span className="audit-badge bg-red-100 text-cicopal-red">{nc.status}</span>
+                </td>
+                <td className="px-4 py-3 font-semibold">{nc.etapa}</td>
+                <td className="px-4 py-3 font-bold text-gray-950">{nc.item}</td>
+                <td className="px-4 py-3 text-gray-700">{nc.descricao}</td>
+                <td className="px-4 py-3">{nc.operador}</td>
+                <td className="px-4 py-3">{nc.horario}</td>
+                <td className="px-4 py-3">
+                  <span className={`audit-badge ${nc.assinaturaSupervisorAt ? "bg-cicopal-green text-white" : "bg-gray-200 text-gray-700"}`}>
+                    {nc.assinaturaSupervisorAt ? "Assinada" : "Pendente"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center rounded-md bg-cicopal-red px-3 text-sm font-bold text-white"
+                    onClick={() => onDetail(nc)}
+                  >
+                    DETALHAR
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function HierarchyNavigator({ tree, selection, selected, onSelectionChange, currentStep, onStepChange, children }) {
+  const [monthDate, setMonthDate] = useState(() => getBaseMonth(selection, selected.linha));
+  const [activeTab, setActiveTab] = useState("liberacoes");
+  const [previewRegistro, setPreviewRegistro] = useState(null);
+  const [selectedNc, setSelectedNc] = useState(null);
+
+  const datesById = useMemo(() => {
+    return new Map(selected.linha?.datas.map((data) => [data.id, data]) ?? []);
+  }, [selected.linha]);
+
+  const calendarDays = useMemo(() => makeCalendarDays(monthDate), [monthDate]);
+  const monthTitle = monthDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const selectedDateLabel = formatDateLabel(selection.dataId);
+  const generatedLoteId = selected.linha && selection.dataId ? generateLoteId(selected.linha.id, selection.dataId) : "";
+  const documentosDoDia = rgCatalog.map((documento) => {
+    const preenchido = selected.data?.documentos.find((item) => item.id === documento.id);
+    const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
+    return { ...documento, loteId };
+  });
+  const registrosDoProcesso =
+    selected.lote?.registros.filter((registro) => registro.processoId === selection.subregistroId) ?? [];
+  const ncCount = selected.lote?.registros.reduce((total, registro) => {
+    return total + (registro.subregistros ?? []).reduce((subtotal, subregistro) => subtotal + (subregistro.ncs?.length ?? 0), 0);
+  }, 0) ?? 0;
+  const ncsDoLote = useMemo(() => collectNcsFromLote(selected.lote), [selected.lote]);
+
+  const canAdvance =
+    (currentStep === 1 && Boolean(selected.linha)) ||
+    (currentStep === 2 && Boolean(selection.dataId)) ||
+    (currentStep === 3 && Boolean(selected.documento)) ||
+    (currentStep === 4 && Boolean(selected.subregistro));
+
+  function goBack() {
+    onStepChange(Math.max(1, currentStep - 1));
+  }
+
+  function goForward() {
+    if (canAdvance) {
+      onStepChange(Math.min(6, currentStep + 1));
+    }
+  }
+
+  function selectLinha(linha) {
+    const baseMonth = getBaseMonth({ dataId: linha.datas[0]?.id }, linha);
+    setMonthDate(baseMonth);
+    onSelectionChange({
+      linhaId: linha.id,
+      dataId: "",
+      documentoId: "",
+      loteId: "",
+      registroId: "",
+      subregistroId: ""
+    });
+  }
+
+  function selectDate(dateId) {
+    onSelectionChange({
+      linhaId: selected.linha?.id ?? "",
+      dataId: dateId,
+      documentoId: "",
+      loteId: "",
+      registroId: "",
+      subregistroId: ""
+    });
+  }
+
+  function selectDocumento(documento) {
+    const documentoPreenchido = selected.data?.documentos.find((item) => item.id === documento.id);
+    const lote = documentoPreenchido?.lotes?.[0];
+
+    onSelectionChange({
+      ...selection,
+      documentoId: documento.id,
+      loteId: lote?.id ?? generatedLoteId,
+      registroId: "",
+      subregistroId: ""
+    });
+  }
+
+  function selectRegistro(registro) {
+    const hasCurrentProcess = registro.subregistros?.some((subregistro) => subregistro.id === selection.subregistroId);
+
+    onSelectionChange({
+      ...selection,
+      registroId: registro.id,
+      subregistroId: hasCurrentProcess ? selection.subregistroId : registro.subregistros?.[0]?.id ?? ""
+    });
+  }
+
+  function selectProcesso(processoId) {
+    onSelectionChange({
+      ...selection,
+      subregistroId: processoId,
+      registroId: ""
+    });
+  }
+
+  function novoRegistroProcesso() {
+    const prefixes = {
+      higienizacao: "HG",
+      produto_liberacao: "LIBP",
+      produto_avaliacao: "AVP",
+      processo: "RGP",
+      fotografico: "REGF"
+    };
+    const prefix = prefixes[selection.subregistroId] ?? "REG";
+    const nextNumber = String(registrosDoProcesso.length + 1).padStart(3, "0");
+    const rgPrefix = getRgPrefix(selection.documentoId);
+
+    onSelectionChange({
+      ...selection,
+      registroId: `${rgPrefix}-${selection.loteId}-${prefix}${nextNumber}`
+    });
+    onStepChange(6);
+  }
+
+  function abrirRegistro(registro) {
+    selectRegistro(registro);
+    onStepChange(6);
+  }
+
+  function abrirPreenchimentoDoPreview() {
+    if (previewRegistro) {
+      selectRegistro(previewRegistro);
+      setPreviewRegistro(null);
+      onStepChange(6);
+    }
+  }
+
+  return (
+    <section className="audit-card p-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1">
+        <button
+          type="button"
+          className={`rounded-md px-4 py-3 text-base font-bold ${activeTab === "liberacoes" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"}`}
+          onClick={() => setActiveTab("liberacoes")}
+        >
+          LIBERACOES
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-4 py-3 text-base font-bold ${activeTab === "nc" ? "bg-cicopal-red text-white" : "bg-white text-cicopal-red"}`}
+          onClick={() => setActiveTab("nc")}
+        >
+          CENTRAL DE NC {ncCount ? ` ${String(ncCount).padStart(2, "0")}` : ""}
+        </button>
+      </div>
+
+      {activeTab === "nc" ? (
+        <CentralNc ncs={ncsDoLote} onDetail={setSelectedNc} />
+      ) : (
+        <>
+      <Stepper currentStep={currentStep} />
+
+      <div className="mt-4 min-h-[430px]">
+        {currentStep === 1 ? (
+          <>
+            <StageHeader
+              title="Linhas Disponiveis"
+            />
+            <div className="grid gap-3 md:grid-cols-3">
+              {tree.map((linha) => (
+                <CardButton
+                  key={linha.id}
+                  icon={Factory}
+                  selected={linha.id === selected.linha?.id}
+                  title={linha.nome}
+                  meta={`${linha.datas.length} dias com preenchimento - ${countRegistros(linha)} registros`}
+                  onClick={() => selectLinha(linha)}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {currentStep === 2 ? (
+          <>
+            <StageHeader
+              title={`Calendario da Linha ${selected.linha?.nome}`}
+            />
+
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                className="min-h-14 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+                onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}
+              >
+                Mes anterior
+              </button>
+              <div className="flex items-center gap-2 text-lg font-bold capitalize text-gray-950">
+                <CalendarDays size={22} className="text-cicopal-blue" />
+                {monthTitle}
+              </div>
+              <button
+                type="button"
+                className="min-h-14 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+                onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}
+              >
+                Proximo mes
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {weekDays.map((day) => (
+                <div key={day} className="rounded-md bg-gray-100 py-2 text-center text-xs font-bold text-gray-600">
+                  {day}
+                </div>
+              ))}
+              {calendarDays.map((day, index) => {
+                if (!day) return <div key={`empty-${index}`} className="min-h-16" />;
+
+                const filledDate = datesById.get(day.dateId);
+                const hasNc = filledDate ? dateHasNc(filledDate) : false;
+                const selectedDay = selection.dataId === day.dateId;
+                const tone = selectedDay
+                  ? "border-cicopal-blue bg-cicopal-blue text-white"
+                  : hasNc
+                    ? "border-cicopal-red bg-red-50 text-cicopal-red"
+                    : filledDate
+                      ? "border-cicopal-green bg-green-50 text-cicopal-green"
+                      : "border-gray-200 bg-white text-gray-500";
+
+                return (
+                  <button
+                    key={day.dateId}
+                    type="button"
+                    className={`flex min-h-20 flex-col items-center justify-center rounded-md border p-2 font-bold ${tone}`}
+                    onClick={() => selectDate(day.dateId)}
+                  >
+                    <span className="text-lg">{day.day}</span>
+                    {filledDate ? (
+                      <span className="mt-1 flex items-center gap-1 text-[11px] font-bold">
+                        {hasNc ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
+                        {hasNc ? "NC" : "OK"}
+                      </span>
+                    ) : (
+                      <span className="mt-1 text-[11px] font-bold">Vazio</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {currentStep === 3 ? (
+          <>
+            <StageHeader
+              title={`RGs do dia ${selectedDateLabel}`}
+            />
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {documentosDoDia.map((documento) => (
+                <CardButton
+                  key={documento.id}
+                  icon={FileText}
+                  selected={documento.id === selected.documento?.id}
+                  title={documento.nome}
+                  meta={`Lote automatico: ${documento.loteId}`}
+                  onClick={() => selectDocumento(documento)}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {currentStep === 4 ? (
+          <>
+            <StageHeader
+              title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
+            />
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {processCatalog.map((processo) => {
+                const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
+                return (
+                <CardButton
+                  key={processo.id}
+                  icon={ClipboardList}
+                  selected={processo.id === selected.subregistro?.id}
+                  danger={registros.some((registro) =>
+                    registro.subregistros?.some((subregistro) => subregistro.id === processo.id && (subregistro.ncs ?? []).length > 0)
+                  )}
+                  title={processo.nome}
+                  meta={`${processo.frequencia} - ${registros.length} registro(s)`}
+                  onClick={() => selectProcesso(processo.id)}
+                />
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {currentStep === 5 ? (
+          <>
+            <StageHeader
+              title={`Registros de ${selected.subregistro?.nome ?? "processo"}`}
+            />
+            {registrosDoProcesso.length ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xl font-bold text-gray-700">
+                    <ClipboardList size={22} />
+                    <span>REGISTROS</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 text-base font-bold text-white shadow-soft"
+                    onClick={novoRegistroProcesso}
+                  >
+                    NOVO REGISTRO
+                  </button>
+                </div>
+                {registrosDoProcesso.map((registro) => (
+                  <RegistroCard
+                    key={registro.id}
+                    registro={registro}
+                    danger={registro.subregistros?.some(
+                      (subregistro) => subregistro.id === selection.subregistroId && (subregistro.ncs ?? []).length > 0
+                    )}
+                    onPreview={() => abrirRegistro(registro)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-[1fr_280px]">
+                <div className="rounded-md border border-dashed border-gray-300 bg-white p-5">
+                  <p className="text-xl font-bold text-gray-950">Nenhum registro criado</p>
+                  <p className="mt-2 text-base font-semibold text-gray-600">Crie um novo registro para este processo.</p>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex min-h-24 items-center justify-center rounded-md bg-cicopal-blue px-5 text-xl font-bold text-white shadow-soft"
+                  onClick={novoRegistroProcesso}
+                >
+                  NOVO REGISTRO
+                </button>
+              </div>
+            )}
+          </>
+        ) : null}
+
+        {currentStep === 6 ? (
+          <>
+            <StageHeader
+              title={selected.subregistro?.nome}
+            />
+            {children}
+          </>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
+        <button
+          type="button"
+          className="inline-flex min-h-16 min-w-40 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-lg font-bold text-gray-700 disabled:opacity-40"
+          onClick={goBack}
+          disabled={currentStep === 1}
+        >
+          <ArrowLeft size={20} /> Voltar
+        </button>
+        {currentStep === 5 ? (
+          <span className="text-sm font-bold text-gray-500">Abra um card ou crie um novo registro.</span>
+        ) : (
+          <button
+            type="button"
+            className="inline-flex min-h-16 min-w-40 items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 text-lg font-bold text-white disabled:bg-gray-300 disabled:text-gray-600"
+            onClick={goForward}
+            disabled={currentStep === 6 || !canAdvance}
+          >
+            Avancar <ArrowRight size={20} />
+          </button>
+        )}
+      </div>
+      </>
+      )}
+      <ChecklistMirrorModal
+        registro={previewRegistro}
+        processoId={previewRegistro?.processoId ?? selection.subregistroId}
+        onClose={() => setPreviewRegistro(null)}
+        onOpenRegistro={abrirPreenchimentoDoPreview}
+      />
+      <NcDetailModal nc={selectedNc} onClose={() => setSelectedNc(null)} />
+    </section>
+  );
+}
