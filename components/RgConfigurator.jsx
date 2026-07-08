@@ -223,6 +223,32 @@ function getProcessPrefix(type) {
   return processTypes.find((item) => item.id === type)?.prefix ?? "REG";
 }
 
+function sectionTone(section) {
+  const normalized = section.toLowerCase();
+
+  if (normalized.includes("cabecalho")) return "border-l-cicopal-blue bg-blue-50/60";
+  if (normalized.includes("sem contato")) return "border-l-gray-500 bg-gray-50";
+  if (normalized.includes("zona")) return "border-l-cicopal-green bg-green-50/60";
+  if (normalized.includes("nc")) return "border-l-cicopal-red bg-red-50/60";
+  if (normalized.includes("assinatura")) return "border-l-cicopal-blue bg-blue-50/40";
+  if (normalized.includes("hora")) return "border-l-cicopal-green bg-green-50/40";
+
+  return "border-l-gray-400 bg-gray-50";
+}
+
+function sectionKind(section) {
+  const normalized = section.toLowerCase();
+
+  if (normalized.includes("cabecalho")) return "Dados iniciais";
+  if (normalized.includes("sem contato")) return "Area sem contato";
+  if (normalized.includes("zona")) return "Area critica";
+  if (normalized.includes("nc")) return "Nao conformidade";
+  if (normalized.includes("assinatura")) return "Validacao";
+  if (normalized.includes("hora")) return "Preenchimento periodico";
+
+  return "Bloco do formulario";
+}
+
 function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
   return (
     <button
@@ -250,6 +276,30 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
         {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
       </div>
     </button>
+  );
+}
+
+function SectionCard({ section, fields, children }) {
+  const types = [...new Set(fields.map((field) => fieldTypeLabel(field.type)))];
+
+  return (
+    <section className={`rounded-md border border-l-[6px] border-gray-200 p-3 ${sectionTone(section)}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-md bg-white/80 p-3">
+        <div>
+          <p className="text-xs font-bold uppercase text-gray-500">{sectionKind(section)}</p>
+          <h4 className="text-xl font-bold text-gray-950">{section}</h4>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <span className="audit-badge bg-white text-gray-700">{fields.length} campos</span>
+          {types.slice(0, 4).map((type) => (
+            <span key={type} className="audit-badge bg-gray-900 text-white">
+              {type}
+            </span>
+          ))}
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -537,11 +587,7 @@ export function RgConfigurator({ lines }) {
           {selectedProcess ? (
             <div className="space-y-4">
               {Object.entries(fieldsBySection).map(([section, fields]) => (
-                <section key={section} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h4 className="font-bold text-gray-950">{section}</h4>
-                    <span className="audit-badge bg-white text-gray-600">{fields.length} campos</span>
-                  </div>
+                <SectionCard key={section} section={section} fields={fields}>
                   <div className="grid gap-3 md:grid-cols-12">
                     {fields.map((field) => (
                       <FieldPreview
@@ -561,7 +607,7 @@ export function RgConfigurator({ lines }) {
                       />
                     ))}
                   </div>
-                </section>
+                </SectionCard>
               ))}
             </div>
           ) : (
