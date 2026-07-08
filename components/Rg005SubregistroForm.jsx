@@ -26,6 +26,48 @@ const avaliacaoProdutoColumns = [
 ];
 const processoColumns = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
 
+const clextralParameterGroups = [
+  {
+    title: "Extrusora",
+    columns: [
+      { label: "Dosagem farinha", unit: "Kg/h" },
+      { label: "Dosagem agua", unit: "L/h" },
+      { label: "Rotacao rosca", unit: "rpm" },
+      { label: "Torque", unit: "%" },
+      { label: "Amps - BA", unit: "A" },
+      { label: "Fieira", unit: "BAR" },
+      { label: "Bomba de oleo", unit: "Hz" },
+      { label: "Refrigeracao", unit: "deg C" }
+    ]
+  },
+  {
+    title: "Zonas e forno",
+    columns: [
+      { label: "Zona 1", unit: "deg C" },
+      { label: "Zona 2", unit: "deg C" },
+      { label: "Zona 3", unit: "deg C" },
+      { label: "Zona 4", unit: "deg C" },
+      { label: "Temp. fieira", unit: "deg C" },
+      { label: "Temp. zona 1 forno", unit: "deg C" },
+      { label: "Temp. zona 2 forno", unit: "deg C" }
+    ]
+  },
+  {
+    title: "Produto e dimensional",
+    columns: [
+      { label: "Rotacao cortador", unit: "rpm" },
+      { label: "Tempo residencia", unit: "min" },
+      { label: "Densidade", unit: "g/L" },
+      { label: "Umidade", unit: "%" },
+      { label: "SME", unit: "KW/Kg.hr" },
+      { label: "Comp. / Diametro", unit: "mm" },
+      { label: "Larg. Sup. / Espes.", unit: "mm" },
+      { label: "Larg. Inferior", unit: "mm" },
+      { label: "Altura", unit: "mm" }
+    ]
+  }
+];
+
 function Field({ label, defaultValue = "", placeholder = "", type = "text" }) {
   return (
     <label className="block">
@@ -221,6 +263,133 @@ function ProductEvaluationHourlyTable() {
             ))}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+function NumericUnitInput({ unit }) {
+  return (
+    <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+      <input type="number" step="0.01" className="min-h-12 w-full min-w-24 px-3 font-semibold outline-none" />
+      <span className="flex min-h-12 items-center bg-gray-100 px-3 text-xs font-bold text-gray-600">{unit}</span>
+    </div>
+  );
+}
+
+function ClextralContexto({ registro }) {
+  return (
+    <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
+      <div className="mb-3 grid gap-3 md:grid-cols-4">
+        <Field label="Data" type="date" />
+        <Field label="Operador TA" defaultValue={registro?.operador ?? ""} />
+        <Field label="Operador TB" />
+        <Field label="Operador TC" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <SelectField label="Marca" defaultValue="MIC" options={["MIC", "MIK", "ANE"]} />
+        <SelectField label="Formato" defaultValue="CX" options={["CX", "ZZ", "ANE", "CON"]} />
+        <SelectField label="Sabor" defaultValue="QJ" options={["QJ", "RQ", "CB", "PZ", "PR", "CM", "GL", "CR"]} />
+      </div>
+      <p className="mt-3 text-xs font-semibold text-gray-500">
+        Legenda do PDF: Marca MIC/Mik/Anelitos, Formato CX/ZZ/ANE/CON e sabores QJ/RQ/CB/PZ/PR/CM/GL/CR.
+      </p>
+    </section>
+  );
+}
+
+function ClextralParameterTable() {
+  return (
+    <div className="space-y-4">
+      {clextralParameterGroups.map((group) => (
+        <section key={group.title} className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <div className="flex items-center gap-3 border-b border-gray-200 p-3">
+            <Clock size={24} className="text-cicopal-blue" />
+            <div>
+              <h2 className="text-xl font-bold text-gray-950">{group.title}</h2>
+              <p className="text-sm font-semibold text-gray-600">Parametros por horario</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="audit-table min-w-[1180px] text-left">
+              <thead>
+                <tr>
+                  <th className="w-24 px-3 py-3">Hora</th>
+                  {group.columns.map((column) => (
+                    <th key={column.label} className="px-3 py-3">
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {hours.map((hour) => (
+                  <tr key={`${group.title}-${hour}`} className="bg-white">
+                    <td className="px-3 py-3 text-base font-bold text-gray-950">{hour}</td>
+                    {group.columns.map((column) => (
+                      <td key={`${group.title}-${hour}-${column.label}`} className="px-3 py-3">
+                        <NumericUnitInput unit={column.unit} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ClextralOccurrencesTable() {
+  const [rows, setRows] = useState([{ id: 1 }]);
+
+  return (
+    <section className="overflow-hidden rounded-md border border-red-100 bg-white">
+      <div className="flex items-center gap-3 border-b border-red-100 bg-red-50 p-3">
+        <X size={24} className="text-cicopal-red" />
+        <div>
+          <h2 className="text-xl font-bold text-gray-950">Ocorrencias / Nao conformidades</h2>
+          <p className="text-sm font-semibold text-gray-600">Horario, causa, acao e responsavel</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="audit-table min-w-[980px] text-left">
+          <thead>
+            <tr>
+              <th className="w-28 px-3 py-3">Horario</th>
+              <th className="px-3 py-3">Nao conformidade</th>
+              <th className="px-3 py-3">Causa</th>
+              <th className="px-3 py-3">Acao</th>
+              <th className="px-3 py-3">Responsavel</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} className="bg-white">
+                <td className="px-3 py-3">
+                  <input type="time" className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold" />
+                </td>
+                {["Nao conformidade", "Causa", "Acao", "Responsavel"].map((column) => (
+                  <td key={column} className="px-3 py-3">
+                    <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-gray-200 p-3">
+        <button
+          type="button"
+          className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-red px-4 font-bold text-white"
+          onClick={() => setRows((current) => [...current, { id: current.length + 1 }])}
+        >
+          <Plus size={18} />
+          Adicionar ocorrencia
+        </button>
       </div>
     </section>
   );
@@ -618,6 +787,17 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
         <PhotoHourlyGrid />
         <AssinaturasRegistro registro={registro} />
       </>
+    );
+  }
+
+  if (subregistro.id === "extrusora_clextral") {
+    return (
+      <div className="space-y-4">
+        <ClextralContexto registro={registro} />
+        <ClextralParameterTable />
+        <ClextralOccurrencesTable />
+        <AssinaturasRegistro registro={registro} />
+      </div>
     );
   }
 

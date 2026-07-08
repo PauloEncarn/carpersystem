@@ -70,7 +70,10 @@ const defaultTags = [
 const initialValueLists = [
   { id: "gramatura_salgadinho", label: "gramatura_salgadinho", values: ["35g", "45g", "90g", "140g"] },
   { id: "sabor_pururuca", label: "sabor_pururuca", values: ["Original", "Bacon", "Cebola", "Churrasco"] },
-  { id: "disposicao_imediata", label: "disposicao_imediata", values: ["Bloqueado", "Descarte"] }
+  { id: "disposicao_imediata", label: "disposicao_imediata", values: ["Bloqueado", "Descarte"] },
+  { id: "marca_extrusados", label: "marca_extrusados", values: ["MIC", "MIK", "ANE"] },
+  { id: "formato_clextral", label: "formato_clextral", values: ["CX", "ZZ", "ANE", "CON"] },
+  { id: "sabor_extrusados", label: "sabor_extrusados", values: ["QJ", "RQ", "CB", "PZ", "PR", "CM", "GL", "CR"] }
 ];
 
 const lineRuleDefaults = {
@@ -82,7 +85,8 @@ const lineRuleDefaults = {
 
 const initialNcTypes = [
   { id: "nc-salgadinho", name: "NC Salgadinho", section: "Nao conformidades", indexIds: [] },
-  { id: "nc-higienizacao", name: "NC Higienizacao", section: "Detalhamento da NC", indexIds: [] }
+  { id: "nc-higienizacao", name: "NC Higienizacao", section: "Detalhamento da NC", indexIds: [] },
+  { id: "nc-extrusora-clextral", name: "NC Extrusora Clextral", section: "Ocorrencias", indexIds: [] }
 ];
 
 const liberacaoProdutoComponents = [
@@ -105,6 +109,41 @@ const avaliacaoProdutoComponents = [
 ];
 
 const processoComponents = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
+
+const clextralHourlyComponents = [
+  { name: "Dosagem farinha", type: "numero", section: "Extrusora", unit: "Kg/h" },
+  { name: "Dosagem agua", type: "numero", section: "Extrusora", unit: "L/h" },
+  { name: "Rotacao rosca", type: "numero", section: "Extrusora", unit: "rpm" },
+  { name: "Torque", type: "percentual", section: "Extrusora" },
+  { name: "Amps - BA", type: "numero", section: "Extrusora", unit: "A" },
+  { name: "Fieira", type: "numero", section: "Extrusora", unit: "BAR" },
+  { name: "Bomba de oleo", type: "numero", section: "Extrusora", unit: "Hz" },
+  { name: "Refrigeracao", type: "temperatura", section: "Extrusora" },
+  { name: "Zona 1", type: "temperatura", section: "Zonas" },
+  { name: "Zona 2", type: "temperatura", section: "Zonas" },
+  { name: "Zona 3", type: "temperatura", section: "Zonas" },
+  { name: "Zona 4", type: "temperatura", section: "Zonas" },
+  { name: "Rotacao cortador", type: "numero", section: "Cortador", unit: "rpm" },
+  { name: "Temp. fieira", type: "temperatura", section: "Forno" },
+  { name: "Temp. zona 1 forno", type: "temperatura", section: "Forno" },
+  { name: "Temp. zona 2 forno", type: "temperatura", section: "Forno" },
+  { name: "Tempo residencia", type: "numero", section: "Produto", unit: "min" },
+  { name: "Densidade", type: "numero", section: "Produto", unit: "g/L" },
+  { name: "Umidade", type: "percentual", section: "Produto" },
+  { name: "SME", type: "numero", section: "Energia", unit: "KW/Kg.hr" },
+  { name: "Comp. / Diametro", type: "numero", section: "Dimensional", unit: "mm" },
+  { name: "Larg. Sup. / Espes.", type: "numero", section: "Dimensional", unit: "mm" },
+  { name: "Larg. Inferior", type: "numero", section: "Dimensional", unit: "mm" },
+  { name: "Altura", type: "numero", section: "Dimensional", unit: "mm" }
+];
+
+const clextralOccurrenceComponents = [
+  makeField("clextral-occ-1", "Horario", "hora", "Ocorrencias", { nc: true, layout: "quarter", required: false }),
+  makeField("clextral-occ-2", "Nao conformidade", "texto", "Ocorrencias", { nc: true, layout: "half", required: false }),
+  makeField("clextral-occ-3", "Causa", "texto", "Ocorrencias", { nc: true, layout: "half", required: false }),
+  makeField("clextral-occ-4", "Acao", "texto", "Ocorrencias", { nc: true, layout: "half", required: false }),
+  makeField("clextral-occ-5", "Responsavel", "texto", "Ocorrencias", { nc: true, layout: "quarter", required: false })
+];
 
 function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
   return {
@@ -145,6 +184,36 @@ const productContextFields = [
   makeField("prod-context-5", "Turno operador", "texto", "Cabecalho", { nc: false, layout: "third" }),
   makeField("prod-context-6", "Data/Hora do registro", "hora", "Cabecalho", { nc: false, layout: "third" })
 ];
+
+function buildClextralFields(processId) {
+  const headerFields = [
+    makeField(`${processId}-field-1`, "Data", "hora", "Cabecalho", { nc: false, layout: "quarter" }),
+    makeField(`${processId}-field-2`, "Operador TA", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
+    makeField(`${processId}-field-3`, "Operador TB", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
+    makeField(`${processId}-field-4`, "Operador TC", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
+    makeField(`${processId}-field-5`, "Supervisor TA", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
+    makeField(`${processId}-field-6`, "Supervisor TB", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
+    makeField(`${processId}-field-7`, "Supervisor TC", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
+    makeField(`${processId}-field-8`, "Marca", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "marca_extrusados" }),
+    makeField(`${processId}-field-9`, "Formato", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "formato_clextral" }),
+    makeField(`${processId}-field-10`, "Sabor", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "sabor_extrusados" })
+  ];
+
+  const hourlyFields = clextralHourlyComponents.map((item, index) =>
+    makeField(`${processId}-field-${index + 11}`, item.name, item.type, item.section, {
+      nc: false,
+      layout: "quarter",
+      unit: item.unit ?? ""
+    })
+  );
+
+  const occurrenceFields = clextralOccurrenceComponents.map((field, index) => ({
+    ...field,
+    id: `${processId}-field-${index + 11 + hourlyFields.length}`
+  }));
+
+  return [...headerFields, ...hourlyFields, ...occurrenceFields];
+}
 
 function defaultFieldsForProcess(type) {
   if (type === "higienizacao") {
@@ -227,6 +296,25 @@ function buildComponentLibrary() {
   );
 }
 
+function buildClextralComponentLibrary() {
+  return buildClextralFields("tpl-clextral").map((field, index) => ({
+    id: `tpl-clextral-${index + 1}`,
+    processType: "processo",
+    name: field.name,
+    type: field.type,
+    section: field.section,
+    layout: field.layout,
+    required: field.required,
+    nc: field.nc,
+    defaultMode: field.defaultMode,
+    defaultTag: field.defaultTag,
+    valueList: field.valueList,
+    useLineRules: field.useLineRules,
+    rulesByLine: field.rulesByLine,
+    unit: field.unit ?? ""
+  }));
+}
+
 function cloneFieldsForProcess(type, processId) {
   return defaultFieldsForProcess(type).map((field, index) => ({ ...field, id: `${processId}-field-${index + 1}` }));
 }
@@ -252,10 +340,26 @@ const initialRgs = [
     revision: "02",
     linkedLines: ["PUR"],
     processes: buildProcessesForRg("rg-005")
+  },
+  {
+    id: "rg-prd-ba-004",
+    code: "RG.PRD.BA.004",
+    title: "Parametros de Processo Extrusados - Linha Clextral",
+    revision: "02",
+    linkedLines: ["SAL"],
+    processes: [
+      {
+        id: "rg-prd-ba-004-proc-1",
+        type: "processo",
+        name: "Parametros Extrusora Clextral",
+        frequency: "Hora em hora",
+        fields: buildClextralFields("rg-prd-ba-004-proc-1")
+      }
+    ]
   }
 ];
 
-const initialComponentLibrary = buildComponentLibrary();
+const initialComponentLibrary = [...buildComponentLibrary(), ...buildClextralComponentLibrary()];
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -430,7 +534,7 @@ function OperatorFieldControl({ field }) {
   }
 
   if (field.type === "percentual" || field.type === "temperatura") {
-    const unit = field.type === "percentual" ? "%" : "deg C";
+    const unit = field.unit || (field.type === "percentual" ? "%" : "deg C");
     return (
       <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
         <span className="w-full px-3 font-semibold text-gray-400">0,00</span>
@@ -441,8 +545,9 @@ function OperatorFieldControl({ field }) {
 
   if (field.type === "numero") {
     return (
-      <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
-        0
+      <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+        <span className="w-full px-3 font-semibold text-gray-400">0</span>
+        {field.unit ? <span className="flex min-h-12 items-center bg-gray-100 px-3 text-sm font-bold text-gray-600">{field.unit}</span> : null}
       </div>
     );
   }
@@ -950,7 +1055,8 @@ export function RgConfigurator({ lines }) {
       defaultTag: template.defaultTag,
       valueList: template.valueList,
       useLineRules: template.useLineRules,
-      rulesByLine: template.rulesByLine
+      rulesByLine: template.rulesByLine,
+      unit: template.unit ?? ""
     });
 
     setRgs((current) =>

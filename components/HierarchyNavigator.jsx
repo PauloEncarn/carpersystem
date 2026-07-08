@@ -32,7 +32,8 @@ const processCatalog = [
   { id: "produto_liberacao", nome: "Liberacao do Produto", frequencia: "Por horario liberado" },
   { id: "produto_avaliacao", nome: "Avaliacao do Produto", frequencia: "Hora em hora" },
   { id: "processo", nome: "RG - Processo", frequencia: "Hora em hora" },
-  { id: "fotografico", nome: "Registro Fotografico", frequencia: "Hora em hora" }
+  { id: "fotografico", nome: "Registro Fotografico", frequencia: "Hora em hora" },
+  { id: "extrusora_clextral", nome: "Parametros Extrusora Clextral", frequencia: "Hora em hora" }
 ];
 
 function countRegistros(linha) {
@@ -84,7 +85,8 @@ const processDisplayPrefixes = {
   produto_liberacao: "LIBP",
   produto_avaliacao: "AVP",
   processo: "RGP",
-  fotografico: "REGF"
+  fotografico: "REGF",
+  extrusora_clextral: "EXT"
 };
 
 function getShortRegistroId(registroId = "", processoId = "") {
@@ -581,6 +583,11 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
     const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
     return { ...documento, loteId };
   });
+  const processosDoDocumento = useMemo(() => {
+    const processIds = selected.documento?.processos;
+    if (!processIds?.length) return processCatalog.filter((processo) => processo.id !== "extrusora_clextral");
+    return processIds.map((processId) => processCatalog.find((processo) => processo.id === processId)).filter(Boolean);
+  }, [selected.documento]);
   const registrosDoProcesso =
     selected.lote?.registros.filter((registro) => registro.processoId === selection.subregistroId) ?? [];
   const ncCount = selected.lote?.registros.reduce((total, registro) => {
@@ -834,7 +841,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {processCatalog.map((processo) => {
+              {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
                 return (
                 <CardButton
