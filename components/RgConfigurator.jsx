@@ -1463,48 +1463,50 @@ export function RgConfigurator({ lines }) {
       ) : null}
       {activeStep === "componente" ? (
         <div>
-          <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-              <div>
-                <p className="text-xs font-bold uppercase text-gray-500">Indice</p>
-                <h3 className="text-xl font-bold text-gray-950">Componentes e listas</h3>
-                <p className="text-sm font-semibold text-gray-500">Cadastre indices reutilizaveis para montar os processos.</p>
+          <main className="min-w-0 space-y-4 rounded-md border border-gray-200 bg-[#f8fafc] p-3">
+            <section className="rounded-md border border-gray-200 bg-white p-4 shadow-soft">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase text-cicopal-blue">Indice</p>
+                  <h3 className="text-2xl font-bold text-gray-950">Componentes e listas</h3>
+                  <p className="text-sm font-semibold text-gray-500">Cadastre campos, listas e regras reutilizaveis para montar os processos.</p>
+                </div>
+                <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white shadow-soft" onClick={addField}>
+                  <Plus size={20} />
+                  Novo indice
+                </button>
               </div>
-              <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
-                <Plus size={20} />
-                Novo indice
-              </button>
-            </div>
+            </section>
 
-            <section className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h4 className="text-lg font-bold text-gray-950">Filtro por tipo</h4>
-                  <p className="text-sm font-semibold text-gray-500">Veja apenas o tipo de indice que deseja ajustar.</p>
+                  <p className="text-sm font-semibold text-gray-500">Selecione uma familia para focar a visualizacao.</p>
                 </div>
-                <ConfigSelect value={indexTypeFilter} onChange={(event) => setIndexTypeFilter(event.target.value)}>
-                  <option value="todos">Todos os tipos</option>
-                  {fieldTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.label}
-                    </option>
-                  ))}
-                </ConfigSelect>
+                <button
+                  type="button"
+                  className={`min-h-11 rounded-md border px-3 font-bold ${indexTypeFilter === "todos" ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"}`}
+                  onClick={() => setIndexTypeFilter("todos")}
+                >
+                  Todos
+                </button>
               </div>
-              <div className="grid gap-2 md:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {fieldTypes.map((type) => {
                   const total = componentsByType[type.id]?.length ?? 0;
+                  const active = indexTypeFilter === type.id;
                   return (
                     <button
                       key={type.id}
                       type="button"
-                      className={`min-h-12 rounded-md border px-3 text-left font-bold ${
-                        indexTypeFilter === type.id ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"
+                      className={`min-h-20 rounded-md border p-3 text-left transition ${
+                        active ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-gray-50 hover:border-cicopal-blue hover:bg-white"
                       }`}
                       onClick={() => setIndexTypeFilter(type.id)}
                     >
-                      <span className="block">{type.label}</span>
-                      <span className="text-xs font-semibold text-gray-500">{total} indices</span>
+                      <span className={`block text-base font-bold ${active ? "text-cicopal-blue" : "text-gray-950"}`}>{type.label}</span>
+                      <span className="text-sm font-semibold text-gray-500">{total} indices</span>
                     </button>
                   );
                 })}
@@ -1516,20 +1518,20 @@ export function RgConfigurator({ lines }) {
                 const components = componentsByType[type.id] ?? [];
                 if (!components.length) return null;
                 return (
-                  <section key={type.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <section key={type.id} className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
                       <div>
                         <h4 className="text-xl font-bold text-gray-950">{type.label}</h4>
                         <p className="text-sm font-semibold text-gray-500">Indices cadastrados deste tipo.</p>
                       </div>
-                      <span className="audit-badge bg-white text-gray-700">{components.length} indices</span>
+                      <span className="audit-badge bg-gray-100 text-gray-700">{components.length} indices</span>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {components.map((component) => (
                         <article
                           key={component.id}
-                          className={`rounded-md border p-3 text-left ${
-                            component.id === selectedTemplate?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white"
+                          className={`rounded-md border bg-white p-3 text-left transition ${
+                            component.id === selectedTemplate?.id ? "border-cicopal-blue shadow-soft" : "border-gray-200 hover:border-cicopal-blue"
                           }`}
                         >
                           <button type="button" className="w-full text-left" onClick={() => setSelectedTemplateId(component.id)}>
@@ -1538,7 +1540,7 @@ export function RgConfigurator({ lines }) {
                               {component.section} - {fieldTypeLabel(component.type)}
                             </span>
                           </button>
-                          <div className="mt-2 flex flex-wrap gap-2">
+                          <div className="mt-3 flex flex-wrap gap-2">
                             {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
                             {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
                             {component.useLineRules ? <span className="audit-badge bg-yellow-100 text-yellow-800">Por linha</span> : null}
@@ -1546,7 +1548,7 @@ export function RgConfigurator({ lines }) {
                           </div>
                           <button
                             type="button"
-                            className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-md border border-cicopal-blue bg-white px-3 font-bold text-cicopal-blue"
+                            className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-md border border-cicopal-blue bg-blue-50 px-3 font-bold text-cicopal-blue"
                             onClick={() => openEditIndex(component)}
                           >
                             Alterar indice
@@ -1558,8 +1560,8 @@ export function RgConfigurator({ lines }) {
                 );
               })}
 
-              <section className="rounded-md border border-gray-200 bg-white p-3">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
                   <div>
                     <h4 className="text-xl font-bold text-gray-950">Listas de valores</h4>
                     <p className="text-sm font-semibold text-gray-500">Listas tambem sao indices reutilizaveis.</p>
@@ -1569,17 +1571,17 @@ export function RgConfigurator({ lines }) {
                     Nova lista
                   </button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
+                <div className="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
                   <div className="grid gap-2">
                     {valueLists.map((list) => (
                       <button
                         key={list.id}
                         type="button"
-                        className={`rounded-md border p-3 text-left ${list.id === selectedList?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`}
+                        className={`rounded-md border p-3 text-left transition ${list.id === selectedList?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-gray-50 hover:border-cicopal-blue hover:bg-white"}`}
                         onClick={() => setSelectedListId(list.id)}
                       >
                         <span className="block font-bold text-gray-950">{list.label}</span>
-                        <span className="text-xs font-semibold text-gray-500">{list.values.length} valores</span>
+                        <span className="text-sm font-semibold text-gray-500">{list.values.length} valores</span>
                       </button>
                     ))}
                   </div>
@@ -1592,11 +1594,18 @@ export function RgConfigurator({ lines }) {
                       <label className="mt-3 block">
                         <FieldLabel>Valores, um por linha</FieldLabel>
                         <textarea
-                          className="min-h-36 w-full rounded-md border border-gray-300 p-3 font-semibold"
+                          className="min-h-36 w-full rounded-md border border-gray-300 bg-white p-3 font-semibold"
                           value={selectedList.values.join("\n")}
                           onChange={(event) => updateValueListValues(selectedList.id, event.target.value)}
                         />
                       </label>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedList.values.map((value) => (
+                          <span key={value} className="audit-badge bg-white text-gray-700">
+                            {value}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                 </div>
