@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
+import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
@@ -289,10 +289,19 @@ function NumericUnitInput({ unit }) {
   );
 }
 
-function ClextralTimeCell({ row }) {
+function getCurrentHourSlot() {
+  const currentHour = new Date().getHours();
+  return `${String(currentHour).padStart(2, "0")}:00`;
+}
+
+function ClextralTimeCell({ row, value, onChange }) {
   if (row.type === "select") {
     return (
-      <select className="min-h-11 w-full min-w-24 rounded-md border border-gray-300 bg-white px-2 text-sm font-semibold">
+      <select
+        className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 text-base font-semibold"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+      >
         <option value="">-</option>
         {row.options.map((option) => (
           <option key={option} value={option}>
@@ -304,19 +313,40 @@ function ClextralTimeCell({ row }) {
   }
 
   if (row.type === "group") {
+    const groupValue = value ?? {};
     return (
-      <div className="grid min-w-56 gap-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {row.fields.map((field) => (
-          <label key={field.label} className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-            <span className="text-[11px] font-bold uppercase text-gray-500">{field.label}</span>
-            <NumericUnitInput unit={field.unit} />
+          <label key={field.label} className="block">
+            <span className="mb-1 block text-[11px] font-bold uppercase text-gray-500">{field.label}</span>
+            <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+              <input
+                type="number"
+                step="0.01"
+                className="min-h-12 w-full px-3 font-semibold outline-none"
+                value={groupValue[field.label] ?? ""}
+                onChange={(event) => onChange({ ...groupValue, [field.label]: event.target.value })}
+              />
+              <span className="flex min-h-12 items-center bg-gray-100 px-3 text-xs font-bold text-gray-600">{field.unit}</span>
+            </div>
           </label>
         ))}
       </div>
     );
   }
 
-  return <NumericUnitInput unit={row.unit} />;
+  return (
+    <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+      <input
+        type="number"
+        step="0.01"
+        className="min-h-12 w-full px-3 font-semibold outline-none"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <span className="flex min-h-12 items-center bg-gray-100 px-3 text-xs font-bold text-gray-600">{row.unit}</span>
+    </div>
+  );
 }
 
 function ClextralContexto({ registro }) {
@@ -335,9 +365,107 @@ function ClextralContexto({ registro }) {
   );
 }
 
-function ClextralParameterTable() {
+function ClextralParameterTable({ registro }) {
+  const [activeHour, setActiveHour] = useState(() => getCurrentHourSlot());
+  const [hourValues, setHourValues] = useState({});
+  const [savedHours, setSavedHours] = useState([]);
+  const activeHourIndex = hours.indexOf(activeHour);
+
+  function valueKey(groupTitle, rowLabel) {
+    return `${groupTitle}:${rowLabel}`;
+  }
+
+  function updateHourValue(groupTitle, rowLabel, value) {
+    const key = valueKey(groupTitle, rowLabel);
+    setHourValues((current) => ({
+      ...current,
+      [activeHour]: {
+        ...(current[activeHour] ?? {}),
+        [key]: value
+      }
+    }));
+  }
+
+  function saveCurrentHour(nextHour = activeHour) {
+    setSavedHours((current) => (current.includes(activeHour) ? current : [...current, activeHour]));
+    setActiveHour(nextHour);
+  }
+
+  function goNextHour() {
+    const nextHour = hours[Math.min(activeHourIndex + 1, hours.length - 1)];
+    saveCurrentHour(nextHour);
+  }
+
   return (
-    <div className="space-y-4">
+    <section className="space-y-4">
+      <div className="sticky top-0 z-20 rounded-md border border-cicopal-blue bg-white p-3 shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-gray-500">Horario ativo</p>
+            <h2 className="text-3xl font-black text-cicopal-blue">{activeHour}</h2>
+          </div>
+          <label className="min-w-[240px] flex-1 md:max-w-sm">
+            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Operador deste horario</span>
+            <input
+              className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold"
+              value={hourValues[activeHour]?.operador ?? registro?.operador ?? "Operador logado"}
+              onChange={(event) =>
+                setHourValues((current) => ({
+                  ...current,
+                  [activeHour]: {
+                    ...(current[activeHour] ?? {}),
+                    operador: event.target.value
+                  }
+                }))
+              }
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="min-h-12 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+              onClick={() => saveCurrentHour(activeHour)}
+            >
+              Salvar horario
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white disabled:bg-gray-300"
+              onClick={goNextHour}
+              disabled={activeHourIndex === hours.length - 1}
+            >
+              Proximo <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {hours.map((hour) => {
+            const active = hour === activeHour;
+            const saved = savedHours.includes(hour);
+            return (
+              <button
+                key={hour}
+                type="button"
+                className={`min-h-12 min-w-20 rounded-md border px-3 text-sm font-black ${
+                  active
+                    ? "border-cicopal-blue bg-cicopal-blue text-white"
+                    : saved
+                      ? "border-cicopal-green bg-green-50 text-cicopal-green"
+                      : hour === getCurrentHourSlot()
+                        ? "border-cicopal-blue bg-blue-50 text-cicopal-blue"
+                        : "border-gray-200 bg-gray-50 text-gray-600"
+                }`}
+                onClick={() => setActiveHour(hour)}
+              >
+                {hour}
+                {saved ? <span className="ml-1">OK</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {clextralParameterGroups.map((group) => (
         <section key={group.title} className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <div className="flex items-center gap-3 border-b border-gray-200 p-3">
@@ -347,38 +475,24 @@ function ClextralParameterTable() {
               <p className="text-sm font-semibold text-gray-600">Parametros por horario</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="audit-table min-w-[3400px] text-left">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 z-10 w-64 bg-gray-900 px-3 py-3">Indice</th>
-                  {hours.map((hour) => (
-                    <th key={hour} className="w-36 px-3 py-3 text-center">
-                      {hour}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {group.rows.map((row) => (
-                  <tr key={`${group.title}-${row.label}`} className="bg-white">
-                    <td className="sticky left-0 z-10 bg-white px-3 py-3">
-                      <span className="block text-base font-bold text-gray-950">{row.label}</span>
-                      {row.unit ? <span className="text-xs font-semibold text-gray-500">{row.unit}</span> : null}
-                    </td>
-                    {hours.map((hour) => (
-                      <td key={`${group.title}-${row.label}-${hour}`} className="px-2 py-3">
-                        <ClextralTimeCell row={row} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+            {group.rows.map((row) => {
+              const key = valueKey(group.title, row.label);
+              return (
+                <div key={key} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <span className="mb-2 block text-sm font-black text-gray-950">{row.label}</span>
+                  <ClextralTimeCell
+                    row={row}
+                    value={hourValues[activeHour]?.[key]}
+                    onChange={(value) => updateHourValue(group.title, row.label, value)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}
-    </div>
+    </section>
   );
 }
 
@@ -955,7 +1069,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return (
       <div className="space-y-4">
         <ClextralContexto registro={registro} />
-        <ClextralParameterTable />
+        <ClextralParameterTable registro={registro} />
         <ClextralOccurrencesTable />
         <AssinaturasRegistro registro={registro} />
       </div>
