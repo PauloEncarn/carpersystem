@@ -3,23 +3,19 @@
 import { useMemo, useState } from "react";
 import {
   CheckSquare,
-  ChevronRight,
   ClipboardList,
   Factory,
-  FileCog,
   FileText,
-  Home,
+  GripVertical,
   Layers3,
-  Maximize2,
-  PanelRight,
+  LayoutTemplate,
   Plus,
-  Save,
   Settings2,
   Trash2
 } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
 
-const menus = [
+const steps = [
   { id: "rg", label: "RG", icon: FileText },
   { id: "processo", label: "Processo", icon: ClipboardList },
   { id: "componente", label: "Componente", icon: Layers3 }
@@ -44,8 +40,6 @@ const fieldTypes = [
   { id: "assinatura", label: "Assinatura" }
 ];
 
-const frequencies = ["Por registro", "Por setup", "Por horario liberado", "Hora em hora", "Turno"];
-
 const layoutOptions = [
   { id: "full", label: "Linha inteira", preview: "1/1" },
   { id: "half", label: "Metade", preview: "1/2" },
@@ -53,13 +47,7 @@ const layoutOptions = [
   { id: "quarter", label: "Quarto", preview: "1/4" }
 ];
 
-const workspaceMenus = [
-  { id: "administracao", label: "Administracao", icon: Settings2 },
-  { id: "ambiente", label: "Ambiente", icon: Factory },
-  { id: "documentos", label: "Documentos", icon: FileText },
-  { id: "formularios", label: "Formularios", icon: ClipboardList },
-  { id: "workflow", label: "Workflow", icon: Layers3 }
-];
+const frequencies = ["Por registro", "Por setup", "Por horario liberado", "Hora em hora", "Turno"];
 
 const liberacaoProdutoComponents = [
   "Sabor e odor",
@@ -82,12 +70,12 @@ const avaliacaoProdutoComponents = [
 
 const processoComponents = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
 
-function makeField(id, name, type = "c_nc", category = "Geral", overrides = {}) {
+function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
   return {
     id,
     name,
     type,
-    category,
+    section,
     layout: type === "texto" || type === "foto" ? "half" : "third",
     required: true,
     nc: type === "c_nc",
@@ -95,80 +83,75 @@ function makeField(id, name, type = "c_nc", category = "Geral", overrides = {}) 
   };
 }
 
-function makeFields(prefix, items, category, type = "c_nc") {
+function makeFields(prefix, items, section, type = "c_nc") {
   return items.map((item, index) => {
-    if (typeof item === "string") {
-      return makeField(`${prefix}-${index + 1}`, item, type, category);
-    }
-
-    return makeField(`${prefix}-${index + 1}`, item.name, item.type ?? type, item.category ?? category, item);
+    if (typeof item === "string") return makeField(`${prefix}-${index + 1}`, item, type, section);
+    return makeField(`${prefix}-${index + 1}`, item.name, item.type ?? type, item.section ?? section, item);
   });
 }
 
-const higienizacaoFields = [
-  makeField("hig-context-1", "Operador logado", "texto", "Cabecalho", { nc: false }),
-  makeField("hig-context-2", "Turno operador", "texto", "Cabecalho", { nc: false }),
-  makeField("hig-context-3", "Tipo de setup", "texto", "Cabecalho", { nc: false }),
-  makeField("hig-context-4", "Troca de sabor/produto de", "texto", "Cabecalho", { nc: false, required: false }),
-  makeField("hig-context-5", "Para", "texto", "Cabecalho", { nc: false, required: false }),
-  makeField("hig-context-6", "Matriz de troca", "texto", "Cabecalho", { nc: false }),
-  ...checklistGroups.flatMap((group) => makeFields(`hig-${group.id}`, group.items, group.title)),
-  makeField("hig-nc-1", "Horario do desvio", "hora", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-nc-2", "Quantidade / impacto", "numero", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-nc-3", "Causa", "texto", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-nc-4", "Acao corretiva", "texto", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-nc-5", "Disposicao imediata", "texto", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-nc-6", "Disposicao final", "texto", "Detalhamento da NC", { required: false, nc: true }),
-  makeField("hig-sign-1", "Assinatura operador", "assinatura", "Assinaturas", { nc: false }),
-  makeField("hig-sign-2", "Assinatura qualidade", "assinatura", "Assinaturas", { nc: false }),
-  makeField("hig-sign-3", "Assinatura supervisor", "assinatura", "Assinaturas", { nc: false })
-];
-
-const produtoContextFields = [
-  makeField("prod-context-1", "Marca", "texto", "Cabecalho", { nc: false }),
-  makeField("prod-context-2", "Sabor", "texto", "Cabecalho", { nc: false }),
-  makeField("prod-context-3", "Gramatura", "texto", "Cabecalho", { nc: false }),
-  makeField("prod-context-4", "Operador logado", "texto", "Cabecalho", { nc: false }),
-  makeField("prod-context-5", "Turno operador", "texto", "Cabecalho", { nc: false }),
-  makeField("prod-context-6", "Data/Hora do registro", "hora", "Cabecalho", { nc: false })
-];
-
 const signatureFields = [
-  makeField("sign-1", "Assinatura operador", "assinatura", "Assinaturas", { nc: false }),
-  makeField("sign-2", "Assinatura qualidade", "assinatura", "Assinaturas", { nc: false }),
-  makeField("sign-3", "Assinatura supervisor", "assinatura", "Assinaturas", { nc: false })
+  makeField("sign-1", "Assinatura operador", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
+  makeField("sign-2", "Assinatura qualidade", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
+  makeField("sign-3", "Assinatura supervisor", "assinatura", "Assinaturas", { nc: false, layout: "third" })
+];
+
+const productContextFields = [
+  makeField("prod-context-1", "Marca", "texto", "Cabecalho", { nc: false, layout: "third" }),
+  makeField("prod-context-2", "Sabor", "texto", "Cabecalho", { nc: false, layout: "third" }),
+  makeField("prod-context-3", "Gramatura", "texto", "Cabecalho", { nc: false, layout: "third" }),
+  makeField("prod-context-4", "Operador logado", "texto", "Cabecalho", { nc: false, layout: "third" }),
+  makeField("prod-context-5", "Turno operador", "texto", "Cabecalho", { nc: false, layout: "third" }),
+  makeField("prod-context-6", "Data/Hora do registro", "hora", "Cabecalho", { nc: false, layout: "third" })
 ];
 
 function defaultFieldsForProcess(type) {
-  if (type === "higienizacao") return higienizacaoFields;
+  if (type === "higienizacao") {
+    return [
+      makeField("hig-context-1", "Operador logado", "texto", "Cabecalho", { nc: false }),
+      makeField("hig-context-2", "Turno operador", "texto", "Cabecalho", { nc: false }),
+      makeField("hig-context-3", "Tipo de setup", "texto", "Cabecalho", { nc: false }),
+      makeField("hig-context-4", "Troca de sabor/produto de", "texto", "Cabecalho", { nc: false, required: false }),
+      makeField("hig-context-5", "Para", "texto", "Cabecalho", { nc: false, required: false }),
+      makeField("hig-context-6", "Matriz de troca", "texto", "Cabecalho", { nc: false, layout: "full" }),
+      ...checklistGroups.flatMap((group) => makeFields(`hig-${group.id}`, group.items, group.title, "c_nc")),
+      makeField("hig-nc-1", "Horario do desvio", "hora", "Detalhamento da NC", { required: false, nc: true }),
+      makeField("hig-nc-2", "Quantidade / impacto", "numero", "Detalhamento da NC", { required: false, nc: true }),
+      makeField("hig-nc-3", "Causa", "texto", "Detalhamento da NC", { required: false, nc: true }),
+      makeField("hig-nc-4", "Acao corretiva", "texto", "Detalhamento da NC", { required: false, nc: true }),
+      makeField("hig-nc-5", "Disposicao imediata", "texto", "Detalhamento da NC", { required: false, nc: true }),
+      makeField("hig-nc-6", "Disposicao final", "texto", "Detalhamento da NC", { required: false, nc: true }),
+      ...signatureFields
+    ];
+  }
+
   if (type === "produto_liberacao") {
     return [
-      ...produtoContextFields,
+      ...productContextFields,
       makeField("libp-time-1", "Horario de liberacao", "hora", "Lancamentos"),
       ...makeFields("libp", liberacaoProdutoComponents, "Controle de liberacao"),
       ...signatureFields
     ];
   }
+
   if (type === "produto_avaliacao") {
     return [
-      ...produtoContextFields,
+      ...productContextFields,
       makeField("avp-time-1", "Horario da avaliacao", "hora", "Hora em hora"),
       ...makeFields("avp", avaliacaoProdutoComponents, "Hora em hora"),
       ...signatureFields
     ];
   }
+
   if (type === "processo") {
-    return [
-      makeField("rgp-time-1", "Horario", "hora", "Hora em hora"),
-      ...makeFields("rgp", processoComponents, "Hora em hora"),
-      ...signatureFields
-    ];
+    return [makeField("rgp-time-1", "Horario", "hora", "Hora em hora"), ...makeFields("rgp", processoComponents, "Hora em hora"), ...signatureFields];
   }
+
   if (type === "fotografico") {
     return [
       makeField("regf-time-1", "Horario", "hora", "Hora em hora"),
-      makeField("regf-photo-1", "Foto", "foto", "Registro visual", { nc: false }),
-      makeField("regf-obs-1", "Observacao", "texto", "Registro visual", { required: false, nc: false }),
+      makeField("regf-photo-1", "Foto", "foto", "Registro visual", { nc: false, layout: "half" }),
+      makeField("regf-obs-1", "Observacao", "texto", "Registro visual", { required: false, nc: false, layout: "half" }),
       ...signatureFields
     ];
   }
@@ -190,43 +173,13 @@ const initialRgs = [
     title: "Controle de Liberacao de Produto",
     revision: "02",
     linkedLines: ["PUR"],
-    processes: [
-      {
-        id: "proc-1",
-        type: "higienizacao",
-        name: "RG - Higienizacao",
-        frequency: "Por setup",
-        fields: defaultFieldsForProcess("higienizacao")
-      },
-      {
-        id: "proc-2",
-        type: "produto_liberacao",
-        name: "Liberacao do Produto",
-        frequency: "Por horario liberado",
-        fields: defaultFieldsForProcess("produto_liberacao")
-      },
-      {
-        id: "proc-3",
-        type: "produto_avaliacao",
-        name: "Avaliacao do Produto",
-        frequency: "Hora em hora",
-        fields: defaultFieldsForProcess("produto_avaliacao")
-      },
-      {
-        id: "proc-4",
-        type: "processo",
-        name: "RG - Processo",
-        frequency: "Hora em hora",
-        fields: defaultFieldsForProcess("processo")
-      },
-      {
-        id: "proc-5",
-        type: "fotografico",
-        name: "Registro Fotografico",
-        frequency: "Hora em hora",
-        fields: defaultFieldsForProcess("fotografico")
-      }
-    ]
+    processes: processTypes.map((type, index) => ({
+      id: `proc-${index + 1}`,
+      type: type.id,
+      name: type.label,
+      frequency: defaultFrequencyForProcess(type.id),
+      fields: defaultFieldsForProcess(type.id)
+    }))
   }
 ];
 
@@ -246,71 +199,78 @@ function ConfigSelect(props) {
   return <select {...props} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" />;
 }
 
-function MiniStat({ label, value }) {
-  return (
-    <div className="rounded-md bg-gray-50 p-3">
-      <p className="text-xs font-bold uppercase text-gray-500">{label}</p>
-      <p className="text-lg font-bold text-gray-950">{value}</p>
-    </div>
-  );
-}
-
 function fieldTypeLabel(type) {
   return fieldTypes.find((item) => item.id === type)?.label ?? type;
 }
 
 function previewGridClass(layout) {
-  const classes = {
+  return {
     full: "md:col-span-12",
     half: "md:col-span-6",
     third: "md:col-span-4",
     quarter: "md:col-span-3"
-  };
-
-  return classes[layout] ?? classes.third;
+  }[layout ?? "third"];
 }
 
-function groupFieldsByType(fields) {
-  return fieldTypes
-    .map((type) => ({
-      ...type,
-      fields: fields.filter((field) => field.type === type.id)
-    }))
-    .filter((group) => group.fields.length > 0);
-}
-
-function groupFieldsByCategory(fields) {
+function groupedBySection(fields) {
   return fields.reduce((groups, field) => {
-    const category = field.category || "Geral";
-    return {
-      ...groups,
-      [category]: [...(groups[category] ?? []), field]
-    };
+    const section = field.section || "Geral";
+    return { ...groups, [section]: [...(groups[section] ?? []), field] };
   }, {});
 }
 
+function getProcessPrefix(type) {
+  return processTypes.find((item) => item.id === type)?.prefix ?? "REG";
+}
+
+function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
+  return (
+    <button
+      type="button"
+      draggable
+      className={`${previewGridClass(field.layout)} rounded-md border p-3 text-left transition ${
+        selected ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white hover:border-cicopal-blue"
+      }`}
+      onClick={onSelect}
+      onDragStart={onDragStart}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <span className="text-sm font-bold text-gray-950">{field.name}</span>
+        <GripVertical size={18} className="shrink-0 text-gray-400" />
+      </div>
+      <div className="flex min-h-11 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-semibold text-gray-500">
+        {fieldTypeLabel(field.type)}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <span className="audit-badge bg-gray-100 text-gray-600">
+          {layoutOptions.find((item) => item.id === field.layout)?.preview ?? "1/3"}
+        </span>
+        {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
+      </div>
+    </button>
+  );
+}
+
 export function RgConfigurator({ lines }) {
-  const [activeMenu, setActiveMenu] = useState("rg");
   const [rgs, setRgs] = useState(initialRgs);
+  const [activeStep, setActiveStep] = useState("componente");
   const [selectedRgId, setSelectedRgId] = useState(initialRgs[0].id);
   const [selectedProcessId, setSelectedProcessId] = useState(initialRgs[0].processes[0].id);
+  const [selectedFieldId, setSelectedFieldId] = useState(initialRgs[0].processes[0].fields[0].id);
+  const [draggedFieldId, setDraggedFieldId] = useState("");
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
-  const selectedProcess =
-    selectedRg?.processes.find((process) => process.id === selectedProcessId) ?? selectedRg?.processes[0];
+  const selectedProcess = selectedRg.processes.find((process) => process.id === selectedProcessId) ?? selectedRg.processes[0];
+  const selectedField = selectedProcess?.fields.find((field) => field.id === selectedFieldId) ?? selectedProcess?.fields[0];
+  const fieldsBySection = useMemo(() => groupedBySection(selectedProcess?.fields ?? []), [selectedProcess]);
+  const linkedLineNames = useMemo(
+    () => lines.filter((line) => selectedRg.linkedLines.includes(line.id)).map((line) => line.nome),
+    [lines, selectedRg]
+  );
 
-  const linkedLineNames = useMemo(() => {
-    if (!selectedRg) return [];
-    return lines.filter((line) => selectedRg.linkedLines.includes(line.id)).map((line) => line.nome);
-  }, [lines, selectedRg]);
-  const selectedProcessFieldGroups = useMemo(() => {
-    return selectedProcess ? groupFieldsByType(selectedProcess.fields) : [];
-  }, [selectedProcess]);
-  const selectedProcessLayoutGroups = useMemo(() => {
-    return selectedProcess ? groupFieldsByCategory(selectedProcess.fields) : {};
-  }, [selectedProcess]);
-
-  function updateSelectedRg(field, value) {
+  function updateRg(field, value) {
     setRgs((current) => current.map((rg) => (rg.id === selectedRg.id ? { ...rg, [field]: value } : rg)));
   }
 
@@ -323,21 +283,11 @@ export function RgConfigurator({ lines }) {
       linkedLines: [],
       processes: []
     };
-
     setRgs((current) => [...current, newRg]);
     setSelectedRgId(newRg.id);
     setSelectedProcessId("");
-    setActiveMenu("rg");
-  }
-
-  function removeRg(rgId) {
-    setRgs((current) => {
-      const next = current.filter((rg) => rg.id !== rgId);
-      const fallback = next[0];
-      setSelectedRgId(fallback?.id ?? "");
-      setSelectedProcessId(fallback?.processes[0]?.id ?? "");
-      return next;
-    });
+    setSelectedFieldId("");
+    setActiveStep("rg");
   }
 
   function toggleLine(lineId) {
@@ -345,10 +295,7 @@ export function RgConfigurator({ lines }) {
       current.map((rg) => {
         if (rg.id !== selectedRg.id) return rg;
         const active = rg.linkedLines.includes(lineId);
-        return {
-          ...rg,
-          linkedLines: active ? rg.linkedLines.filter((id) => id !== lineId) : [...rg.linkedLines, lineId]
-        };
+        return { ...rg, linkedLines: active ? rg.linkedLines.filter((id) => id !== lineId) : [...rg.linkedLines, lineId] };
       })
     );
   }
@@ -362,12 +309,12 @@ export function RgConfigurator({ lines }) {
       frequency: defaultFrequencyForProcess(type.id),
       fields: defaultFieldsForProcess(type.id)
     };
-
     setRgs((current) =>
       current.map((rg) => (rg.id === selectedRg.id ? { ...rg, processes: [...rg.processes, newProcess] } : rg))
     );
     setSelectedProcessId(newProcess.id);
-    setActiveMenu("processo");
+    setSelectedFieldId(newProcess.fields[0]?.id ?? "");
+    setActiveStep("processo");
   }
 
   function updateProcess(processId, field, value) {
@@ -379,12 +326,14 @@ export function RgConfigurator({ lines }) {
               processes: rg.processes.map((process) => {
                 if (process.id !== processId) return process;
                 const typeInfo = field === "type" ? processTypes.find((type) => type.id === value) : null;
+                const nextFields = field === "type" ? defaultFieldsForProcess(value) : process.fields;
+                if (field === "type") setSelectedFieldId(nextFields[0]?.id ?? "");
                 return {
                   ...process,
                   [field]: value,
                   name: field === "type" && typeInfo ? typeInfo.label : process.name,
                   frequency: field === "type" ? defaultFrequencyForProcess(value) : process.frequency,
-                  fields: field === "type" ? defaultFieldsForProcess(value) : process.fields
+                  fields: nextFields
                 };
               })
             }
@@ -397,25 +346,17 @@ export function RgConfigurator({ lines }) {
     setRgs((current) =>
       current.map((rg) => {
         if (rg.id !== selectedRg.id) return rg;
-        const nextProcesses = rg.processes.filter((process) => process.id !== processId);
-        setSelectedProcessId(nextProcesses[0]?.id ?? "");
-        return { ...rg, processes: nextProcesses };
+        const processes = rg.processes.filter((process) => process.id !== processId);
+        setSelectedProcessId(processes[0]?.id ?? "");
+        setSelectedFieldId(processes[0]?.fields[0]?.id ?? "");
+        return { ...rg, processes };
       })
     );
   }
 
   function addField() {
     if (!selectedProcess) return;
-    const newField = {
-      id: makeId("field"),
-      name: "Novo componente",
-      type: "c_nc",
-      category: "Geral",
-      layout: "third",
-      required: true,
-      nc: true
-    };
-
+    const newField = makeField(makeId("field"), "Novo componente", "c_nc", "Geral", { layout: "third" });
     setRgs((current) =>
       current.map((rg) =>
         rg.id === selectedRg.id
@@ -428,7 +369,8 @@ export function RgConfigurator({ lines }) {
           : rg
       )
     );
-    setActiveMenu("componente");
+    setSelectedFieldId(newField.id);
+    setActiveStep("componente");
   }
 
   function updateField(fieldId, key, value) {
@@ -439,10 +381,7 @@ export function RgConfigurator({ lines }) {
               ...rg,
               processes: rg.processes.map((process) =>
                 process.id === selectedProcess.id
-                  ? {
-                      ...process,
-                      fields: process.fields.map((field) => (field.id === fieldId ? { ...field, [key]: value } : field))
-                    }
+                  ? { ...process, fields: process.fields.map((field) => (field.id === fieldId ? { ...field, [key]: value } : field)) }
                   : process
               )
             }
@@ -457,135 +396,81 @@ export function RgConfigurator({ lines }) {
         rg.id === selectedRg.id
           ? {
               ...rg,
-              processes: rg.processes.map((process) =>
-                process.id === selectedProcess.id
-                  ? { ...process, fields: process.fields.filter((field) => field.id !== fieldId) }
-                  : process
-              )
+              processes: rg.processes.map((process) => {
+                if (process.id !== selectedProcess.id) return process;
+                const fields = process.fields.filter((field) => field.id !== fieldId);
+                setSelectedFieldId(fields[0]?.id ?? "");
+                return { ...process, fields };
+              })
             }
           : rg
       )
     );
   }
 
-  if (!selectedRg) {
-    return (
-      <section className="audit-card p-4">
-        <button type="button" className="rounded-md bg-cicopal-blue px-4 py-3 font-bold text-white" onClick={addRg}>
-          Criar primeiro RG
-        </button>
-      </section>
+  function moveField(targetFieldId) {
+    if (!draggedFieldId || draggedFieldId === targetFieldId) return;
+    setRgs((current) =>
+      current.map((rg) =>
+        rg.id === selectedRg.id
+          ? {
+              ...rg,
+              processes: rg.processes.map((process) => {
+                if (process.id !== selectedProcess.id) return process;
+                const fields = [...process.fields];
+                const fromIndex = fields.findIndex((field) => field.id === draggedFieldId);
+                const toIndex = fields.findIndex((field) => field.id === targetFieldId);
+                const [moved] = fields.splice(fromIndex, 1);
+                fields.splice(toIndex, 0, moved);
+                return { ...process, fields };
+              })
+            }
+          : rg
+      )
     );
+    setDraggedFieldId("");
   }
 
   return (
-    <section className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-soft">
-      <div className="flex min-h-12 items-center justify-between border-b border-gray-200 bg-white px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-teal-50 text-lg font-black text-teal-500">c</div>
-          <div className="text-xl font-bold text-gray-950">RG Qualidade</div>
-          <span className="text-sm font-semibold text-gray-500">| configurador</span>
+    <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3 shadow-soft">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
+        <div>
+          <h2 className="text-2xl font-bold text-cicopal-blue">Configurador visual de RG</h2>
+          <p className="text-sm font-semibold text-gray-600">Monte o formulario arrastando, selecionando e ajustando os campos.</p>
         </div>
-        <div className="flex items-center gap-2 text-gray-600">
-          <button type="button" className="inline-flex size-10 items-center justify-center rounded-md hover:bg-gray-100" aria-label="Salvar">
-            <Save size={18} />
-          </button>
-          <button type="button" className="inline-flex size-10 items-center justify-center rounded-md hover:bg-gray-100" aria-label="Expandir">
-            <Maximize2 size={18} />
-          </button>
-          <span className="rounded-md border border-gray-200 px-2 py-1 text-xs font-bold">pt-BR</span>
-        </div>
+        <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white">
+          <LayoutTemplate size={20} />
+          Salvar modelo
+        </button>
       </div>
 
-      <div className="grid min-h-[720px] lg:grid-cols-[76px_1fr]">
-        <aside className="flex overflow-x-auto bg-[#063745] lg:block">
-          {workspaceMenus.map((item) => {
-            const Icon = item.icon;
-            const active = item.id === "formularios";
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`flex min-w-24 flex-col items-center justify-center gap-1 px-2 py-3 text-[11px] font-bold lg:min-h-16 lg:w-full ${
-                  active ? "bg-[#0b5568] text-white" : "text-white/75 hover:bg-white/10"
-                }`}
-              >
-                <Icon size={22} />
-                {item.label}
-              </button>
-            );
-          })}
-        </aside>
-
-        <div className="min-w-0 bg-[#eef7fb]">
-          <div className="flex min-h-12 items-center gap-1 border-b border-gray-200 bg-white px-3">
-            <button type="button" className="inline-flex size-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">
-              <Home size={18} />
+      <div className="mb-3 grid grid-cols-3 gap-2 rounded-md bg-white p-1">
+        {steps.map((step) => {
+          const Icon = step.icon;
+          const active = activeStep === step.id;
+          return (
+            <button
+              key={step.id}
+              type="button"
+              className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 font-bold ${
+                active ? "bg-cicopal-blue text-white" : "bg-gray-50 text-cicopal-blue"
+              }`}
+              onClick={() => setActiveStep(step.id)}
+            >
+              <Icon size={20} />
+              {step.label}
             </button>
-            <span className="mx-1 h-6 w-px bg-gray-200" />
-            <div className="inline-flex min-h-10 items-center gap-2 rounded-t-md border-x border-t border-gray-200 bg-[#eef7fb] px-3 text-sm font-bold text-gray-700">
-              <FileCog size={17} className="text-teal-500" />
-              Configurador de RG
-            </div>
-          </div>
-
-          <div className="p-4">
-            <div className="mb-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-3">
-                  <FileCog size={28} className="text-cicopal-blue" />
-                  <div>
-                    <h2 className="text-2xl font-bold text-cicopal-blue">Formularios Eletronicos</h2>
-                    <p className="text-sm font-semibold text-gray-600">Configure por etapas: RG, processo, componente e disposicao visual.</p>
-                  </div>
-                </div>
-                <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
-                  {selectedRg.code} - rev {selectedRg.revision}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 rounded-md bg-gray-100 p-1">
-                {menus.map((menu) => {
-                  const Icon = menu.icon;
-                  const active = activeMenu === menu.id;
-                  return (
-                    <button
-                      key={menu.id}
-                      type="button"
-                      className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 text-base font-bold ${
-                        active ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
-                      }`}
-                      onClick={() => setActiveMenu(menu.id)}
-                    >
-                      <Icon size={20} />
-                      {menu.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <MiniStat label="RG selecionado" value={selectedRg.code} />
-        <MiniStat label="Processos" value={selectedRg.processes.length} />
-        <MiniStat
-          label="Componentes"
-          value={selectedRg.processes.reduce((total, process) => total + process.fields.length, 0)}
-        />
+          );
+        })}
       </div>
 
-      {activeMenu === "rg" ? (
-        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-          <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-gray-950">RGs</h3>
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cicopal-blue px-3 text-sm font-bold text-white"
-                onClick={addRg}
-              >
-                <Plus size={18} />
-                Novo
+      <div className="grid gap-3 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+        <aside className="space-y-3">
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-bold text-gray-950">RGs</h3>
+              <button type="button" className="inline-flex size-10 items-center justify-center rounded-md bg-cicopal-blue text-white" onClick={addRg}>
+                <Plus size={20} />
               </button>
             </div>
             <div className="space-y-2">
@@ -593,107 +478,25 @@ export function RgConfigurator({ lines }) {
                 <button
                   key={rg.id}
                   type="button"
-                  className={`w-full rounded-md border p-3 text-left ${
-                    rg.id === selectedRg.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-white"
-                  }`}
+                  className={`w-full rounded-md border p-3 text-left ${rg.id === selectedRg.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200"}`}
                   onClick={() => {
                     setSelectedRgId(rg.id);
                     setSelectedProcessId(rg.processes[0]?.id ?? "");
+                    setSelectedFieldId(rg.processes[0]?.fields[0]?.id ?? "");
                   }}
                 >
-                  <span className="block text-base font-bold text-gray-950">{rg.code}</span>
-                  <span className="block text-xs font-semibold text-gray-500">{rg.title}</span>
+                  <span className="block font-bold text-gray-950">{rg.code}</span>
+                  <span className="block truncate text-xs font-semibold text-gray-500">{rg.title}</span>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-bold text-gray-950">Dados do RG</h3>
-                <p className="text-sm font-semibold text-gray-500">Crie o documento e vincule as linhas onde ele aparece.</p>
-              </div>
-              <button
-                type="button"
-                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 font-bold text-cicopal-red disabled:opacity-40"
-                onClick={() => removeRg(selectedRg.id)}
-                disabled={rgs.length === 1}
-              >
-                <Trash2 size={18} />
-                Remover RG
-              </button>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <label>
-                <FieldLabel>Codigo</FieldLabel>
-                <ConfigInput value={selectedRg.code} onChange={(event) => updateSelectedRg("code", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Titulo</FieldLabel>
-                <ConfigInput value={selectedRg.title} onChange={(event) => updateSelectedRg("title", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Revisao</FieldLabel>
-                <ConfigInput value={selectedRg.revision} onChange={(event) => updateSelectedRg("revision", event.target.value)} />
-              </label>
-            </div>
-
-            <div className="mt-4">
-              <div className="mb-2 flex items-center gap-2 text-lg font-bold text-gray-950">
-                <Factory size={22} className="text-cicopal-blue" />
-                Linhas vinculadas
-              </div>
-              <div className="grid gap-2 md:grid-cols-3">
-                {lines.map((line) => {
-                  const active = selectedRg.linkedLines.includes(line.id);
-                  return (
-                    <button
-                      key={line.id}
-                      type="button"
-                      className={`flex min-h-12 items-center justify-between rounded-md border px-3 font-bold ${
-                        active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"
-                      }`}
-                      onClick={() => toggleLine(line.id)}
-                    >
-                      {line.nome}
-                      {active ? <CheckSquare size={20} /> : null}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-sm font-semibold text-gray-500">
-                Vinculado em: {linkedLineNames.join(", ") || "nenhuma linha"}
-              </p>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                onClick={() => setActiveMenu("processo")}
-              >
-                Ir para processos
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {activeMenu === "processo" ? (
-        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-          <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-gray-950">Processos do RG</h3>
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cicopal-blue px-3 text-sm font-bold text-white"
-                onClick={addProcess}
-              >
-                <Plus size={18} />
-                Novo
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-bold text-gray-950">Processos</h3>
+              <button type="button" className="inline-flex size-10 items-center justify-center rounded-md bg-cicopal-blue text-white" onClick={addProcess}>
+                <Plus size={20} />
               </button>
             </div>
             <div className="space-y-2">
@@ -701,302 +504,211 @@ export function RgConfigurator({ lines }) {
                 <button
                   key={process.id}
                   type="button"
-                  className={`w-full rounded-md border p-3 text-left ${
-                    process.id === selectedProcess?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-white"
-                  }`}
-                  onClick={() => setSelectedProcessId(process.id)}
+                  className={`w-full rounded-md border p-3 text-left ${process.id === selectedProcess?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200"}`}
+                  onClick={() => {
+                    setSelectedProcessId(process.id);
+                    setSelectedFieldId(process.fields[0]?.id ?? "");
+                  }}
                 >
-                  <span className="block text-base font-bold text-gray-950">{process.name}</span>
-                  <span className="block text-xs font-semibold text-gray-500">
-                    {process.frequency} - {process.fields.length} componente(s)
+                  <span className="block font-bold text-gray-950">{process.name}</span>
+                  <span className="text-xs font-semibold text-gray-500">
+                    {getProcessPrefix(process.type)} - {process.fields.length} campos
                   </span>
                 </button>
               ))}
-              {!selectedRg.processes.length ? (
-                <div className="rounded-md border border-dashed border-gray-300 p-4 text-center font-bold text-gray-500">
-                  Nenhum processo criado.
-                </div>
-              ) : null}
             </div>
           </section>
+        </aside>
 
-          <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-            {selectedProcess ? (
-              <>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-950">Editor do processo</h3>
-                    <p className="text-sm font-semibold text-gray-500">Escolha o tipo base e a regra de frequencia.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 font-bold text-cicopal-red"
-                    onClick={() => removeProcess(selectedProcess.id)}
-                  >
-                    <Trash2 size={18} />
-                    Remover processo
-                  </button>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label>
-                    <FieldLabel>Tipo base</FieldLabel>
-                    <ConfigSelect
-                      value={selectedProcess.type}
-                      onChange={(event) => updateProcess(selectedProcess.id, "type", event.target.value)}
-                    >
-                      {processTypes.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </ConfigSelect>
-                  </label>
-                  <label>
-                    <FieldLabel>Nome visivel</FieldLabel>
-                    <ConfigInput
-                      value={selectedProcess.name}
-                      onChange={(event) => updateProcess(selectedProcess.id, "name", event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <FieldLabel>Frequencia</FieldLabel>
-                    <ConfigSelect
-                      value={selectedProcess.frequency}
-                      onChange={(event) => updateProcess(selectedProcess.id, "frequency", event.target.value)}
-                    >
-                      {frequencies.map((frequency) => (
-                        <option key={frequency} value={frequency}>
-                          {frequency}
-                        </option>
-                      ))}
-                    </ConfigSelect>
-                  </label>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <MiniStat label="RG" value={selectedRg.code} />
-                  <MiniStat label="Processo" value={selectedProcess.name} />
-                  <MiniStat label="Componentes" value={selectedProcess.fields.length} />
-                </div>
-
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                    onClick={addField}
-                  >
-                    <Plus size={20} />
-                    Novo componente
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-12 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
-                    onClick={() => setActiveMenu("componente")}
-                  >
-                    Ver componentes
-                    <ChevronRight size={20} />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
-                <p className="text-xl font-bold text-gray-700">Crie ou selecione um processo.</p>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
-
-      {activeMenu === "componente" ? (
-        <section className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
             <div>
-              <h3 className="text-xl font-bold text-gray-950">Componentes</h3>
+              <h3 className="text-xl font-bold text-gray-950">{selectedProcess?.name ?? "Selecione um processo"}</h3>
               <p className="text-sm font-semibold text-gray-500">
-                {selectedProcess ? `${selectedRg.code} / ${selectedProcess.name}` : "Selecione um processo para editar componentes."}
+                {selectedRg.code} / {linkedLineNames.join(", ") || "sem linha vinculada"}
               </p>
             </div>
-            <button
-              type="button"
-              className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white disabled:bg-gray-300"
-              onClick={addField}
-              disabled={!selectedProcess}
-            >
+            <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
               <Plus size={20} />
-              Novo componente
+              Adicionar campo
             </button>
           </div>
 
           {selectedProcess ? (
-            <div className="grid gap-3">
-              {selectedProcessFieldGroups.map((group) => (
-                <section key={group.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="text-lg font-bold text-gray-950">{group.label}</h4>
-                    <span className="audit-badge bg-white text-gray-700">{group.fields.length} componente(s)</span>
+            <div className="space-y-4">
+              {Object.entries(fieldsBySection).map(([section, fields]) => (
+                <section key={section} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="font-bold text-gray-950">{section}</h4>
+                    <span className="audit-badge bg-white text-gray-600">{fields.length} campos</span>
                   </div>
-                  <div className="grid gap-3">
-                    {group.fields.map((field) => {
-                      const index = selectedProcess.fields.findIndex((item) => item.id === field.id);
-                      return (
-                        <article key={field.id} className="rounded-md border border-gray-200 bg-white p-3">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                              <span className="audit-badge bg-gray-100 text-gray-700">{field.category ?? "Geral"}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className="inline-flex size-11 items-center justify-center rounded-md border border-red-200 bg-red-50 text-cicopal-red"
-                              onClick={() => removeField(field.id)}
-                              aria-label="Remover componente"
-                            >
-                              <Trash2 size={19} />
-                            </button>
-                          </div>
-                          <div className="grid gap-3 md:grid-cols-[1.2fr_180px_180px_180px_150px_150px]">
-                            <label>
-                              <FieldLabel>Nome do componente</FieldLabel>
-                              <ConfigInput value={field.name} onChange={(event) => updateField(field.id, "name", event.target.value)} />
-                            </label>
-                            <label>
-                              <FieldLabel>Tipo</FieldLabel>
-                              <ConfigSelect value={field.type} onChange={(event) => updateField(field.id, "type", event.target.value)}>
-                                {fieldTypes.map((type) => (
-                                  <option key={type.id} value={type.id}>
-                                    {type.label}
-                                  </option>
-                                ))}
-                              </ConfigSelect>
-                            </label>
-                            <label>
-                              <FieldLabel>Secao visual</FieldLabel>
-                              <ConfigInput
-                                value={field.category ?? "Geral"}
-                                onChange={(event) => updateField(field.id, "category", event.target.value)}
-                              />
-                            </label>
-                            <label>
-                              <FieldLabel>Largura</FieldLabel>
-                              <ConfigSelect value={field.layout ?? "third"} onChange={(event) => updateField(field.id, "layout", event.target.value)}>
-                                {layoutOptions.map((layout) => (
-                                  <option key={layout.id} value={layout.id}>
-                                    {layout.label}
-                                  </option>
-                                ))}
-                              </ConfigSelect>
-                            </label>
-                            <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
-                              <input
-                                type="checkbox"
-                                className="size-6"
-                                checked={field.required}
-                                onChange={(event) => updateField(field.id, "required", event.target.checked)}
-                              />
-                              Obrigatorio
-                            </label>
-                            <label className="flex min-h-12 items-end gap-2 pb-2 font-bold text-gray-700">
-                              <input
-                                type="checkbox"
-                                className="size-6"
-                                checked={field.nc}
-                                onChange={(event) => updateField(field.id, "nc", event.target.checked)}
-                              />
-                              Gera NC
-                            </label>
-                          </div>
-                        </article>
-                      );
-                    })}
+                  <div className="grid gap-3 md:grid-cols-12">
+                    {fields.map((field) => (
+                      <FieldPreview
+                        key={field.id}
+                        field={field}
+                        selected={field.id === selectedField?.id}
+                        onSelect={() => {
+                          setSelectedFieldId(field.id);
+                          setActiveStep("componente");
+                        }}
+                        onDragStart={() => setDraggedFieldId(field.id)}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          moveField(field.id);
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                      />
+                    ))}
                   </div>
                 </section>
               ))}
-              {!selectedProcess.fields.length ? (
-                <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
-                  <p className="text-xl font-bold text-gray-700">Nenhum componente criado para este processo.</p>
-                </div>
-              ) : null}
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
-              <p className="text-xl font-bold text-gray-700">Crie ou selecione um processo antes dos componentes.</p>
+            <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
+              Crie ou selecione um processo.
             </div>
           )}
-        </section>
-      ) : null}
+        </main>
 
-      {selectedProcess ? (
-        <section className="mt-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-lg font-bold text-gray-950">
-              <PanelRight size={22} className="text-cicopal-blue" />
-              Previa visual do formulario
-            </div>
-            <span className="rounded-md bg-blue-50 px-3 py-2 text-sm font-bold text-cicopal-blue">
-              {selectedProcess.name}
-            </span>
-          </div>
-          <div className="space-y-3 rounded-md bg-gray-50 p-3">
-            {Object.entries(selectedProcessLayoutGroups).map(([category, fields]) => (
-              <div key={category} className="rounded-md border border-gray-200 bg-white p-3">
-                <h4 className="mb-3 text-base font-bold text-gray-950">{category}</h4>
-                <div className="grid gap-3 md:grid-cols-12">
-                  {fields.map((field) => (
-                    <div key={field.id} className={`${previewGridClass(field.layout)} rounded-md border border-gray-200 bg-gray-50 p-3`}>
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <p className="text-sm font-bold text-gray-900">{field.name}</p>
-                        <span className="rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-500">
-                          {layoutOptions.find((layout) => layout.id === field.layout)?.preview ?? "1/3"}
-                        </span>
-                      </div>
-                      <div className="flex min-h-11 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-500">
-                        {fieldTypeLabel(field.type)}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {field.required ? <span className="audit-badge bg-blue-50 text-cicopal-blue">Obrigatorio</span> : null}
-                        {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">Gera NC</span> : null}
-                      </div>
-                    </div>
-                  ))}
+        <aside className="rounded-md border border-gray-200 bg-white p-3">
+          {activeStep === "rg" ? (
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-gray-950">Propriedades do RG</h3>
+              <label>
+                <FieldLabel>Codigo</FieldLabel>
+                <ConfigInput value={selectedRg.code} onChange={(event) => updateRg("code", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Titulo</FieldLabel>
+                <ConfigInput value={selectedRg.title} onChange={(event) => updateRg("title", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Revisao</FieldLabel>
+                <ConfigInput value={selectedRg.revision} onChange={(event) => updateRg("revision", event.target.value)} />
+              </label>
+              <div>
+                <FieldLabel>Linhas vinculadas</FieldLabel>
+                <div className="grid gap-2">
+                  {lines.map((line) => {
+                    const active = selectedRg.linkedLines.includes(line.id);
+                    return (
+                      <button
+                        key={line.id}
+                        type="button"
+                        className={`flex min-h-11 items-center justify-between rounded-md border px-3 font-bold ${
+                          active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 text-gray-700"
+                        }`}
+                        onClick={() => toggleLine(line.id)}
+                      >
+                        {line.nome}
+                        {active ? <CheckSquare size={18} /> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+            </div>
+          ) : null}
 
-      <section className="mt-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
-        <div className="mb-3 flex items-center gap-2 text-lg font-bold text-gray-950">
-          <Settings2 size={22} className="text-cicopal-blue" />
-          Resumo da configuracao
-        </div>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {selectedRg.processes.map((process, processIndex) => {
-            const typeInfo = processTypes.find((type) => type.id === process.type);
-            return (
-              <article key={process.id} className="rounded-md border border-gray-200 bg-white p-3">
-                <p className="text-xs font-bold uppercase text-gray-500">
-                  {String(processIndex + 1).padStart(2, "0")} - {typeInfo?.prefix}
-                </p>
-                <h4 className="text-lg font-bold text-gray-950">{process.name}</h4>
-                <p className="text-sm font-semibold text-gray-500">{process.frequency}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {process.fields.map((field) => (
-                    <span key={field.id} className="audit-badge bg-gray-100 text-gray-700">
-                      {field.name} / {fieldTypeLabel(field.type)}
-                    </span>
+          {activeStep === "processo" && selectedProcess ? (
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-gray-950">Propriedades do processo</h3>
+              <label>
+                <FieldLabel>Tipo base</FieldLabel>
+                <ConfigSelect value={selectedProcess.type} onChange={(event) => updateProcess(selectedProcess.id, "type", event.target.value)}>
+                  {processTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.label}
+                    </option>
                   ))}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-          </div>
-        </div>
+                </ConfigSelect>
+              </label>
+              <label>
+                <FieldLabel>Nome</FieldLabel>
+                <ConfigInput value={selectedProcess.name} onChange={(event) => updateProcess(selectedProcess.id, "name", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Frequencia</FieldLabel>
+                <ConfigSelect value={selectedProcess.frequency} onChange={(event) => updateProcess(selectedProcess.id, "frequency", event.target.value)}>
+                  {frequencies.map((frequency) => (
+                    <option key={frequency} value={frequency}>
+                      {frequency}
+                    </option>
+                  ))}
+                </ConfigSelect>
+              </label>
+              <button
+                type="button"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                onClick={() => removeProcess(selectedProcess.id)}
+              >
+                <Trash2 size={18} />
+                Remover processo
+              </button>
+            </div>
+          ) : null}
+
+          {activeStep === "componente" && selectedField ? (
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-gray-950">Campo selecionado</h3>
+              <label>
+                <FieldLabel>Nome</FieldLabel>
+                <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Tipo</FieldLabel>
+                <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
+                  {fieldTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.label}
+                    </option>
+                  ))}
+                </ConfigSelect>
+              </label>
+              <label>
+                <FieldLabel>Secao</FieldLabel>
+                <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Largura no formulario</FieldLabel>
+                <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
+                  {layoutOptions.map((layout) => (
+                    <option key={layout.id} value={layout.id}>
+                      {layout.label}
+                    </option>
+                  ))}
+                </ConfigSelect>
+              </label>
+              <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                <input
+                  type="checkbox"
+                  className="size-6"
+                  checked={selectedField.required}
+                  onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
+                />
+                Obrigatorio
+              </label>
+              <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                <input
+                  type="checkbox"
+                  className="size-6"
+                  checked={selectedField.nc}
+                  onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
+                />
+                Gera NC
+              </label>
+              <button
+                type="button"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                onClick={() => removeField(selectedField.id)}
+              >
+                <Trash2 size={18} />
+                Remover campo
+              </button>
+            </div>
+          ) : null}
+        </aside>
       </div>
     </section>
   );
