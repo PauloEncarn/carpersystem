@@ -22,7 +22,7 @@ import { checklistGroups } from "@/lib/checklist";
 const steps = [
   { id: "rg", label: "RG", icon: FileText },
   { id: "processo", label: "Processo", icon: ClipboardList },
-  { id: "componente", label: "Componente", icon: Layers3 }
+  { id: "componente", label: "Indice", icon: Layers3 }
 ];
 
 const processTypes = [
@@ -65,7 +65,7 @@ const defaultTags = [
   { id: "data_hora_atual", label: "<data_hora_atual>" }
 ];
 
-const valueLists = [
+const initialValueLists = [
   { id: "gramatura_salgadinho", label: "gramatura_salgadinho", values: ["35g", "45g", "90g", "140g"] },
   { id: "sabor_pururuca", label: "sabor_pururuca", values: ["Original", "Bacon", "Cebola", "Churrasco"] },
   { id: "disposicao_imediata", label: "disposicao_imediata", values: ["Bloqueado", "Descarte"] }
@@ -111,6 +111,7 @@ function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
     defaultMode: "manual",
     defaultTag: "",
     valueList: "",
+    useLineRules: false,
     rulesByLine: {},
     ...overrides
   };
@@ -213,6 +214,7 @@ function buildComponentLibrary() {
       defaultMode: field.defaultMode,
       defaultTag: field.defaultTag,
       valueList: field.valueList,
+      useLineRules: field.useLineRules,
       rulesByLine: field.rulesByLine
     }))
   );
@@ -518,9 +520,9 @@ function isChecklistSection(fields) {
   return fields.length > 3 && fields.every((field) => field.type === "c_nc");
 }
 
-function ComponentRulesEditor({ item, lines, onChange, onLineRuleChange }) {
+function ComponentRulesEditor({ item, lines, lists, onChange, onLineRuleChange }) {
   const numeric = ["numero", "percentual", "temperatura"].includes(item.type);
-  const selectedList = valueLists.find((list) => list.id === item.valueList);
+  const selectedList = lists.find((list) => list.id === item.valueList);
 
   return (
     <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
@@ -566,7 +568,7 @@ function ComponentRulesEditor({ item, lines, onChange, onLineRuleChange }) {
             <FieldLabel>Lista de valores</FieldLabel>
             <ConfigSelect value={item.valueList ?? ""} onChange={(event) => onChange("valueList", event.target.value)}>
               <option value="">Selecione uma lista</option>
-              {valueLists.map((list) => (
+              {lists.map((list) => (
                 <option key={list.id} value={list.id}>
                   {list.label}
                 </option>
@@ -586,6 +588,18 @@ function ComponentRulesEditor({ item, lines, onChange, onLineRuleChange }) {
       ) : null}
 
       {numeric ? (
+        <label className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 font-bold text-gray-700">
+          <input
+            type="checkbox"
+            className="size-6"
+            checked={Boolean(item.useLineRules)}
+            onChange={(event) => onChange("useLineRules", event.target.checked)}
+          />
+          Usar parametros por linha
+        </label>
+      ) : null}
+
+      {numeric && item.useLineRules ? (
         <div className="rounded-md border border-gray-200 bg-white p-3">
           <div className="mb-3">
             <h5 className="font-bold text-gray-950">Parametros por linha</h5>
@@ -691,6 +705,7 @@ function AddComponentDialog({ open, section, components, onClose, onSelect }) {
 export function RgConfigurator({ lines }) {
   const [rgs, setRgs] = useState(initialRgs);
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
+  const [valueLists, setValueLists] = useState(initialValueLists);
   const [activeStep, setActiveStep] = useState("componente");
   const [selectedRgId, setSelectedRgId] = useState(initialRgs[0].id);
   const [selectedProcessId, setSelectedProcessId] = useState(initialRgs[0].processes[0].id);
@@ -700,6 +715,8 @@ export function RgConfigurator({ lines }) {
   const [collapsedSections, setCollapsedSections] = useState({});
   const [addComponentSection, setAddComponentSection] = useState("");
   const [componentMode, setComponentMode] = useState("biblioteca");
+  const [indexTypeFilter, setIndexTypeFilter] = useState("todos");
+  const [selectedListId, setSelectedListId] = useState(initialValueLists[0]?.id ?? "");
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
   const selectedProcess = selectedRg.processes.find((process) => process.id === selectedProcessId) ?? selectedRg.processes[0];
@@ -711,6 +728,8 @@ export function RgConfigurator({ lines }) {
   );
   const selectedTemplate = componentLibrary.find((component) => component.id === selectedTemplateId) ?? componentLibrary[0];
   const componentsByType = useMemo(() => groupedByType(componentLibrary), [componentLibrary]);
+  const filteredFieldTypes = fieldTypes.filter((type) => indexTypeFilter === "todos" || type.id === indexTypeFilter);
+  const selectedList = valueLists.find((list) => list.id === selectedListId) ?? valueLists[0];
   const collapsedKey = selectedProcess ? `${selectedProcess.id}:` : "";
 
   function updateRg(field, value) {
@@ -813,6 +832,7 @@ export function RgConfigurator({ lines }) {
       defaultMode: newField.defaultMode,
       defaultTag: newField.defaultTag,
       valueList: newField.valueList,
+      useLineRules: newField.useLineRules,
       rulesByLine: newField.rulesByLine
     };
     setComponentLibrary((current) => [...current, newTemplate]);
@@ -852,6 +872,7 @@ export function RgConfigurator({ lines }) {
       defaultMode: template.defaultMode,
       defaultTag: template.defaultTag,
       valueList: template.valueList,
+      useLineRules: template.useLineRules,
       rulesByLine: template.rulesByLine
     });
 
@@ -952,6 +973,24 @@ export function RgConfigurator({ lines }) {
           : template
       )
     );
+  }
+
+  function addValueList() {
+    const newList = { id: makeId("lista"), label: "nova_lista", values: ["Valor 1"] };
+    setValueLists((current) => [...current, newList]);
+    setSelectedListId(newList.id);
+  }
+
+  function updateValueList(listId, key, value) {
+    setValueLists((current) => current.map((list) => (list.id === listId ? { ...list, [key]: value } : list)));
+  }
+
+  function updateValueListValues(listId, value) {
+    const values = value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    updateValueList(listId, "values", values);
   }
 
   function removeField(fieldId) {
@@ -1202,24 +1241,13 @@ export function RgConfigurator({ lines }) {
                   </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="mt-4">
                   <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <h4 className="text-lg font-bold text-gray-950">Visualizacao do processo</h4>
                         <p className="text-sm font-semibold text-gray-500">Previa do formulario como ele aparece para a operacao.</p>
                       </div>
-                      <button
-                        type="button"
-                        className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white"
-                        onClick={() => {
-                          setActiveStep("componente");
-                          setComponentMode("layout");
-                        }}
-                      >
-                        Editar layout
-                        <LayoutTemplate size={18} />
-                      </button>
                     </div>
                     <div className="space-y-4">
                       {Object.entries(fieldsBySection).map(([section, fields]) => (
@@ -1277,32 +1305,6 @@ export function RgConfigurator({ lines }) {
                       ))}
                     </div>
                   </section>
-                  <section className="rounded-md border border-gray-200 bg-white p-3">
-                    <h4 className="text-lg font-bold text-gray-950">Componentes disponiveis</h4>
-                    <p className="mb-3 text-sm font-semibold text-gray-500">Use o botao + no final de cada secao para inserir um componente ja cadastrado.</p>
-                    <div className="grid gap-2">
-                      {fieldTypes.map((type) => {
-                        const total = componentsByType[type.id]?.length ?? 0;
-                        if (!total) return null;
-                        return (
-                          <div key={type.id} className="flex min-h-11 items-center justify-between rounded-md bg-gray-50 px-3 font-bold text-gray-700">
-                            <span>{type.label}</span>
-                            <span className="audit-badge bg-white text-gray-700">{total}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                      onClick={() => {
-                        setActiveStep("componente");
-                        setComponentMode("biblioteca");
-                      }}
-                    >
-                      Abrir biblioteca
-                    </button>
-                  </section>
                 </div>
               </>
             ) : (
@@ -1318,291 +1320,192 @@ export function RgConfigurator({ lines }) {
           <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
-                <p className="text-xs font-bold uppercase text-gray-500">{componentMode === "layout" ? "Ajuste visual do processo" : "Biblioteca de componentes"}</p>
-                <h3 className="text-xl font-bold text-gray-950">{componentMode === "layout" ? selectedProcess?.name ?? "Selecione um processo" : "Todos os componentes"}</h3>
-                <p className="text-sm font-semibold text-gray-500">
-                  {componentMode === "layout" ? `${selectedRg.code} / ${linkedLineNames.join(", ") || "sem linha vinculada"}` : "Separe, edite e reutilize componentes nos processos."}
-                </p>
+                <p className="text-xs font-bold uppercase text-gray-500">Indice</p>
+                <h3 className="text-xl font-bold text-gray-950">Componentes e listas</h3>
+                <p className="text-sm font-semibold text-gray-500">Cadastre indices reutilizaveis para montar os processos.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={`inline-flex min-h-12 items-center gap-2 rounded-md px-4 font-bold ${
-                    componentMode === "biblioteca" ? "bg-cicopal-blue text-white" : "border border-gray-300 bg-white text-gray-700"
-                  }`}
-                  onClick={() => setComponentMode("biblioteca")}
-                >
-                  Biblioteca
-                </button>
-                <button
-                  type="button"
-                  className={`inline-flex min-h-12 items-center gap-2 rounded-md px-4 font-bold ${
-                    componentMode === "layout" ? "bg-cicopal-blue text-white" : "border border-gray-300 bg-white text-gray-700"
-                  }`}
-                  onClick={() => setComponentMode("layout")}
-                >
-                  Layout
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex min-h-12 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
-                  onClick={() => setActiveStep("processo")}
-                >
-                  Voltar ao processo
-                </button>
-                <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
-                  <Plus size={20} />
-                  Criar componente
-                </button>
-              </div>
+              <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
+                <Plus size={20} />
+                Novo indice
+              </button>
             </div>
 
-            {componentMode === "biblioteca" ? (
-              <div className="space-y-4">
+            <section className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-lg font-bold text-gray-950">Filtro por tipo</h4>
+                  <p className="text-sm font-semibold text-gray-500">Veja apenas o tipo de indice que deseja ajustar.</p>
+                </div>
+                <ConfigSelect value={indexTypeFilter} onChange={(event) => setIndexTypeFilter(event.target.value)}>
+                  <option value="todos">Todos os tipos</option>
+                  {fieldTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.label}
+                    </option>
+                  ))}
+                </ConfigSelect>
+              </div>
+              <div className="grid gap-2 md:grid-cols-4">
                 {fieldTypes.map((type) => {
-                  const components = componentsByType[type.id] ?? [];
-                  if (!components.length) return null;
+                  const total = componentsByType[type.id]?.length ?? 0;
                   return (
-                    <section key={type.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <h4 className="text-xl font-bold text-gray-950">{type.label}</h4>
-                          <p className="text-sm font-semibold text-gray-500">Componentes cadastrados deste tipo.</p>
-                        </div>
-                        <span className="audit-badge bg-white text-gray-700">{components.length} componentes</span>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {components.map((component) => (
-                          <button
-                            key={component.id}
-                            type="button"
-                            className={`rounded-md border p-3 text-left ${
-                              component.id === selectedTemplate?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white"
-                            }`}
-                            onClick={() => setSelectedTemplateId(component.id)}
-                          >
-                            <span className="block text-base font-bold text-gray-950">{component.name}</span>
-                            <span className="text-xs font-semibold text-gray-500">
-                              {component.section} - {fieldTypeLabel(component.type)}
-                            </span>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
-                              {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
-                              {Object.keys(component.rulesByLine ?? {}).length ? <span className="audit-badge bg-yellow-100 text-yellow-800">Parametros</span> : null}
-                              {component.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
+                    <button
+                      key={type.id}
+                      type="button"
+                      className={`min-h-12 rounded-md border px-3 text-left font-bold ${
+                        indexTypeFilter === type.id ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"
+                      }`}
+                      onClick={() => setIndexTypeFilter(type.id)}
+                    >
+                      <span className="block">{type.label}</span>
+                      <span className="text-xs font-semibold text-gray-500">{total} indices</span>
+                    </button>
                   );
                 })}
               </div>
-            ) : selectedProcess ? (
-              <div className="space-y-4">
-                {Object.entries(fieldsBySection).map(([section, fields]) => (
-                  <SectionCard
-                    key={section}
-                    section={section}
-                    fields={fields}
-                    collapsed={Boolean(collapsedSections[`${selectedProcess.id}:${section}`])}
-                    onToggle={() => toggleSection(section)}
-                    onAddComponent={() => setAddComponentSection(section)}
-                  >
-                    {isChecklistSection(fields) ? (
-                      <div className="overflow-x-auto rounded-md bg-white">
-                        <table className="audit-table min-w-[560px] text-left">
-                          <thead>
-                            <tr>
-                              <th className="px-4 py-3">Item</th>
-                              <th className="w-40 px-4 py-3">1 AV</th>
-                              <th className="w-40 px-4 py-3">2 AV</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {fields.map((field) => (
-                              <ChecklistRowPreview
-                                key={field.id}
-                                field={field}
-                                selected={field.id === selectedField?.id}
-                                onSelect={() => setSelectedFieldId(field.id)}
-                                onDragStart={() => setDraggedFieldId(field.id)}
-                                onDrop={(event) => {
-                                  event.preventDefault();
-                                  moveField(field.id);
-                                }}
-                                onDragOver={(event) => event.preventDefault()}
-                              />
-                            ))}
-                          </tbody>
-                        </table>
+            </section>
+
+            <div className="space-y-4">
+              {filteredFieldTypes.map((type) => {
+                const components = componentsByType[type.id] ?? [];
+                if (!components.length) return null;
+                return (
+                  <section key={type.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-xl font-bold text-gray-950">{type.label}</h4>
+                        <p className="text-sm font-semibold text-gray-500">Indices cadastrados deste tipo.</p>
                       </div>
-                    ) : (
-                      <div className="grid gap-3 md:grid-cols-12">
-                        {fields.map((field) => (
-                          <FieldPreview
-                            key={field.id}
-                            field={field}
-                            selected={field.id === selectedField?.id}
-                            onSelect={() => setSelectedFieldId(field.id)}
-                            onDragStart={() => setDraggedFieldId(field.id)}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              moveField(field.id);
-                            }}
-                            onDragOver={(event) => event.preventDefault()}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </SectionCard>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
-                Crie ou selecione um processo.
-              </div>
-            )}
+                      <span className="audit-badge bg-white text-gray-700">{components.length} indices</span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {components.map((component) => (
+                        <button
+                          key={component.id}
+                          type="button"
+                          className={`rounded-md border p-3 text-left ${
+                            component.id === selectedTemplate?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white"
+                          }`}
+                          onClick={() => setSelectedTemplateId(component.id)}
+                        >
+                          <span className="block text-base font-bold text-gray-950">{component.name}</span>
+                          <span className="text-xs font-semibold text-gray-500">
+                            {component.section} - {fieldTypeLabel(component.type)}
+                          </span>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
+                            {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
+                            {component.useLineRules ? <span className="audit-badge bg-yellow-100 text-yellow-800">Por linha</span> : null}
+                            {component.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+
+              <section className="rounded-md border border-gray-200 bg-white p-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xl font-bold text-gray-950">Listas de valores</h4>
+                    <p className="text-sm font-semibold text-gray-500">Listas tambem sao indices reutilizaveis.</p>
+                  </div>
+                  <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addValueList}>
+                    <Plus size={18} />
+                    Nova lista
+                  </button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
+                  <div className="grid gap-2">
+                    {valueLists.map((list) => (
+                      <button
+                        key={list.id}
+                        type="button"
+                        className={`rounded-md border p-3 text-left ${list.id === selectedList?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`}
+                        onClick={() => setSelectedListId(list.id)}
+                      >
+                        <span className="block font-bold text-gray-950">{list.label}</span>
+                        <span className="text-xs font-semibold text-gray-500">{list.values.length} valores</span>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedList ? (
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                      <label>
+                        <FieldLabel>Nome da lista</FieldLabel>
+                        <ConfigInput value={selectedList.label} onChange={(event) => updateValueList(selectedList.id, "label", event.target.value)} />
+                      </label>
+                      <label className="mt-3 block">
+                        <FieldLabel>Valores, um por linha</FieldLabel>
+                        <textarea
+                          className="min-h-36 w-full rounded-md border border-gray-300 p-3 font-semibold"
+                          value={selectedList.values.join("\n")}
+                          onChange={(event) => updateValueListValues(selectedList.id, event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            </div>
           </main>
 
           <aside className="rounded-md border border-gray-200 bg-white p-3">
-            {componentMode === "biblioteca" ? (
-              <div className="space-y-3">
-                <h3 className="text-lg font-bold text-gray-950">Componente da biblioteca</h3>
-                {selectedTemplate ? (
-                  <>
-                    <label>
-                      <FieldLabel>Nome padrao</FieldLabel>
-                      <ConfigInput value={selectedTemplate.name} onChange={(event) => updateTemplate(selectedTemplate.id, "name", event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel>Tipo padrao</FieldLabel>
-                      <ConfigSelect value={selectedTemplate.type} onChange={(event) => updateTemplate(selectedTemplate.id, "type", event.target.value)}>
-                        {fieldTypes.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {type.label}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
-                    <label>
-                      <FieldLabel>Secao sugerida</FieldLabel>
-                      <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel>Largura sugerida</FieldLabel>
-                      <ConfigSelect value={selectedTemplate.layout} onChange={(event) => updateTemplate(selectedTemplate.id, "layout", event.target.value)}>
-                        {layoutOptions.map((layout) => (
-                          <option key={layout.id} value={layout.id}>
-                            {layout.label}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
-                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={selectedTemplate.required}
-                        onChange={(event) => updateTemplate(selectedTemplate.id, "required", event.target.checked)}
-                      />
-                      Obrigatorio
-                    </label>
-                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={selectedTemplate.nc}
-                        onChange={(event) => updateTemplate(selectedTemplate.id, "nc", event.target.checked)}
-                      />
-                      Gera NC
-                    </label>
-                    <ComponentRulesEditor
-                      item={selectedTemplate}
-                      lines={lines}
-                      onChange={(key, value) => updateTemplate(selectedTemplate.id, key, value)}
-                      onLineRuleChange={(lineId, key, value) => updateTemplateLineRule(selectedTemplate.id, lineId, key, value)}
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-gray-950">Indice selecionado</h3>
+              {selectedTemplate ? (
+                <>
+                  <label>
+                    <FieldLabel>Nome</FieldLabel>
+                    <ConfigInput value={selectedTemplate.name} onChange={(event) => updateTemplate(selectedTemplate.id, "name", event.target.value)} />
+                  </label>
+                  <label>
+                    <FieldLabel>Tipo</FieldLabel>
+                    <ConfigSelect value={selectedTemplate.type} onChange={(event) => updateTemplate(selectedTemplate.id, "type", event.target.value)}>
+                      {fieldTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </ConfigSelect>
+                  </label>
+                  <label>
+                    <FieldLabel>Secao sugerida</FieldLabel>
+                    <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
+                  </label>
+                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="size-6"
+                      checked={selectedTemplate.required}
+                      onChange={(event) => updateTemplate(selectedTemplate.id, "required", event.target.checked)}
                     />
-                  </>
-                ) : (
-                  <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
-                    Selecione um componente.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {selectedField ? (
-                  <>
-                    <h3 className="text-lg font-bold text-gray-950">Componente no processo</h3>
-                    <label>
-                      <FieldLabel>Nome</FieldLabel>
-                      <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel>Tipo</FieldLabel>
-                      <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
-                        {fieldTypes.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {type.label}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
-                    <label>
-                      <FieldLabel>Secao</FieldLabel>
-                      <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel>Largura no formulario</FieldLabel>
-                      <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
-                        {layoutOptions.map((layout) => (
-                          <option key={layout.id} value={layout.id}>
-                            {layout.label}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
-                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={selectedField.required}
-                        onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
-                      />
-                      Obrigatorio
-                    </label>
-                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="size-6"
-                        checked={selectedField.nc}
-                        onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
-                      />
-                      Gera NC
-                    </label>
-                    <ComponentRulesEditor
-                      item={selectedField}
-                      lines={lines}
-                      onChange={(key, value) => updateField(selectedField.id, key, value)}
-                      onLineRuleChange={(lineId, key, value) => updateFieldLineRule(selectedField.id, lineId, key, value)}
+                    Obrigatorio
+                  </label>
+                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="size-6"
+                      checked={selectedTemplate.nc}
+                      onChange={(event) => updateTemplate(selectedTemplate.id, "nc", event.target.checked)}
                     />
-                    <button
-                      type="button"
-                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
-                      onClick={() => removeField(selectedField.id)}
-                    >
-                      <Trash2 size={18} />
-                      Remover do processo
-                    </button>
-                  </>
-                ) : (
-                  <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
-                    Selecione um campo no formulario.
-                  </div>
-                )}
-              </div>
-            )}
+                    Gera NC
+                  </label>
+                  <ComponentRulesEditor
+                    item={selectedTemplate}
+                    lines={lines}
+                    lists={valueLists}
+                    onChange={(key, value) => updateTemplate(selectedTemplate.id, key, value)}
+                    onLineRuleChange={(lineId, key, value) => updateTemplateLineRule(selectedTemplate.id, lineId, key, value)}
+                  />
+                </>
+              ) : (
+                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
+                  Selecione um indice.
+                </div>
+              )}
+            </div>
           </aside>
         </div>
       ) : null}
