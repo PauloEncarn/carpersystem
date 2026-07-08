@@ -113,30 +113,35 @@ const avaliacaoProdutoComponents = [
 const processoComponents = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta", "Peso", "Ar (mm)"];
 
 const clextralHourlyComponents = [
-  { name: "Dosagem farinha", type: "numero", section: "Extrusora", unit: "Kg/h" },
-  { name: "Dosagem agua", type: "numero", section: "Extrusora", unit: "L/h" },
-  { name: "Rotacao rosca", type: "numero", section: "Extrusora", unit: "rpm" },
-  { name: "Torque", type: "percentual", section: "Extrusora" },
-  { name: "Amps - BA", type: "numero", section: "Extrusora", unit: "A" },
-  { name: "Fieira", type: "numero", section: "Extrusora", unit: "BAR" },
-  { name: "Bomba de oleo", type: "numero", section: "Extrusora", unit: "Hz" },
-  { name: "Refrigeracao", type: "temperatura", section: "Extrusora" },
-  { name: "Zona 1", type: "temperatura", section: "Zonas" },
-  { name: "Zona 2", type: "temperatura", section: "Zonas" },
-  { name: "Zona 3", type: "temperatura", section: "Zonas" },
-  { name: "Zona 4", type: "temperatura", section: "Zonas" },
-  { name: "Rotacao cortador", type: "numero", section: "Cortador", unit: "rpm" },
-  { name: "Temp. fieira", type: "temperatura", section: "Forno" },
-  { name: "Temp. zona 1 forno", type: "temperatura", section: "Forno" },
-  { name: "Temp. zona 2 forno", type: "temperatura", section: "Forno" },
-  { name: "Tempo residencia", type: "numero", section: "Produto", unit: "min" },
-  { name: "Densidade", type: "numero", section: "Produto", unit: "g/L" },
-  { name: "Umidade", type: "percentual", section: "Produto" },
-  { name: "SME", type: "numero", section: "Energia", unit: "KW/Kg.hr" },
+  { name: "Marca", type: "texto", section: "Produto por horario", defaultMode: "lista", valueList: "marca_extrusados" },
+  { name: "Formato", type: "texto", section: "Produto por horario", defaultMode: "lista", valueList: "formato_clextral" },
+  { name: "Sabor", type: "texto", section: "Produto por horario", defaultMode: "lista", valueList: "sabor_extrusados" },
+  { name: "Dosagem farinha", type: "numero", section: "Parametros extrusora", unit: "Kg/h" },
+  { name: "Dosagem agua", type: "numero", section: "Parametros extrusora", unit: "L/h" },
+  { name: "Rotacao rosca", type: "numero", section: "Parametros extrusora", unit: "rpm" },
+  { name: "Torque", type: "percentual", section: "Parametros extrusora" },
+  { name: "Amps - BA", type: "numero", section: "Parametros extrusora", unit: "A" },
+  { name: "Zona 1 - Set point", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 1 - Real", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 2 - Set point", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 2 - Real", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 3 - Set point", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 3 - Real", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Fieira", type: "numero", section: "Parametros extrusora", unit: "BAR" },
+  { name: "Bomba de oleo", type: "numero", section: "Parametros extrusora", unit: "Hz" },
+  { name: "Refrigeracao", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Rotacao cortador", type: "numero", section: "Parametros extrusora", unit: "rpm" },
   { name: "Comp. / Diametro", type: "numero", section: "Dimensional", unit: "mm" },
   { name: "Larg. Sup. / Espes.", type: "numero", section: "Dimensional", unit: "mm" },
   { name: "Larg. Inferior", type: "numero", section: "Dimensional", unit: "mm" },
-  { name: "Altura", type: "numero", section: "Dimensional", unit: "mm" }
+  { name: "Altura", type: "numero", section: "Dimensional", unit: "mm" },
+  { name: "Temp. fieira", type: "temperatura", section: "Forno" },
+  { name: "Temp. zona 1 forno", type: "temperatura", section: "Forno" },
+  { name: "Temp. zona 2 forno", type: "temperatura", section: "Forno" },
+  { name: "Tempo residencia", type: "numero", section: "Forno", unit: "min" },
+  { name: "Densidade", type: "numero", section: "Qualidade", unit: "g/L" },
+  { name: "Umidade", type: "percentual", section: "Qualidade" },
+  { name: "SME", type: "numero", section: "Qualidade", unit: "KW/Kg.hr" }
 ];
 
 const clextralOccurrenceComponents = [
@@ -206,29 +211,28 @@ const productContextFields = [
 
 function buildClextralFields(processId) {
   const headerFields = [
-    makeField(`${processId}-field-1`, "Data", "hora", "Cabecalho", { nc: false, layout: "quarter" }),
+    makeField(`${processId}-field-1`, "Data", "data", "Cabecalho", { nc: false, layout: "quarter" }),
     makeField(`${processId}-field-2`, "Operador TA", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
     makeField(`${processId}-field-3`, "Operador TB", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
     makeField(`${processId}-field-4`, "Operador TC", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
     makeField(`${processId}-field-5`, "Supervisor TA", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
     makeField(`${processId}-field-6`, "Supervisor TB", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
-    makeField(`${processId}-field-7`, "Supervisor TC", "assinatura", "Assinaturas", { nc: false, layout: "third" }),
-    makeField(`${processId}-field-8`, "Marca", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "marca_extrusados" }),
-    makeField(`${processId}-field-9`, "Formato", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "formato_clextral" }),
-    makeField(`${processId}-field-10`, "Sabor", "texto", "Produto", { nc: false, layout: "third", defaultMode: "lista", valueList: "sabor_extrusados" })
+    makeField(`${processId}-field-7`, "Supervisor TC", "assinatura", "Assinaturas", { nc: false, layout: "third" })
   ];
 
   const hourlyFields = clextralHourlyComponents.map((item, index) =>
-    makeField(`${processId}-field-${index + 11}`, item.name, item.type, item.section, {
+    makeField(`${processId}-field-${index + 8}`, item.name, item.type, item.section, {
       nc: false,
       layout: "quarter",
-      unit: item.unit ?? ""
+      unit: item.unit ?? "",
+      defaultMode: item.defaultMode ?? "manual",
+      valueList: item.valueList ?? ""
     })
   );
 
   const occurrenceFields = clextralOccurrenceComponents.map((field, index) => ({
     ...field,
-    id: `${processId}-field-${index + 11 + hourlyFields.length}`
+    id: `${processId}-field-${index + 8 + hourlyFields.length}`
   }));
 
   return [...headerFields, ...hourlyFields, ...occurrenceFields];

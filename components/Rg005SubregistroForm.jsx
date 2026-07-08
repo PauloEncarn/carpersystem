@@ -28,42 +28,57 @@ const processoColumns = ["Datador", "Selagem", "Microfuro", "Caixa", "Etiqueta",
 
 const clextralParameterGroups = [
   {
-    title: "Extrusora",
-    columns: [
+    title: "Produto por horario",
+    rows: [
+      { label: "Marca", type: "select", options: ["MIC", "MIK", "ANE"] },
+      { label: "Formato", type: "select", options: ["CX", "ZZ", "ANE", "CON"] },
+      { label: "Sabor", type: "select", options: ["QJ", "RQ", "CB", "PZ", "PR", "CM", "GL", "CR"] }
+    ]
+  },
+  {
+    title: "Parametros extrusora",
+    rows: [
       { label: "Dosagem farinha", unit: "Kg/h" },
       { label: "Dosagem agua", unit: "L/h" },
       { label: "Rotacao rosca", unit: "rpm" },
       { label: "Torque", unit: "%" },
       { label: "Amps - BA", unit: "A" },
+      { label: "Zona 1 - Set point", unit: "deg C" },
+      { label: "Zona 1 - Real", unit: "deg C" },
+      { label: "Zona 2 - Set point", unit: "deg C" },
+      { label: "Zona 2 - Real", unit: "deg C" },
+      { label: "Zona 3 - Set point", unit: "deg C" },
+      { label: "Zona 3 - Real", unit: "deg C" },
       { label: "Fieira", unit: "BAR" },
       { label: "Bomba de oleo", unit: "Hz" },
-      { label: "Refrigeracao", unit: "deg C" }
+      { label: "Refrigeracao", unit: "deg C" },
+      { label: "Rotacao cortador", unit: "rpm" }
     ]
   },
   {
-    title: "Zonas e forno",
-    columns: [
-      { label: "Zona 1", unit: "deg C" },
-      { label: "Zona 2", unit: "deg C" },
-      { label: "Zona 3", unit: "deg C" },
-      { label: "Zona 4", unit: "deg C" },
-      { label: "Temp. fieira", unit: "deg C" },
-      { label: "Temp. zona 1 forno", unit: "deg C" },
-      { label: "Temp. zona 2 forno", unit: "deg C" }
-    ]
-  },
-  {
-    title: "Produto e dimensional",
-    columns: [
-      { label: "Rotacao cortador", unit: "rpm" },
-      { label: "Tempo residencia", unit: "min" },
-      { label: "Densidade", unit: "g/L" },
-      { label: "Umidade", unit: "%" },
-      { label: "SME", unit: "KW/Kg.hr" },
+    title: "Dimensional",
+    rows: [
       { label: "Comp. / Diametro", unit: "mm" },
       { label: "Larg. Sup. / Espes.", unit: "mm" },
       { label: "Larg. Inferior", unit: "mm" },
       { label: "Altura", unit: "mm" }
+    ]
+  },
+  {
+    title: "Forno",
+    rows: [
+      { label: "Temp. fieira", unit: "deg C" },
+      { label: "Temp. zona 1 forno", unit: "deg C" },
+      { label: "Temp. zona 2 forno", unit: "deg C" },
+      { label: "Tempo residencia", unit: "min" }
+    ]
+  },
+  {
+    title: "Qualidade",
+    rows: [
+      { label: "Densidade", unit: "g/L" },
+      { label: "Umidade", unit: "%" },
+      { label: "SME", unit: "KW/Kg.hr" }
     ]
   }
 ];
@@ -277,22 +292,34 @@ function NumericUnitInput({ unit }) {
   );
 }
 
+function ClextralTimeCell({ row }) {
+  if (row.type === "select") {
+    return (
+      <select className="min-h-11 w-full min-w-24 rounded-md border border-gray-300 bg-white px-2 text-sm font-semibold">
+        <option value="">-</option>
+        {row.options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return <NumericUnitInput unit={row.unit} />;
+}
+
 function ClextralContexto({ registro }) {
   return (
     <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
-      <div className="mb-3 grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-4">
         <Field label="Data" type="date" />
         <Field label="Operador TA" defaultValue={registro?.operador ?? ""} />
         <Field label="Operador TB" />
         <Field label="Operador TC" />
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        <SelectField label="Marca" defaultValue="MIC" options={["MIC", "MIK", "ANE"]} />
-        <SelectField label="Formato" defaultValue="CX" options={["CX", "ZZ", "ANE", "CON"]} />
-        <SelectField label="Sabor" defaultValue="QJ" options={["QJ", "RQ", "CB", "PZ", "PR", "CM", "GL", "CR"]} />
-      </div>
       <p className="mt-3 text-xs font-semibold text-gray-500">
-        Legenda do PDF: Marca MIC/Mik/Anelitos, Formato CX/ZZ/ANE/CON e sabores QJ/RQ/CB/PZ/PR/CM/GL/CR.
+        Marca, formato e sabor sao preenchidos por horario, pois podem mudar ao longo da producao.
       </p>
     </section>
   );
@@ -311,24 +338,27 @@ function ClextralParameterTable() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="audit-table min-w-[1180px] text-left">
+            <table className="audit-table min-w-[2760px] text-left">
               <thead>
                 <tr>
-                  <th className="w-24 px-3 py-3">Hora</th>
-                  {group.columns.map((column) => (
-                    <th key={column.label} className="px-3 py-3">
-                      {column.label}
+                  <th className="sticky left-0 z-10 w-64 bg-gray-900 px-3 py-3">Indice</th>
+                  {hours.map((hour) => (
+                    <th key={hour} className="w-28 px-3 py-3 text-center">
+                      {hour}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {hours.map((hour) => (
-                  <tr key={`${group.title}-${hour}`} className="bg-white">
-                    <td className="px-3 py-3 text-base font-bold text-gray-950">{hour}</td>
-                    {group.columns.map((column) => (
-                      <td key={`${group.title}-${hour}-${column.label}`} className="px-3 py-3">
-                        <NumericUnitInput unit={column.unit} />
+                {group.rows.map((row) => (
+                  <tr key={`${group.title}-${row.label}`} className="bg-white">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-3">
+                      <span className="block text-base font-bold text-gray-950">{row.label}</span>
+                      {row.unit ? <span className="text-xs font-semibold text-gray-500">{row.unit}</span> : null}
+                    </td>
+                    {hours.map((hour) => (
+                      <td key={`${group.title}-${row.label}-${hour}`} className="px-2 py-3">
+                        <ClextralTimeCell row={row} />
                       </td>
                     ))}
                   </tr>
