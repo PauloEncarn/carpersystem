@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import {
+  Camera,
   CheckSquare,
   ClipboardList,
   Factory,
+  FileSignature,
   FileText,
   GripVertical,
   Layers3,
@@ -251,31 +253,101 @@ function sectionKind(section) {
 
 function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
   return (
-    <button
-      type="button"
+    <article
       draggable
-      className={`${previewGridClass(field.layout)} rounded-md border p-3 text-left transition ${
+      className={`${previewGridClass(field.layout)} cursor-pointer rounded-md border p-3 text-left transition ${
         selected ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white hover:border-cicopal-blue"
       }`}
       onClick={onSelect}
       onDragStart={onDragStart}
       onDrop={onDrop}
       onDragOver={onDragOver}
+      role="button"
+      tabIndex={0}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <span className="text-sm font-bold text-gray-950">{field.name}</span>
         <GripVertical size={18} className="shrink-0 text-gray-400" />
       </div>
-      <div className="flex min-h-11 items-center rounded-md border border-gray-300 bg-gray-50 px-3 text-sm font-semibold text-gray-500">
-        {fieldTypeLabel(field.type)}
-      </div>
+      <OperatorFieldControl field={field} />
       <div className="mt-2 flex flex-wrap gap-2">
         <span className="audit-badge bg-gray-100 text-gray-600">
           {layoutOptions.find((item) => item.id === field.layout)?.preview ?? "1/3"}
         </span>
         {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
       </div>
-    </button>
+    </article>
+  );
+}
+
+function OperatorFieldControl({ field }) {
+  if (field.type === "c_nc") {
+    return (
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <span className="mb-1 block text-[11px] font-bold uppercase text-gray-500">1 AV</span>
+          <span className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-green-200 bg-green-50 px-3 font-bold text-cicopal-green">
+            C
+          </span>
+        </div>
+        <div>
+          <span className="mb-1 block text-[11px] font-bold uppercase text-gray-500">2 AV</span>
+          <span className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-gray-100 px-3 text-sm font-bold text-gray-500">
+            Bloqueada
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "percentual" || field.type === "temperatura") {
+    const unit = field.type === "percentual" ? "%" : "deg C";
+    return (
+      <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+        <span className="w-full px-3 font-semibold text-gray-400">0,00</span>
+        <span className="flex min-h-12 items-center bg-gray-100 px-3 text-sm font-bold text-gray-600">{unit}</span>
+      </div>
+    );
+  }
+
+  if (field.type === "numero") {
+    return (
+      <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
+        0
+      </div>
+    );
+  }
+
+  if (field.type === "hora") {
+    return (
+      <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
+        --:--
+      </div>
+    );
+  }
+
+  if (field.type === "foto") {
+    return (
+      <div className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 font-bold text-gray-500">
+        <Camera size={22} />
+        Tirar foto
+      </div>
+    );
+  }
+
+  if (field.type === "assinatura") {
+    return (
+      <div className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white">
+        <FileSignature size={20} />
+        Assinar
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
+      Preencher texto
+    </div>
   );
 }
 
