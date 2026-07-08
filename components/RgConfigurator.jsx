@@ -8,8 +8,12 @@ import {
   Factory,
   FileCog,
   FileText,
+  Home,
   Layers3,
+  Maximize2,
+  PanelRight,
   Plus,
+  Save,
   Settings2,
   Trash2
 } from "lucide-react";
@@ -42,6 +46,21 @@ const fieldTypes = [
 
 const frequencies = ["Por registro", "Por setup", "Por horario liberado", "Hora em hora", "Turno"];
 
+const layoutOptions = [
+  { id: "full", label: "Linha inteira", preview: "1/1" },
+  { id: "half", label: "Metade", preview: "1/2" },
+  { id: "third", label: "Terco", preview: "1/3" },
+  { id: "quarter", label: "Quarto", preview: "1/4" }
+];
+
+const workspaceMenus = [
+  { id: "administracao", label: "Administracao", icon: Settings2 },
+  { id: "ambiente", label: "Ambiente", icon: Factory },
+  { id: "documentos", label: "Documentos", icon: FileText },
+  { id: "formularios", label: "Formularios", icon: ClipboardList },
+  { id: "workflow", label: "Workflow", icon: Layers3 }
+];
+
 const liberacaoProdutoComponents = [
   "Sabor e odor",
   "Textura",
@@ -69,6 +88,7 @@ function makeField(id, name, type = "c_nc", category = "Geral", overrides = {}) 
     name,
     type,
     category,
+    layout: type === "texto" || type === "foto" ? "half" : "third",
     required: true,
     nc: type === "c_nc",
     ...overrides
@@ -239,6 +259,17 @@ function fieldTypeLabel(type) {
   return fieldTypes.find((item) => item.id === type)?.label ?? type;
 }
 
+function previewGridClass(layout) {
+  const classes = {
+    full: "md:col-span-12",
+    half: "md:col-span-6",
+    third: "md:col-span-4",
+    quarter: "md:col-span-3"
+  };
+
+  return classes[layout] ?? classes.third;
+}
+
 function groupFieldsByType(fields) {
   return fieldTypes
     .map((type) => ({
@@ -246,6 +277,16 @@ function groupFieldsByType(fields) {
       fields: fields.filter((field) => field.type === type.id)
     }))
     .filter((group) => group.fields.length > 0);
+}
+
+function groupFieldsByCategory(fields) {
+  return fields.reduce((groups, field) => {
+    const category = field.category || "Geral";
+    return {
+      ...groups,
+      [category]: [...(groups[category] ?? []), field]
+    };
+  }, {});
 }
 
 export function RgConfigurator({ lines }) {
@@ -264,6 +305,9 @@ export function RgConfigurator({ lines }) {
   }, [lines, selectedRg]);
   const selectedProcessFieldGroups = useMemo(() => {
     return selectedProcess ? groupFieldsByType(selectedProcess.fields) : [];
+  }, [selectedProcess]);
+  const selectedProcessLayoutGroups = useMemo(() => {
+    return selectedProcess ? groupFieldsByCategory(selectedProcess.fields) : {};
   }, [selectedProcess]);
 
   function updateSelectedRg(field, value) {
@@ -362,7 +406,15 @@ export function RgConfigurator({ lines }) {
 
   function addField() {
     if (!selectedProcess) return;
-    const newField = { id: makeId("field"), name: "Novo componente", type: "c_nc", required: true, nc: true };
+    const newField = {
+      id: makeId("field"),
+      name: "Novo componente",
+      type: "c_nc",
+      category: "Geral",
+      layout: "third",
+      required: true,
+      nc: true
+    };
 
     setRgs((current) =>
       current.map((rg) =>
@@ -427,39 +479,91 @@ export function RgConfigurator({ lines }) {
   }
 
   return (
-    <section className="audit-card p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
-        <div className="flex items-center gap-3">
-          <FileCog size={30} className="text-cicopal-blue" />
-          <div>
-            <h2 className="text-2xl font-bold text-cicopal-blue">Configurador de RG</h2>
-            <p className="text-sm font-semibold text-gray-600">Configure por etapas: RG, processo e componente.</p>
-          </div>
+    <section className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-soft">
+      <div className="flex min-h-12 items-center justify-between border-b border-gray-200 bg-white px-4">
+        <div className="flex items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-md bg-teal-50 text-lg font-black text-teal-500">c</div>
+          <div className="text-xl font-bold text-gray-950">RG Qualidade</div>
+          <span className="text-sm font-semibold text-gray-500">| configurador</span>
         </div>
-        <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
-          {selectedRg.code} - rev {selectedRg.revision}
-        </span>
+        <div className="flex items-center gap-2 text-gray-600">
+          <button type="button" className="inline-flex size-10 items-center justify-center rounded-md hover:bg-gray-100" aria-label="Salvar">
+            <Save size={18} />
+          </button>
+          <button type="button" className="inline-flex size-10 items-center justify-center rounded-md hover:bg-gray-100" aria-label="Expandir">
+            <Maximize2 size={18} />
+          </button>
+          <span className="rounded-md border border-gray-200 px-2 py-1 text-xs font-bold">pt-BR</span>
+        </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-3 gap-2 rounded-md bg-gray-100 p-1">
-        {menus.map((menu) => {
-          const Icon = menu.icon;
-          const active = activeMenu === menu.id;
-          return (
-            <button
-              key={menu.id}
-              type="button"
-              className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 text-base font-bold ${
-                active ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
-              }`}
-              onClick={() => setActiveMenu(menu.id)}
-            >
-              <Icon size={20} />
-              {menu.label}
+      <div className="grid min-h-[720px] lg:grid-cols-[76px_1fr]">
+        <aside className="flex overflow-x-auto bg-[#063745] lg:block">
+          {workspaceMenus.map((item) => {
+            const Icon = item.icon;
+            const active = item.id === "formularios";
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`flex min-w-24 flex-col items-center justify-center gap-1 px-2 py-3 text-[11px] font-bold lg:min-h-16 lg:w-full ${
+                  active ? "bg-[#0b5568] text-white" : "text-white/75 hover:bg-white/10"
+                }`}
+              >
+                <Icon size={22} />
+                {item.label}
+              </button>
+            );
+          })}
+        </aside>
+
+        <div className="min-w-0 bg-[#eef7fb]">
+          <div className="flex min-h-12 items-center gap-1 border-b border-gray-200 bg-white px-3">
+            <button type="button" className="inline-flex size-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">
+              <Home size={18} />
             </button>
-          );
-        })}
-      </div>
+            <span className="mx-1 h-6 w-px bg-gray-200" />
+            <div className="inline-flex min-h-10 items-center gap-2 rounded-t-md border-x border-t border-gray-200 bg-[#eef7fb] px-3 text-sm font-bold text-gray-700">
+              <FileCog size={17} className="text-teal-500" />
+              Configurador de RG
+            </div>
+          </div>
+
+          <div className="p-4">
+            <div className="mb-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-3">
+                  <FileCog size={28} className="text-cicopal-blue" />
+                  <div>
+                    <h2 className="text-2xl font-bold text-cicopal-blue">Formularios Eletronicos</h2>
+                    <p className="text-sm font-semibold text-gray-600">Configure por etapas: RG, processo, componente e disposicao visual.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-gray-900 px-3 py-2 text-sm font-bold text-white">
+                  {selectedRg.code} - rev {selectedRg.revision}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 rounded-md bg-gray-100 p-1">
+                {menus.map((menu) => {
+                  const Icon = menu.icon;
+                  const active = activeMenu === menu.id;
+                  return (
+                    <button
+                      key={menu.id}
+                      type="button"
+                      className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 text-base font-bold ${
+                        active ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
+                      }`}
+                      onClick={() => setActiveMenu(menu.id)}
+                    >
+                      <Icon size={20} />
+                      {menu.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <MiniStat label="RG selecionado" value={selectedRg.code} />
@@ -753,7 +857,7 @@ export function RgConfigurator({ lines }) {
                               <Trash2 size={19} />
                             </button>
                           </div>
-                          <div className="grid gap-3 md:grid-cols-[1.5fr_180px_150px_150px]">
+                          <div className="grid gap-3 md:grid-cols-[1.2fr_180px_180px_180px_150px_150px]">
                             <label>
                               <FieldLabel>Nome do componente</FieldLabel>
                               <ConfigInput value={field.name} onChange={(event) => updateField(field.id, "name", event.target.value)} />
@@ -764,6 +868,23 @@ export function RgConfigurator({ lines }) {
                                 {fieldTypes.map((type) => (
                                   <option key={type.id} value={type.id}>
                                     {type.label}
+                                  </option>
+                                ))}
+                              </ConfigSelect>
+                            </label>
+                            <label>
+                              <FieldLabel>Secao visual</FieldLabel>
+                              <ConfigInput
+                                value={field.category ?? "Geral"}
+                                onChange={(event) => updateField(field.id, "category", event.target.value)}
+                              />
+                            </label>
+                            <label>
+                              <FieldLabel>Largura</FieldLabel>
+                              <ConfigSelect value={field.layout ?? "third"} onChange={(event) => updateField(field.id, "layout", event.target.value)}>
+                                {layoutOptions.map((layout) => (
+                                  <option key={layout.id} value={layout.id}>
+                                    {layout.label}
                                   </option>
                                 ))}
                               </ConfigSelect>
@@ -807,6 +928,46 @@ export function RgConfigurator({ lines }) {
         </section>
       ) : null}
 
+      {selectedProcess ? (
+        <section className="mt-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-lg font-bold text-gray-950">
+              <PanelRight size={22} className="text-cicopal-blue" />
+              Previa visual do formulario
+            </div>
+            <span className="rounded-md bg-blue-50 px-3 py-2 text-sm font-bold text-cicopal-blue">
+              {selectedProcess.name}
+            </span>
+          </div>
+          <div className="space-y-3 rounded-md bg-gray-50 p-3">
+            {Object.entries(selectedProcessLayoutGroups).map(([category, fields]) => (
+              <div key={category} className="rounded-md border border-gray-200 bg-white p-3">
+                <h4 className="mb-3 text-base font-bold text-gray-950">{category}</h4>
+                <div className="grid gap-3 md:grid-cols-12">
+                  {fields.map((field) => (
+                    <div key={field.id} className={`${previewGridClass(field.layout)} rounded-md border border-gray-200 bg-gray-50 p-3`}>
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <p className="text-sm font-bold text-gray-900">{field.name}</p>
+                        <span className="rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-500">
+                          {layoutOptions.find((layout) => layout.id === field.layout)?.preview ?? "1/3"}
+                        </span>
+                      </div>
+                      <div className="flex min-h-11 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-500">
+                        {fieldTypeLabel(field.type)}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {field.required ? <span className="audit-badge bg-blue-50 text-cicopal-blue">Obrigatorio</span> : null}
+                        {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">Gera NC</span> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="mt-4 rounded-md border border-gray-200 bg-white p-3 shadow-soft">
         <div className="mb-3 flex items-center gap-2 text-lg font-bold text-gray-950">
           <Settings2 size={22} className="text-cicopal-blue" />
@@ -834,6 +995,9 @@ export function RgConfigurator({ lines }) {
           })}
         </div>
       </section>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
