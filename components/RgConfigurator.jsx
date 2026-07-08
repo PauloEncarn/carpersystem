@@ -168,6 +168,21 @@ function defaultFrequencyForProcess(type) {
   return "Por registro";
 }
 
+function buildComponentLibrary() {
+  return processTypes.flatMap((processType) =>
+    defaultFieldsForProcess(processType.id).map((field, index) => ({
+      id: `tpl-${processType.id}-${index + 1}`,
+      processType: processType.id,
+      name: field.name,
+      type: field.type,
+      section: field.section,
+      layout: field.layout,
+      required: field.required,
+      nc: field.nc
+    }))
+  );
+}
+
 const initialRgs = [
   {
     id: "rg-005",
@@ -184,6 +199,8 @@ const initialRgs = [
     }))
   }
 ];
+
+const initialComponentLibrary = buildComponentLibrary();
 
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -412,10 +429,12 @@ function isChecklistSection(fields) {
 
 export function RgConfigurator({ lines }) {
   const [rgs, setRgs] = useState(initialRgs);
+  const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
   const [activeStep, setActiveStep] = useState("componente");
   const [selectedRgId, setSelectedRgId] = useState(initialRgs[0].id);
   const [selectedProcessId, setSelectedProcessId] = useState(initialRgs[0].processes[0].id);
   const [selectedFieldId, setSelectedFieldId] = useState(initialRgs[0].processes[0].fields[0].id);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(initialComponentLibrary[0]?.id ?? "");
   const [draggedFieldId, setDraggedFieldId] = useState("");
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
@@ -426,6 +445,11 @@ export function RgConfigurator({ lines }) {
     () => lines.filter((line) => selectedRg.linkedLines.includes(line.id)).map((line) => line.nome),
     [lines, selectedRg]
   );
+  const availableComponents = useMemo(
+    () => componentLibrary.filter((component) => component.processType === selectedProcess?.type),
+    [componentLibrary, selectedProcess]
+  );
+  const selectedTemplate = availableComponents.find((component) => component.id === selectedTemplateId) ?? availableComponents[0];
 
   function updateRg(field, value) {
     setRgs((current) => current.map((rg) => (rg.id === selectedRg.id ? { ...rg, [field]: value } : rg)));
@@ -514,6 +538,44 @@ export function RgConfigurator({ lines }) {
   function addField() {
     if (!selectedProcess) return;
     const newField = makeField(makeId("field"), "Novo componente", "c_nc", "Geral", { layout: "third" });
+    const newTemplate = {
+      id: makeId("tpl"),
+      processType: selectedProcess.type,
+      name: newField.name,
+      type: newField.type,
+      section: newField.section,
+      layout: newField.layout,
+      required: newField.required,
+      nc: newField.nc
+    };
+    setComponentLibrary((current) => [...current, newTemplate]);
+    setRgs((current) =>
+      current.map((rg) =>
+        rg.id === selectedRg.id
+          ? {
+              ...rg,
+              processes: rg.processes.map((process) =>
+                process.id === selectedProcess.id ? { ...process, fields: [...process.fields, newField] } : process
+              )
+            }
+          : rg
+      )
+    );
+    setSelectedFieldId(newField.id);
+    setSelectedTemplateId(newTemplate.id);
+    setActiveStep("componente");
+  }
+
+  function addFieldFromTemplate(templateId = selectedTemplate?.id) {
+    if (!selectedProcess || !templateId) return;
+    const template = componentLibrary.find((item) => item.id === templateId);
+    if (!template) return;
+    const newField = makeField(makeId("field"), template.name, template.type, template.section, {
+      layout: template.layout,
+      required: template.required,
+      nc: template.nc
+    });
+
     setRgs((current) =>
       current.map((rg) =>
         rg.id === selectedRg.id
@@ -544,6 +606,12 @@ export function RgConfigurator({ lines }) {
             }
           : rg
       )
+    );
+  }
+
+  function updateTemplate(templateId, key, value) {
+    setComponentLibrary((current) =>
+      current.map((template) => (template.id === templateId ? { ...template, [key]: value } : template))
     );
   }
 
@@ -799,6 +867,76 @@ export function RgConfigurator({ lines }) {
                     Remover processo
                   </button>
                 </div>
+
+                <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <section className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-950">Componentes deste processo</h4>
+                        <p className="text-sm font-semibold text-gray-500">Clique para editar no ajuste visual.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white"
+                        onClick={() => setActiveStep("componente")}
+                      >
+                        Editar layout
+                        <LayoutTemplate size={18} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {selectedProcess.fields.map((field) => (
+                        <button
+                          key={field.id}
+                          type="button"
+                          className={`rounded-md border p-3 text-left ${
+                            field.id === selectedField?.id ? "border-cicopal-blue bg-white shadow-soft" : "border-gray-200 bg-white"
+                          }`}
+                          onClick={() => {
+                            setSelectedFieldId(field.id);
+                            setActiveStep("componente");
+                          }}
+                        >
+                          <span className="block text-sm font-bold text-gray-950">{field.name}</span>
+                          <span className="text-xs font-semibold text-gray-500">
+                            {field.section} - {fieldTypeLabel(field.type)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-md border border-gray-200 bg-white p-3">
+                    <h4 className="text-lg font-bold text-gray-950">Adicionar da biblioteca</h4>
+                    <p className="mb-3 text-sm font-semibold text-gray-500">Use componentes ja cadastrados para manter padrao entre processos.</p>
+                    <label>
+                      <FieldLabel>Componente existente</FieldLabel>
+                      <ConfigSelect value={selectedTemplate?.id ?? ""} onChange={(event) => setSelectedTemplateId(event.target.value)}>
+                        {availableComponents.map((component) => (
+                          <option key={component.id} value={component.id}>
+                            {component.name} - {fieldTypeLabel(component.type)}
+                          </option>
+                        ))}
+                      </ConfigSelect>
+                    </label>
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+                      onClick={() => addFieldFromTemplate()}
+                    >
+                      <Plus size={20} />
+                      Inserir no processo
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+                      onClick={addField}
+                    >
+                      <Plus size={20} />
+                      Criar novo componente
+                    </button>
+                  </section>
+                </div>
               </>
             ) : (
               <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
@@ -830,7 +968,7 @@ export function RgConfigurator({ lines }) {
                 </button>
                 <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
                   <Plus size={20} />
-                  Adicionar campo
+                  Criar componente
                 </button>
               </div>
             </div>
@@ -896,69 +1034,116 @@ export function RgConfigurator({ lines }) {
           </main>
 
           <aside className="rounded-md border border-gray-200 bg-white p-3">
-            {selectedField ? (
-              <div className="space-y-3">
-                <h3 className="text-lg font-bold text-gray-950">Campo selecionado</h3>
+            <div className="space-y-4">
+              {selectedField ? (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-bold text-gray-950">Componente no processo</h3>
+                  <label>
+                    <FieldLabel>Nome</FieldLabel>
+                    <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
+                  </label>
+                  <label>
+                    <FieldLabel>Tipo</FieldLabel>
+                    <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
+                      {fieldTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </ConfigSelect>
+                  </label>
+                  <label>
+                    <FieldLabel>Secao</FieldLabel>
+                    <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
+                  </label>
+                  <label>
+                    <FieldLabel>Largura no formulario</FieldLabel>
+                    <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
+                      {layoutOptions.map((layout) => (
+                        <option key={layout.id} value={layout.id}>
+                          {layout.label}
+                        </option>
+                      ))}
+                    </ConfigSelect>
+                  </label>
+                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="size-6"
+                      checked={selectedField.required}
+                      onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
+                    />
+                    Obrigatorio
+                  </label>
+                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="size-6"
+                      checked={selectedField.nc}
+                      onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
+                    />
+                    Gera NC
+                  </label>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                    onClick={() => removeField(selectedField.id)}
+                  >
+                    <Trash2 size={18} />
+                    Remover do processo
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
+                  Selecione um campo no formulario.
+                </div>
+              )}
+
+              <div className="border-t border-gray-100 pt-4">
+                <h3 className="text-lg font-bold text-gray-950">Biblioteca</h3>
+                <p className="mb-3 text-sm font-semibold text-gray-500">Edite o componente padrao ou insira no processo atual.</p>
                 <label>
-                  <FieldLabel>Nome</FieldLabel>
-                  <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
-                </label>
-                <label>
-                  <FieldLabel>Tipo</FieldLabel>
-                  <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
-                    {fieldTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.label}
+                  <FieldLabel>Componente existente</FieldLabel>
+                  <ConfigSelect value={selectedTemplate?.id ?? ""} onChange={(event) => setSelectedTemplateId(event.target.value)}>
+                    {availableComponents.map((component) => (
+                      <option key={component.id} value={component.id}>
+                        {component.name}
                       </option>
                     ))}
                   </ConfigSelect>
                 </label>
-                <label>
-                  <FieldLabel>Seção</FieldLabel>
-                  <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
-                </label>
-                <label>
-                  <FieldLabel>Largura no formulário</FieldLabel>
-                  <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
-                    {layoutOptions.map((layout) => (
-                      <option key={layout.id} value={layout.id}>
-                        {layout.label}
-                      </option>
-                    ))}
-                  </ConfigSelect>
-                </label>
-                <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="size-6"
-                    checked={selectedField.required}
-                    onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
-                  />
-                  Obrigatório
-                </label>
-                <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="size-6"
-                    checked={selectedField.nc}
-                    onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
-                  />
-                  Gera NC
-                </label>
-                <button
-                  type="button"
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
-                  onClick={() => removeField(selectedField.id)}
-                >
-                  <Trash2 size={18} />
-                  Remover campo
-                </button>
+                {selectedTemplate ? (
+                  <div className="mt-3 space-y-3">
+                    <label>
+                      <FieldLabel>Nome padrao</FieldLabel>
+                      <ConfigInput value={selectedTemplate.name} onChange={(event) => updateTemplate(selectedTemplate.id, "name", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Tipo padrao</FieldLabel>
+                      <ConfigSelect value={selectedTemplate.type} onChange={(event) => updateTemplate(selectedTemplate.id, "type", event.target.value)}>
+                        {fieldTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </ConfigSelect>
+                    </label>
+                    <label>
+                      <FieldLabel>Secao padrao</FieldLabel>
+                      <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
+                    </label>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+                      onClick={() => addFieldFromTemplate(selectedTemplate.id)}
+                    >
+                      <Plus size={20} />
+                      Inserir no processo
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ) : (
-              <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
-                Selecione um campo no formulário.
-              </div>
-            )}
+            </div>
           </aside>
         </div>
       ) : null}
