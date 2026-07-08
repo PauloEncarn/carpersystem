@@ -280,6 +280,36 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
   );
 }
 
+function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
+  return (
+    <tr
+      draggable
+      className={`${selected ? "bg-blue-50" : "bg-white"} cursor-pointer`}
+      onClick={onSelect}
+      onDragStart={onDragStart}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <GripVertical size={17} className="shrink-0 text-gray-400" />
+          <span className="text-base font-semibold text-gray-950">{field.name}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex min-h-12 w-full items-center justify-center rounded-md border border-green-200 bg-green-50 px-3 font-bold text-cicopal-green">
+          C
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-gray-100 px-3 text-sm font-bold text-gray-500">
+          Bloqueada
+        </span>
+      </td>
+    </tr>
+  );
+}
+
 function OperatorFieldControl({ field }) {
   if (field.type === "c_nc") {
     return (
@@ -353,13 +383,14 @@ function OperatorFieldControl({ field }) {
 
 function SectionCard({ section, fields, children }) {
   const types = [...new Set(fields.map((field) => fieldTypeLabel(field.type)))];
+  const checklist = isChecklistSection(fields);
 
   return (
-    <section className={`rounded-md border border-l-[6px] border-gray-200 p-3 ${sectionTone(section)}`}>
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-md bg-white/80 p-3">
+    <section className={`overflow-hidden rounded-md border border-gray-200 ${checklist ? "bg-white" : `border-l-[6px] p-3 ${sectionTone(section)}`}`}>
+      <div className={`${checklist ? "border-t-[5px] border-cicopal-blue px-4 py-3" : "mb-3 rounded-md bg-white/80 p-3"} flex flex-wrap items-start justify-between gap-3`}>
         <div>
           <p className="text-xs font-bold uppercase text-gray-500">{sectionKind(section)}</p>
-          <h4 className="text-xl font-bold text-gray-950">{section}</h4>
+          <h4 className={`text-xl font-bold ${checklist ? "text-cicopal-blue" : "text-gray-950"}`}>{section}</h4>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <span className="audit-badge bg-white text-gray-700">{fields.length} campos</span>
@@ -370,9 +401,13 @@ function SectionCard({ section, fields, children }) {
           ))}
         </div>
       </div>
-      {children}
+      <div className={checklist ? "" : ""}>{children}</div>
     </section>
   );
+}
+
+function isChecklistSection(fields) {
+  return fields.length > 3 && fields.every((field) => field.type === "c_nc");
 }
 
 export function RgConfigurator({ lines }) {
@@ -804,22 +839,52 @@ export function RgConfigurator({ lines }) {
               <div className="space-y-4">
                 {Object.entries(fieldsBySection).map(([section, fields]) => (
                   <SectionCard key={section} section={section} fields={fields}>
-                    <div className="grid gap-3 md:grid-cols-12">
-                      {fields.map((field) => (
-                        <FieldPreview
-                          key={field.id}
-                          field={field}
-                          selected={field.id === selectedField?.id}
-                          onSelect={() => setSelectedFieldId(field.id)}
-                          onDragStart={() => setDraggedFieldId(field.id)}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            moveField(field.id);
-                          }}
-                          onDragOver={(event) => event.preventDefault()}
-                        />
-                      ))}
-                    </div>
+                    {isChecklistSection(fields) ? (
+                      <div className="overflow-x-auto rounded-md bg-white">
+                        <table className="audit-table min-w-[560px] text-left">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-3">Item</th>
+                              <th className="w-40 px-4 py-3">1 AV</th>
+                              <th className="w-40 px-4 py-3">2 AV</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {fields.map((field) => (
+                              <ChecklistRowPreview
+                                key={field.id}
+                                field={field}
+                                selected={field.id === selectedField?.id}
+                                onSelect={() => setSelectedFieldId(field.id)}
+                                onDragStart={() => setDraggedFieldId(field.id)}
+                                onDrop={(event) => {
+                                  event.preventDefault();
+                                  moveField(field.id);
+                                }}
+                                onDragOver={(event) => event.preventDefault()}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 md:grid-cols-12">
+                        {fields.map((field) => (
+                          <FieldPreview
+                            key={field.id}
+                            field={field}
+                            selected={field.id === selectedField?.id}
+                            onSelect={() => setSelectedFieldId(field.id)}
+                            onDragStart={() => setDraggedFieldId(field.id)}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              moveField(field.id);
+                            }}
+                            onDragOver={(event) => event.preventDefault()}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </SectionCard>
                 ))}
               </div>
