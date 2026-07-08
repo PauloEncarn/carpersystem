@@ -514,248 +514,317 @@ export function RgConfigurator({ lines }) {
         })}
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-        <aside className="space-y-3">
+      {activeStep === "rg" ? (
+        <div className="grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
           <section className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-bold text-gray-950">RGs</h3>
-              <button type="button" className="inline-flex size-10 items-center justify-center rounded-md bg-cicopal-blue text-white" onClick={addRg}>
-                <Plus size={20} />
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-950">RGs disponíveis</h3>
+              <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addRg}>
+                <Plus size={18} />
+                Novo RG
               </button>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2">
               {rgs.map((rg) => (
                 <button
                   key={rg.id}
                   type="button"
-                  className={`w-full rounded-md border p-3 text-left ${rg.id === selectedRg.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200"}`}
+                  className={`rounded-md border p-3 text-left ${rg.id === selectedRg.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-white"}`}
                   onClick={() => {
                     setSelectedRgId(rg.id);
                     setSelectedProcessId(rg.processes[0]?.id ?? "");
                     setSelectedFieldId(rg.processes[0]?.fields[0]?.id ?? "");
                   }}
                 >
-                  <span className="block font-bold text-gray-950">{rg.code}</span>
-                  <span className="block truncate text-xs font-semibold text-gray-500">{rg.title}</span>
+                  <span className="block text-lg font-bold text-gray-950">{rg.code}</span>
+                  <span className="block text-sm font-semibold text-gray-500">{rg.title}</span>
                 </button>
               ))}
             </div>
           </section>
 
           <section className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-bold text-gray-950">Processos</h3>
-              <button type="button" className="inline-flex size-10 items-center justify-center rounded-md bg-cicopal-blue text-white" onClick={addProcess}>
-                <Plus size={20} />
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="text-xl font-bold text-gray-950">Configuração do RG</h3>
+                <p className="text-sm font-semibold text-gray-500">Defina o documento e onde ele estará disponível.</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+                onClick={() => setActiveStep("processo")}
+              >
+                Abrir processos
+                <ClipboardList size={20} />
               </button>
             </div>
-            <div className="space-y-2">
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <label>
+                <FieldLabel>Código</FieldLabel>
+                <ConfigInput value={selectedRg.code} onChange={(event) => updateRg("code", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Título</FieldLabel>
+                <ConfigInput value={selectedRg.title} onChange={(event) => updateRg("title", event.target.value)} />
+              </label>
+              <label>
+                <FieldLabel>Revisão</FieldLabel>
+                <ConfigInput value={selectedRg.revision} onChange={(event) => updateRg("revision", event.target.value)} />
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <FieldLabel>Linhas vinculadas</FieldLabel>
+              <div className="grid gap-2 md:grid-cols-3">
+                {lines.map((line) => {
+                  const active = selectedRg.linkedLines.includes(line.id);
+                  return (
+                    <button
+                      key={line.id}
+                      type="button"
+                      className={`flex min-h-12 items-center justify-between rounded-md border px-3 font-bold ${
+                        active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"
+                      }`}
+                      onClick={() => toggleLine(line.id)}
+                    >
+                      {line.nome}
+                      {active ? <CheckSquare size={18} /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {activeStep === "processo" ? (
+        <div className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-950">Processos de {selectedRg.code}</h3>
+              <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addProcess}>
+                <Plus size={18} />
+                Novo
+              </button>
+            </div>
+            <div className="grid gap-2">
               {selectedRg.processes.map((process) => (
                 <button
                   key={process.id}
                   type="button"
-                  className={`w-full rounded-md border p-3 text-left ${process.id === selectedProcess?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200"}`}
+                  className={`rounded-md border p-3 text-left ${process.id === selectedProcess?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-white"}`}
                   onClick={() => {
                     setSelectedProcessId(process.id);
                     setSelectedFieldId(process.fields[0]?.id ?? "");
                   }}
                 >
-                  <span className="block font-bold text-gray-950">{process.name}</span>
+                  <span className="block text-lg font-bold text-gray-950">{process.name}</span>
                   <span className="text-xs font-semibold text-gray-500">
-                    {getProcessPrefix(process.type)} - {process.fields.length} campos
+                    {getProcessPrefix(process.type)} - {process.frequency} - {process.fields.length} campos
                   </span>
                 </button>
               ))}
             </div>
           </section>
-        </aside>
 
-        <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-            <div>
-              <h3 className="text-xl font-bold text-gray-950">{selectedProcess?.name ?? "Selecione um processo"}</h3>
-              <p className="text-sm font-semibold text-gray-500">
-                {selectedRg.code} / {linkedLineNames.join(", ") || "sem linha vinculada"}
-              </p>
-            </div>
-            <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
-              <Plus size={20} />
-              Adicionar campo
-            </button>
-          </div>
-
-          {selectedProcess ? (
-            <div className="space-y-4">
-              {Object.entries(fieldsBySection).map(([section, fields]) => (
-                <SectionCard key={section} section={section} fields={fields}>
-                  <div className="grid gap-3 md:grid-cols-12">
-                    {fields.map((field) => (
-                      <FieldPreview
-                        key={field.id}
-                        field={field}
-                        selected={field.id === selectedField?.id}
-                        onSelect={() => {
-                          setSelectedFieldId(field.id);
-                          setActiveStep("componente");
-                        }}
-                        onDragStart={() => setDraggedFieldId(field.id)}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          moveField(field.id);
-                        }}
-                        onDragOver={(event) => event.preventDefault()}
-                      />
-                    ))}
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            {selectedProcess ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-950">Configuração do processo</h3>
+                    <p className="text-sm font-semibold text-gray-500">Defina a regra do processo antes de montar os campos.</p>
                   </div>
-                </SectionCard>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
-              Crie ou selecione um processo.
-            </div>
-          )}
-        </main>
-
-        <aside className="rounded-md border border-gray-200 bg-white p-3">
-          {activeStep === "rg" ? (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-gray-950">Propriedades do RG</h3>
-              <label>
-                <FieldLabel>Codigo</FieldLabel>
-                <ConfigInput value={selectedRg.code} onChange={(event) => updateRg("code", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Titulo</FieldLabel>
-                <ConfigInput value={selectedRg.title} onChange={(event) => updateRg("title", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Revisao</FieldLabel>
-                <ConfigInput value={selectedRg.revision} onChange={(event) => updateRg("revision", event.target.value)} />
-              </label>
-              <div>
-                <FieldLabel>Linhas vinculadas</FieldLabel>
-                <div className="grid gap-2">
-                  {lines.map((line) => {
-                    const active = selectedRg.linkedLines.includes(line.id);
-                    return (
-                      <button
-                        key={line.id}
-                        type="button"
-                        className={`flex min-h-11 items-center justify-between rounded-md border px-3 font-bold ${
-                          active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 text-gray-700"
-                        }`}
-                        onClick={() => toggleLine(line.id)}
-                      >
-                        {line.nome}
-                        {active ? <CheckSquare size={18} /> : null}
-                      </button>
-                    );
-                  })}
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+                    onClick={() => setActiveStep("componente")}
+                  >
+                    Ajustar visualmente
+                    <LayoutTemplate size={20} />
+                  </button>
                 </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label>
+                    <FieldLabel>Tipo base</FieldLabel>
+                    <ConfigSelect value={selectedProcess.type} onChange={(event) => updateProcess(selectedProcess.id, "type", event.target.value)}>
+                      {processTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </ConfigSelect>
+                  </label>
+                  <label>
+                    <FieldLabel>Nome</FieldLabel>
+                    <ConfigInput value={selectedProcess.name} onChange={(event) => updateProcess(selectedProcess.id, "name", event.target.value)} />
+                  </label>
+                  <label>
+                    <FieldLabel>Frequência</FieldLabel>
+                    <ConfigSelect value={selectedProcess.frequency} onChange={(event) => updateProcess(selectedProcess.id, "frequency", event.target.value)}>
+                      {frequencies.map((frequency) => (
+                        <option key={frequency} value={frequency}>
+                          {frequency}
+                        </option>
+                      ))}
+                    </ConfigSelect>
+                  </label>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <p className="text-xs font-bold uppercase text-gray-500">Prefixo</p>
+                    <p className="text-xl font-bold text-gray-950">{getProcessPrefix(selectedProcess.type)}</p>
+                  </div>
+                  <div className="rounded-md bg-gray-50 p-3">
+                    <p className="text-xs font-bold uppercase text-gray-500">Campos</p>
+                    <p className="text-xl font-bold text-gray-950">{selectedProcess.fields.length}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-20 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                    onClick={() => removeProcess(selectedProcess.id)}
+                  >
+                    <Trash2 size={18} />
+                    Remover processo
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
+                Crie ou selecione um processo.
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {activeStep === "componente" ? (
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+              <div>
+                <p className="text-xs font-bold uppercase text-gray-500">Ajuste visual do processo</p>
+                <h3 className="text-xl font-bold text-gray-950">{selectedProcess?.name ?? "Selecione um processo"}</h3>
+                <p className="text-sm font-semibold text-gray-500">
+                  {selectedRg.code} / {linkedLineNames.join(", ") || "sem linha vinculada"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
+                  onClick={() => setActiveStep("processo")}
+                >
+                  Voltar ao processo
+                </button>
+                <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white" onClick={addField}>
+                  <Plus size={20} />
+                  Adicionar campo
+                </button>
               </div>
             </div>
-          ) : null}
 
-          {activeStep === "processo" && selectedProcess ? (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-gray-950">Propriedades do processo</h3>
-              <label>
-                <FieldLabel>Tipo base</FieldLabel>
-                <ConfigSelect value={selectedProcess.type} onChange={(event) => updateProcess(selectedProcess.id, "type", event.target.value)}>
-                  {processTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.label}
-                    </option>
-                  ))}
-                </ConfigSelect>
-              </label>
-              <label>
-                <FieldLabel>Nome</FieldLabel>
-                <ConfigInput value={selectedProcess.name} onChange={(event) => updateProcess(selectedProcess.id, "name", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Frequencia</FieldLabel>
-                <ConfigSelect value={selectedProcess.frequency} onChange={(event) => updateProcess(selectedProcess.id, "frequency", event.target.value)}>
-                  {frequencies.map((frequency) => (
-                    <option key={frequency} value={frequency}>
-                      {frequency}
-                    </option>
-                  ))}
-                </ConfigSelect>
-              </label>
-              <button
-                type="button"
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
-                onClick={() => removeProcess(selectedProcess.id)}
-              >
-                <Trash2 size={18} />
-                Remover processo
-              </button>
-            </div>
-          ) : null}
+            {selectedProcess ? (
+              <div className="space-y-4">
+                {Object.entries(fieldsBySection).map(([section, fields]) => (
+                  <SectionCard key={section} section={section} fields={fields}>
+                    <div className="grid gap-3 md:grid-cols-12">
+                      {fields.map((field) => (
+                        <FieldPreview
+                          key={field.id}
+                          field={field}
+                          selected={field.id === selectedField?.id}
+                          onSelect={() => setSelectedFieldId(field.id)}
+                          onDragStart={() => setDraggedFieldId(field.id)}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            moveField(field.id);
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                        />
+                      ))}
+                    </div>
+                  </SectionCard>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
+                Crie ou selecione um processo.
+              </div>
+            )}
+          </main>
 
-          {activeStep === "componente" && selectedField ? (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-gray-950">Campo selecionado</h3>
-              <label>
-                <FieldLabel>Nome</FieldLabel>
-                <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Tipo</FieldLabel>
-                <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
-                  {fieldTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.label}
-                    </option>
-                  ))}
-                </ConfigSelect>
-              </label>
-              <label>
-                <FieldLabel>Secao</FieldLabel>
-                <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
-              </label>
-              <label>
-                <FieldLabel>Largura no formulario</FieldLabel>
-                <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
-                  {layoutOptions.map((layout) => (
-                    <option key={layout.id} value={layout.id}>
-                      {layout.label}
-                    </option>
-                  ))}
-                </ConfigSelect>
-              </label>
-              <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                <input
-                  type="checkbox"
-                  className="size-6"
-                  checked={selectedField.required}
-                  onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
-                />
-                Obrigatorio
-              </label>
-              <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                <input
-                  type="checkbox"
-                  className="size-6"
-                  checked={selectedField.nc}
-                  onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
-                />
-                Gera NC
-              </label>
-              <button
-                type="button"
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
-                onClick={() => removeField(selectedField.id)}
-              >
-                <Trash2 size={18} />
-                Remover campo
-              </button>
-            </div>
-          ) : null}
-        </aside>
-      </div>
+          <aside className="rounded-md border border-gray-200 bg-white p-3">
+            {selectedField ? (
+              <div className="space-y-3">
+                <h3 className="text-lg font-bold text-gray-950">Campo selecionado</h3>
+                <label>
+                  <FieldLabel>Nome</FieldLabel>
+                  <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
+                </label>
+                <label>
+                  <FieldLabel>Tipo</FieldLabel>
+                  <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
+                    {fieldTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </ConfigSelect>
+                </label>
+                <label>
+                  <FieldLabel>Seção</FieldLabel>
+                  <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
+                </label>
+                <label>
+                  <FieldLabel>Largura no formulário</FieldLabel>
+                  <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
+                    {layoutOptions.map((layout) => (
+                      <option key={layout.id} value={layout.id}>
+                        {layout.label}
+                      </option>
+                    ))}
+                  </ConfigSelect>
+                </label>
+                <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="size-6"
+                    checked={selectedField.required}
+                    onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
+                  />
+                  Obrigatório
+                </label>
+                <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="size-6"
+                    checked={selectedField.nc}
+                    onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
+                  />
+                  Gera NC
+                </label>
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                  onClick={() => removeField(selectedField.id)}
+                >
+                  <Trash2 size={18} />
+                  Remover campo
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
+                Selecione um campo no formulário.
+              </div>
+            )}
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
