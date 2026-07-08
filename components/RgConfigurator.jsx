@@ -44,6 +44,7 @@ const fieldTypes = [
   { id: "texto", label: "Texto" },
   { id: "data", label: "Data" },
   { id: "hora", label: "Hora" },
+  { id: "grupo", label: "Grupo" },
   { id: "foto", label: "Foto" },
   { id: "assinatura", label: "Assinatura" }
 ];
@@ -121,12 +122,9 @@ const clextralHourlyComponents = [
   { name: "Rotacao rosca", type: "numero", section: "Parametros extrusora", unit: "rpm" },
   { name: "Torque", type: "percentual", section: "Parametros extrusora" },
   { name: "Amps - BA", type: "numero", section: "Parametros extrusora", unit: "A" },
-  { name: "Zona 1 - Set point", type: "temperatura", section: "Parametros extrusora" },
-  { name: "Zona 1 - Real", type: "temperatura", section: "Parametros extrusora" },
-  { name: "Zona 2 - Set point", type: "temperatura", section: "Parametros extrusora" },
-  { name: "Zona 2 - Real", type: "temperatura", section: "Parametros extrusora" },
-  { name: "Zona 3 - Set point", type: "temperatura", section: "Parametros extrusora" },
-  { name: "Zona 3 - Real", type: "temperatura", section: "Parametros extrusora" },
+  { name: "Zona 1", type: "grupo", section: "Parametros extrusora", subfields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+  { name: "Zona 2", type: "grupo", section: "Parametros extrusora", subfields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+  { name: "Zona 3", type: "grupo", section: "Parametros extrusora", subfields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
   { name: "Fieira", type: "numero", section: "Parametros extrusora", unit: "BAR" },
   { name: "Bomba de oleo", type: "numero", section: "Parametros extrusora", unit: "Hz" },
   { name: "Refrigeracao", type: "temperatura", section: "Parametros extrusora" },
@@ -136,8 +134,8 @@ const clextralHourlyComponents = [
   { name: "Larg. Inferior", type: "numero", section: "Dimensional", unit: "mm" },
   { name: "Altura", type: "numero", section: "Dimensional", unit: "mm" },
   { name: "Temp. fieira", type: "temperatura", section: "Forno" },
-  { name: "Temp. zona 1 forno", type: "temperatura", section: "Forno" },
-  { name: "Temp. zona 2 forno", type: "temperatura", section: "Forno" },
+  { name: "Temp. zona 1 forno", type: "grupo", section: "Forno", subfields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+  { name: "Temp. zona 2 forno", type: "grupo", section: "Forno", subfields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
   { name: "Tempo residencia", type: "numero", section: "Forno", unit: "min" },
   { name: "Densidade", type: "numero", section: "Qualidade", unit: "g/L" },
   { name: "Umidade", type: "percentual", section: "Qualidade" },
@@ -183,6 +181,7 @@ function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
     valueList: "",
     useLineRules: false,
     rulesByLine: {},
+    subfields: [],
     ...overrides
   };
 }
@@ -326,7 +325,8 @@ function buildComponentLibrary() {
       defaultTag: field.defaultTag,
       valueList: field.valueList,
       useLineRules: field.useLineRules,
-      rulesByLine: field.rulesByLine
+      rulesByLine: field.rulesByLine,
+      subfields: field.subfields ?? []
     }))
   );
 }
@@ -344,10 +344,11 @@ function buildClextralComponentLibrary() {
     defaultMode: field.defaultMode,
     defaultTag: field.defaultTag,
     valueList: field.valueList,
-    useLineRules: field.useLineRules,
-    rulesByLine: field.rulesByLine,
-    unit: field.unit ?? ""
-  }));
+      useLineRules: field.useLineRules,
+      rulesByLine: field.rulesByLine,
+      unit: field.unit ?? "",
+      subfields: field.subfields ?? []
+    }));
 }
 
 
@@ -616,6 +617,23 @@ function OperatorFieldControl({ field }) {
     return (
       <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
         dd/mm/aaaa
+      </div>
+    );
+  }
+
+  if (field.type === "grupo") {
+    const subfields = field.subfields?.length ? field.subfields : [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }];
+    return (
+      <div className="grid gap-2 sm:grid-cols-2">
+        {subfields.map((subfield) => (
+          <div key={subfield.label}>
+            <span className="mb-1 block text-[11px] font-bold uppercase text-gray-500">{subfield.label}</span>
+            <div className="flex min-h-11 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
+              <span className="w-full px-3 font-semibold text-gray-400">0,00</span>
+              {subfield.unit ? <span className="flex min-h-11 items-center bg-gray-100 px-2 text-xs font-bold text-gray-600">{subfield.unit}</span> : null}
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -1116,7 +1134,8 @@ export function RgConfigurator({ lines }) {
       valueList: template.valueList,
       useLineRules: template.useLineRules,
       rulesByLine: template.rulesByLine,
-      unit: template.unit ?? ""
+      unit: template.unit ?? "",
+      subfields: template.subfields ?? []
     });
 
     setRgs((current) =>

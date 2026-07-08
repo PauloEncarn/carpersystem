@@ -43,12 +43,9 @@ const clextralParameterGroups = [
       { label: "Rotacao rosca", unit: "rpm" },
       { label: "Torque", unit: "%" },
       { label: "Amps - BA", unit: "A" },
-      { label: "Zona 1 - Set point", unit: "deg C" },
-      { label: "Zona 1 - Real", unit: "deg C" },
-      { label: "Zona 2 - Set point", unit: "deg C" },
-      { label: "Zona 2 - Real", unit: "deg C" },
-      { label: "Zona 3 - Set point", unit: "deg C" },
-      { label: "Zona 3 - Real", unit: "deg C" },
+      { label: "Zona 1", type: "group", fields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+      { label: "Zona 2", type: "group", fields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+      { label: "Zona 3", type: "group", fields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
       { label: "Fieira", unit: "BAR" },
       { label: "Bomba de oleo", unit: "Hz" },
       { label: "Refrigeracao", unit: "deg C" },
@@ -68,8 +65,8 @@ const clextralParameterGroups = [
     title: "Forno",
     rows: [
       { label: "Temp. fieira", unit: "deg C" },
-      { label: "Temp. zona 1 forno", unit: "deg C" },
-      { label: "Temp. zona 2 forno", unit: "deg C" },
+      { label: "Temp. zona 1 forno", type: "group", fields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
+      { label: "Temp. zona 2 forno", type: "group", fields: [{ label: "Set point", unit: "deg C" }, { label: "Real", unit: "deg C" }] },
       { label: "Tempo residencia", unit: "min" }
     ]
   },
@@ -306,6 +303,19 @@ function ClextralTimeCell({ row }) {
     );
   }
 
+  if (row.type === "group") {
+    return (
+      <div className="grid min-w-56 gap-2">
+        {row.fields.map((field) => (
+          <label key={field.label} className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+            <span className="text-[11px] font-bold uppercase text-gray-500">{field.label}</span>
+            <NumericUnitInput unit={field.unit} />
+          </label>
+        ))}
+      </div>
+    );
+  }
+
   return <NumericUnitInput unit={row.unit} />;
 }
 
@@ -338,12 +348,12 @@ function ClextralParameterTable() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="audit-table min-w-[2760px] text-left">
+            <table className="audit-table min-w-[3400px] text-left">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 w-64 bg-gray-900 px-3 py-3">Indice</th>
                   {hours.map((hour) => (
-                    <th key={hour} className="w-28 px-3 py-3 text-center">
+                    <th key={hour} className="w-36 px-3 py-3 text-center">
                       {hour}
                     </th>
                   ))}
