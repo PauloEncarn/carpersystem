@@ -32,7 +32,8 @@ const processTypes = [
   { id: "produto_liberacao", label: "Liberacao do Produto", prefix: "LIBP" },
   { id: "produto_avaliacao", label: "Avaliacao do Produto", prefix: "AVP" },
   { id: "processo", label: "RG - Processo", prefix: "RGP" },
-  { id: "fotografico", label: "Registro Fotografico", prefix: "REGF" }
+  { id: "fotografico", label: "Registro Fotografico", prefix: "REGF" },
+  { id: "batelada_milho", label: "Controle de Batelada", prefix: "BAT" }
 ];
 
 const fieldTypes = [
@@ -41,6 +42,7 @@ const fieldTypes = [
   { id: "percentual", label: "%" },
   { id: "temperatura", label: "deg C" },
   { id: "texto", label: "Texto" },
+  { id: "data", label: "Data" },
   { id: "hora", label: "Hora" },
   { id: "foto", label: "Foto" },
   { id: "assinatura", label: "Assinatura" }
@@ -145,6 +147,23 @@ const clextralOccurrenceComponents = [
   makeField("clextral-occ-5", "Responsavel", "texto", "Ocorrencias", { nc: true, layout: "quarter", required: false })
 ];
 
+const bateladaMilhoComponents = [
+  makeField("bat-milho-1", "Data", "data", "Cabecalho", { nc: false, layout: "quarter" }),
+  makeField("bat-milho-2", "Produto", "texto", "Cabecalho", { nc: false, layout: "quarter" }),
+  makeField("bat-milho-3", "Supervisor", "assinatura", "Cabecalho", { nc: false, layout: "quarter" }),
+  makeField("bat-milho-4", "Lote urucum", "texto", "Insumos", { nc: false, layout: "half" }),
+  makeField("bat-milho-5", "Lote carbonato de calcio", "texto", "Insumos", { nc: false, layout: "half" }),
+  makeField("bat-milho-6", "Numero da batelada", "numero", "Bateladas", { nc: false, layout: "quarter" }),
+  makeField("bat-milho-7", "Horario", "hora", "Bateladas", { nc: false, layout: "quarter", defaultMode: "tag", defaultTag: "data_hora_atual" }),
+  makeField("bat-milho-8", "Operador", "texto", "Bateladas", { nc: false, layout: "quarter", defaultMode: "tag", defaultTag: "nome_usuario_logado" }),
+  makeField("bat-milho-9", "Quantidade", "numero", "Bateladas", { nc: false, layout: "quarter", unit: "kg" }),
+  makeField("bat-milho-10", "Fornecedor", "texto", "Bateladas", { nc: false, layout: "third" }),
+  makeField("bat-milho-11", "Lote", "texto", "Bateladas", { nc: false, layout: "third" }),
+  makeField("bat-milho-12", "Validade", "data", "Bateladas", { nc: false, layout: "third" }),
+  makeField("bat-milho-13", "Urucum", "numero", "Bateladas", { nc: false, layout: "quarter", unit: "kg" }),
+  makeField("bat-milho-14", "Carbonato calcio", "numero", "Bateladas", { nc: false, layout: "quarter", unit: "kg" })
+];
+
 function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
   return {
     id,
@@ -215,6 +234,13 @@ function buildClextralFields(processId) {
   return [...headerFields, ...hourlyFields, ...occurrenceFields];
 }
 
+function buildBateladaMilhoFields(processId) {
+  return bateladaMilhoComponents.map((field, index) => ({
+    ...field,
+    id: `${processId}-field-${index + 1}`
+  }));
+}
+
 function defaultFieldsForProcess(type) {
   if (type === "higienizacao") {
     return [
@@ -266,6 +292,10 @@ function defaultFieldsForProcess(type) {
     ];
   }
 
+  if (type === "batelada_milho") {
+    return bateladaMilhoComponents;
+  }
+
   return [];
 }
 
@@ -273,6 +303,7 @@ function defaultFrequencyForProcess(type) {
   if (type === "higienizacao") return "Por setup";
   if (type === "produto_liberacao") return "Por horario liberado";
   if (type === "produto_avaliacao" || type === "processo" || type === "fotografico") return "Hora em hora";
+  if (type === "batelada_milho") return "Por batelada";
   return "Por registro";
 }
 
@@ -315,6 +346,7 @@ function buildClextralComponentLibrary() {
   }));
 }
 
+
 function cloneFieldsForProcess(type, processId) {
   return defaultFieldsForProcess(type).map((field, index) => ({ ...field, id: `${processId}-field-${index + 1}` }));
 }
@@ -354,6 +386,22 @@ const initialRgs = [
         name: "Parametros Extrusora Clextral",
         frequency: "Hora em hora",
         fields: buildClextralFields("rg-prd-ba-004-proc-1")
+      }
+    ]
+  },
+  {
+    id: "rg-prd-ba-003",
+    code: "RG.PRD.BA.003",
+    title: "Controle de Batelada do Milho",
+    revision: "00",
+    linkedLines: ["SAL"],
+    processes: [
+      {
+        id: "rg-prd-ba-003-proc-1",
+        type: "batelada_milho",
+        name: "Controle de Batelada do Milho",
+        frequency: "Por batelada",
+        fields: buildBateladaMilhoFields("rg-prd-ba-003-proc-1")
       }
     ]
   }
@@ -556,6 +604,14 @@ function OperatorFieldControl({ field }) {
     return (
       <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
         --:--
+      </div>
+    );
+  }
+
+  if (field.type === "data") {
+    return (
+      <div className="flex min-h-12 items-center rounded-md border border-gray-300 bg-white px-3 font-semibold text-gray-400">
+        dd/mm/aaaa
       </div>
     );
   }

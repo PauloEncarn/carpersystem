@@ -395,6 +395,127 @@ function ClextralOccurrencesTable() {
   );
 }
 
+function getCurrentTimeValue() {
+  return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function BateladaMilhoForm({ registro }) {
+  const [rows, setRows] = useState([]);
+
+  function addBatelada() {
+    setRows((current) => [
+      ...current,
+      {
+        id: current.length + 1,
+        numero: current.length + 1,
+        horario: getCurrentTimeValue()
+      }
+    ]);
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-md border border-gray-200 bg-white p-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Data" type="date" />
+          <Field label="Produto" defaultValue={registro?.produto ?? ""} />
+          <Field label="Supervisor" />
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <Field label="Lote urucum" />
+          <Field label="Lote carbonato de calcio" />
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-3">
+          <div className="flex items-center gap-3">
+            <Clock size={24} className="text-cicopal-blue" />
+            <div>
+              <h2 className="text-xl font-bold text-gray-950">Bateladas</h2>
+              <p className="text-sm font-semibold text-gray-600">Adicione uma batelada a cada preparo do milho</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+            onClick={addBatelada}
+          >
+            <Plus size={18} />
+            Adicionar batelada
+          </button>
+        </div>
+
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="audit-table min-w-[1180px] text-left">
+              <thead>
+                <tr>
+                  <th className="w-20 px-3 py-3">N</th>
+                  <th className="w-28 px-3 py-3">Horario</th>
+                  <th className="px-3 py-3">Operador</th>
+                  <th className="px-3 py-3">Quantidade</th>
+                  <th className="px-3 py-3">Fornecedor</th>
+                  <th className="px-3 py-3">Lote</th>
+                  <th className="px-3 py-3">Validade</th>
+                  <th className="px-3 py-3">Urucum</th>
+                  <th className="px-3 py-3">Carbonato calcio</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {rows.map((row) => (
+                  <tr key={row.id} className="bg-white">
+                    <td className="px-3 py-3 text-base font-bold text-gray-950">{row.numero}</td>
+                    <td className="px-3 py-3">
+                      <input type="time" className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold" defaultValue={row.horario} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" defaultValue={registro?.operador ?? "Operador logado"} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <NumericUnitInput unit="kg" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input type="date" className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <NumericUnitInput unit="kg" />
+                    </td>
+                    <td className="px-3 py-3">
+                      <NumericUnitInput unit="kg" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid gap-3 p-4 md:grid-cols-[1fr_260px]">
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+              <p className="text-lg font-bold text-gray-950">Nenhuma batelada adicionada</p>
+              <p className="mt-1 text-sm font-semibold text-gray-600">Clique para criar a primeira linha com o horario atual.</p>
+            </div>
+            <button
+              type="button"
+              className="inline-flex min-h-20 items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 text-lg font-bold text-white"
+              onClick={addBatelada}
+            >
+              <Plus size={20} />
+              Nova batelada
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function setupSignatureContext(canvas) {
   const context = canvas.getContext("2d");
   context.lineCap = "round";
@@ -798,6 +919,15 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
         <ClextralOccurrencesTable />
         <AssinaturasRegistro registro={registro} />
       </div>
+    );
+  }
+
+  if (subregistro.id === "batelada_milho") {
+    return (
+      <>
+        <BateladaMilhoForm registro={registro} />
+        <AssinaturasRegistro registro={registro} />
+      </>
     );
   }
 

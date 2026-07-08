@@ -33,7 +33,8 @@ const processCatalog = [
   { id: "produto_avaliacao", nome: "Avaliacao do Produto", frequencia: "Hora em hora" },
   { id: "processo", nome: "RG - Processo", frequencia: "Hora em hora" },
   { id: "fotografico", nome: "Registro Fotografico", frequencia: "Hora em hora" },
-  { id: "extrusora_clextral", nome: "Parametros Extrusora Clextral", frequencia: "Hora em hora" }
+  { id: "extrusora_clextral", nome: "Parametros Extrusora Clextral", frequencia: "Hora em hora" },
+  { id: "batelada_milho", nome: "Controle de Batelada do Milho", frequencia: "Por batelada" }
 ];
 
 function countRegistros(linha) {
@@ -86,7 +87,8 @@ const processDisplayPrefixes = {
   produto_avaliacao: "AVP",
   processo: "RGP",
   fotografico: "REGF",
-  extrusora_clextral: "EXT"
+  extrusora_clextral: "EXT",
+  batelada_milho: "BAT"
 };
 
 function getShortRegistroId(registroId = "", processoId = "") {
@@ -585,7 +587,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   });
   const processosDoDocumento = useMemo(() => {
     const processIds = selected.documento?.processos;
-    if (!processIds?.length) return processCatalog.filter((processo) => processo.id !== "extrusora_clextral");
+    if (!processIds?.length) return processCatalog.filter((processo) => !["extrusora_clextral", "batelada_milho"].includes(processo.id));
     return processIds.map((processId) => processCatalog.find((processo) => processo.id === processId)).filter(Boolean);
   }, [selected.documento]);
   const registrosDoProcesso =
