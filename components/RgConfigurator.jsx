@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
   Factory,
   FileSignature,
   FileText,
@@ -22,7 +23,8 @@ import { checklistGroups } from "@/lib/checklist";
 const steps = [
   { id: "rg", label: "RG", icon: FileText },
   { id: "processo", label: "Processo", icon: ClipboardList },
-  { id: "componente", label: "Indice", icon: Layers3 }
+  { id: "componente", label: "Indice", icon: Layers3 },
+  { id: "nao_conformidade", label: "Nao Conformidade", icon: AlertTriangle }
 ];
 
 const processTypes = [
@@ -478,7 +480,7 @@ function OperatorFieldControl({ field }) {
   );
 }
 
-function SectionCard({ section, fields, children, collapsed = false, onToggle, onAddComponent }) {
+function SectionCard({ section, fields, children, collapsed = false, onToggle, onAddComponent, ncTypes = [], linkedNcId = "", onLinkNc }) {
   const types = [...new Set(fields.map((field) => fieldTypeLabel(field.type)))];
   const checklist = isChecklistSection(fields);
 
@@ -506,7 +508,7 @@ function SectionCard({ section, fields, children, collapsed = false, onToggle, o
       </div>
       {collapsed ? null : <div className={checklist ? "" : ""}>{children}</div>}
       {!collapsed && onAddComponent ? (
-        <div className={checklist ? "border-t border-gray-100 p-3" : "mt-3"}>
+        <div className={`${checklist ? "border-t border-gray-100 p-3" : "mt-3"} grid gap-2 md:grid-cols-[minmax(0,1fr)_260px]`}>
           <button
             type="button"
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-cicopal-blue bg-white font-bold text-cicopal-blue"
@@ -515,6 +517,23 @@ function SectionCard({ section, fields, children, collapsed = false, onToggle, o
             <Plus size={20} />
             Adicionar componente nesta secao
           </button>
+          {onLinkNc ? (
+            <label>
+              <span className="sr-only">NC vinculada</span>
+              <select
+                className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-bold text-gray-700"
+                value={linkedNcId}
+                onChange={(event) => onLinkNc(event.target.value)}
+              >
+                <option value="">Sem NC vinculada</option>
+                {ncTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -803,6 +822,7 @@ export function RgConfigurator({ lines }) {
   const [selectedListId, setSelectedListId] = useState(initialValueLists[0]?.id ?? "");
   const [selectedNcTypeId, setSelectedNcTypeId] = useState(initialNcTypes[0]?.id ?? "");
   const [indexDraft, setIndexDraft] = useState(null);
+  const [sectionNcLinks, setSectionNcLinks] = useState({});
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
   const selectedProcess = selectedRg.processes.find((process) => process.id === selectedProcessId) ?? selectedRg.processes[0];
@@ -819,6 +839,10 @@ export function RgConfigurator({ lines }) {
   const selectedNcType = ncTypes.find((type) => type.id === selectedNcTypeId) ?? ncTypes[0];
   const cncIndexes = componentLibrary.filter((component) => component.type === "c_nc");
   const collapsedKey = selectedProcess ? `${selectedProcess.id}:` : "";
+
+  function sectionKey(section) {
+    return selectedProcess ? `${selectedProcess.id}:${section}` : section;
+  }
 
   function updateRg(field, value) {
     setRgs((current) => current.map((rg) => (rg.id === selectedRg.id ? { ...rg, [field]: value } : rg)));
@@ -957,6 +981,10 @@ export function RgConfigurator({ lines }) {
     if (!selectedProcess) return;
     const key = `${selectedProcess.id}:${section}`;
     setCollapsedSections((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function linkNcToSection(section, ncId) {
+    setSectionNcLinks((current) => ({ ...current, [sectionKey(section)]: ncId }));
   }
 
   function updateField(fieldId, key, value) {
@@ -1162,7 +1190,7 @@ export function RgConfigurator({ lines }) {
         </button>
       </div>
 
-      <div className="mb-3 grid grid-cols-3 gap-2 rounded-md bg-white p-1">
+      <div className="mb-3 grid grid-cols-2 gap-2 rounded-md bg-white p-1 md:grid-cols-4">
         {steps.map((step) => {
           const Icon = step.icon;
           const active = activeStep === step.id;
@@ -1373,6 +1401,9 @@ export function RgConfigurator({ lines }) {
                           collapsed={Boolean(collapsedSections[`${selectedProcess.id}:${section}`])}
                           onToggle={() => toggleSection(section)}
                           onAddComponent={() => setAddComponentSection(section)}
+                          ncTypes={ncTypes}
+                          linkedNcId={sectionNcLinks[sectionKey(section)] ?? ""}
+                          onLinkNc={(ncId) => linkNcToSection(section, ncId)}
                         >
                           {isChecklistSection(fields) ? (
                             <div className="overflow-x-auto rounded-md bg-white">
@@ -1431,7 +1462,7 @@ export function RgConfigurator({ lines }) {
         </div>
       ) : null}
       {activeStep === "componente" ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div>
           <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
@@ -1572,59 +1603,80 @@ export function RgConfigurator({ lines }) {
               </section>
             </div>
           </main>
-
-          <aside className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-bold text-gray-950">Tipos de NC</h3>
-                <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addNcType}>
-                  <Plus size={16} />
-                  Nova
+        </div>
+      ) : null}
+      {activeStep === "nao_conformidade" ? (
+        <div className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold text-gray-950">Nao conformidades</h3>
+              <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addNcType}>
+                <Plus size={18} />
+                Nova
+              </button>
+            </div>
+            <div className="grid gap-2">
+              {ncTypes.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  className={`rounded-md border p-3 text-left ${type.id === selectedNcType?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`}
+                  onClick={() => setSelectedNcTypeId(type.id)}
+                >
+                  <span className="block font-bold text-gray-950">{type.name}</span>
+                  <span className="text-xs font-semibold text-gray-500">{type.indexIds.length} indices vinculados</span>
                 </button>
-              </div>
-              <div className="grid gap-2">
-                {ncTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    type="button"
-                    className={`rounded-md border p-3 text-left ${type.id === selectedNcType?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`}
-                    onClick={() => setSelectedNcTypeId(type.id)}
-                  >
-                    <span className="block font-bold text-gray-950">{type.name}</span>
-                    <span className="text-xs font-semibold text-gray-500">{type.indexIds.length} indices vinculados</span>
-                  </button>
-                ))}
-              </div>
-              {selectedNcType ? (
-                <div className="space-y-3 border-t border-gray-100 pt-3">
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-gray-200 bg-white p-3">
+            {selectedNcType ? (
+              <div className="space-y-4">
+                <div className="border-b border-gray-100 pb-3">
+                  <h3 className="text-xl font-bold text-gray-950">Configuracao da NC</h3>
+                  <p className="text-sm font-semibold text-gray-500">Defina quais indices compoem essa nao conformidade.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
                   <label>
                     <FieldLabel>Nome da NC</FieldLabel>
                     <ConfigInput value={selectedNcType.name} onChange={(event) => updateNcType("name", event.target.value)} />
                   </label>
                   <label>
-                    <FieldLabel>Secao vinculada</FieldLabel>
+                    <FieldLabel>Secao sugerida</FieldLabel>
                     <ConfigInput value={selectedNcType.section} onChange={(event) => updateNcType("section", event.target.value)} />
                   </label>
-                  <div>
-                    <FieldLabel>Indices C / NC desta NC</FieldLabel>
-                    <div className="grid gap-2">
-                      {cncIndexes.map((index) => (
-                        <label key={index.id} className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 font-bold text-gray-700">
-                          <input
-                            type="checkbox"
-                            className="size-6"
-                            checked={selectedNcType.indexIds.includes(index.id)}
-                            onChange={() => toggleNcIndex(index.id)}
-                          />
-                          {index.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                 </div>
-              ) : null}
-            </div>
-          </aside>
+
+                <section className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-3">
+                    <h4 className="text-lg font-bold text-gray-950">Indices C / NC vinculados</h4>
+                    <p className="text-sm font-semibold text-gray-500">Somente indices C / NC aparecem aqui, pois eles geram NC automaticamente.</p>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {cncIndexes.map((index) => (
+                      <label key={index.id} className="flex min-h-12 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 font-bold text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="size-6"
+                          checked={selectedNcType.indexIds.includes(index.id)}
+                          onChange={() => toggleNcIndex(index.id)}
+                        />
+                        <span>
+                          <span className="block">{index.name}</span>
+                          <span className="text-xs font-semibold text-gray-500">{index.section}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">
+                Crie ou selecione uma NC.
+              </div>
+            )}
+          </section>
         </div>
       ) : null}
       <AddComponentDialog
