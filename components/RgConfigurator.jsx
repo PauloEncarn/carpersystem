@@ -5,6 +5,8 @@ import {
   Camera,
   CheckSquare,
   ClipboardList,
+  ChevronDown,
+  ChevronUp,
   Factory,
   FileSignature,
   FileText,
@@ -216,6 +218,23 @@ function buildComponentLibrary() {
   );
 }
 
+function cloneFieldsForProcess(type, processId) {
+  return defaultFieldsForProcess(type).map((field, index) => ({ ...field, id: `${processId}-field-${index + 1}` }));
+}
+
+function buildProcessesForRg(rgId) {
+  return processTypes.map((type, index) => {
+    const processId = `${rgId}-proc-${index + 1}`;
+    return {
+      id: processId,
+      type: type.id,
+      name: type.label,
+      frequency: defaultFrequencyForProcess(type.id),
+      fields: cloneFieldsForProcess(type.id, processId)
+    };
+  });
+}
+
 const initialRgs = [
   {
     id: "rg-005",
@@ -223,13 +242,7 @@ const initialRgs = [
     title: "Controle de Liberacao de Produto",
     revision: "02",
     linkedLines: ["PUR"],
-    processes: processTypes.map((type, index) => ({
-      id: `proc-${index + 1}`,
-      type: type.id,
-      name: type.label,
-      frequency: defaultFrequencyForProcess(type.id),
-      fields: defaultFieldsForProcess(type.id)
-    }))
+    processes: buildProcessesForRg("rg-005")
   }
 ];
 
@@ -268,6 +281,13 @@ function groupedBySection(fields) {
   return fields.reduce((groups, field) => {
     const section = field.section || "Geral";
     return { ...groups, [section]: [...(groups[section] ?? []), field] };
+  }, {});
+}
+
+function groupedByType(fields) {
+  return fields.reduce((groups, field) => {
+    const type = field.type || "texto";
+    return { ...groups, [type]: [...(groups[type] ?? []), field] };
   }, {});
 }
 
@@ -451,7 +471,7 @@ function OperatorFieldControl({ field }) {
   );
 }
 
-function SectionCard({ section, fields, children }) {
+function SectionCard({ section, fields, children, collapsed = false, onToggle, onAddComponent }) {
   const types = [...new Set(fields.map((field) => fieldTypeLabel(field.type)))];
   const checklist = isChecklistSection(fields);
 
@@ -469,9 +489,27 @@ function SectionCard({ section, fields, children }) {
               {type}
             </span>
           ))}
+          {onToggle ? (
+            <button type="button" className="inline-flex min-h-8 items-center gap-1 rounded-md border border-gray-200 bg-white px-2 text-sm font-bold text-gray-700" onClick={onToggle}>
+              {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              {collapsed ? "Abrir" : "Minimizar"}
+            </button>
+          ) : null}
         </div>
       </div>
-      <div className={checklist ? "" : ""}>{children}</div>
+      {collapsed ? null : <div className={checklist ? "" : ""}>{children}</div>}
+      {!collapsed && onAddComponent ? (
+        <div className={checklist ? "border-t border-gray-100 p-3" : "mt-3"}>
+          <button
+            type="button"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-cicopal-blue bg-white font-bold text-cicopal-blue"
+            onClick={onAddComponent}
+          >
+            <Plus size={20} />
+            Adicionar componente nesta secao
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -592,6 +630,64 @@ function ComponentRulesEditor({ item, lines, onChange, onLineRuleChange }) {
   );
 }
 
+function AddComponentDialog({ open, section, components, onClose, onSelect }) {
+  if (!open) return null;
+  const grouped = groupedByType(components);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+      <section className="max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-md bg-white shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+          <div>
+            <h3 className="text-xl font-bold text-cicopal-blue">Adicionar componente</h3>
+            <p className="text-sm font-semibold text-gray-500">Secao: {section}</p>
+          </div>
+          <button type="button" className="min-h-11 rounded-md border border-gray-300 px-4 font-bold text-gray-700" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto p-4">
+          <div className="space-y-4">
+            {fieldTypes.map((type) => {
+              const items = grouped[type.id] ?? [];
+              if (!items.length) return null;
+              return (
+                <section key={type.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-lg font-bold text-gray-950">{type.label}</h4>
+                    <span className="audit-badge bg-white text-gray-700">{items.length} componentes</span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {items.map((component) => (
+                      <button
+                        key={component.id}
+                        type="button"
+                        className="rounded-md border border-gray-200 bg-white p-3 text-left hover:border-cicopal-blue hover:bg-blue-50"
+                        onClick={() => onSelect(component.id)}
+                      >
+                        <span className="block font-bold text-gray-950">{component.name}</span>
+                        <span className="text-xs font-semibold text-gray-500">
+                          {component.section} - {fieldTypeLabel(component.type)}
+                        </span>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
+                          {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
+                          {Object.keys(component.rulesByLine ?? {}).length ? <span className="audit-badge bg-yellow-100 text-yellow-800">Parametros</span> : null}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function RgConfigurator({ lines }) {
   const [rgs, setRgs] = useState(initialRgs);
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
@@ -601,6 +697,9 @@ export function RgConfigurator({ lines }) {
   const [selectedFieldId, setSelectedFieldId] = useState(initialRgs[0].processes[0].fields[0].id);
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialComponentLibrary[0]?.id ?? "");
   const [draggedFieldId, setDraggedFieldId] = useState("");
+  const [collapsedSections, setCollapsedSections] = useState({});
+  const [addComponentSection, setAddComponentSection] = useState("");
+  const [componentMode, setComponentMode] = useState("biblioteca");
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
   const selectedProcess = selectedRg.processes.find((process) => process.id === selectedProcessId) ?? selectedRg.processes[0];
@@ -610,29 +709,28 @@ export function RgConfigurator({ lines }) {
     () => lines.filter((line) => selectedRg.linkedLines.includes(line.id)).map((line) => line.nome),
     [lines, selectedRg]
   );
-  const availableComponents = useMemo(
-    () => componentLibrary.filter((component) => component.processType === selectedProcess?.type),
-    [componentLibrary, selectedProcess]
-  );
-  const selectedTemplate = availableComponents.find((component) => component.id === selectedTemplateId) ?? availableComponents[0];
+  const selectedTemplate = componentLibrary.find((component) => component.id === selectedTemplateId) ?? componentLibrary[0];
+  const componentsByType = useMemo(() => groupedByType(componentLibrary), [componentLibrary]);
+  const collapsedKey = selectedProcess ? `${selectedProcess.id}:` : "";
 
   function updateRg(field, value) {
     setRgs((current) => current.map((rg) => (rg.id === selectedRg.id ? { ...rg, [field]: value } : rg)));
   }
 
   function addRg() {
+    const rgId = makeId("rg");
     const newRg = {
-      id: makeId("rg"),
+      id: rgId,
       code: "RG.QUA.000",
       title: "Novo RG",
       revision: "00",
       linkedLines: [],
-      processes: []
+      processes: buildProcessesForRg(rgId)
     };
     setRgs((current) => [...current, newRg]);
     setSelectedRgId(newRg.id);
-    setSelectedProcessId("");
-    setSelectedFieldId("");
+    setSelectedProcessId(newRg.processes[0]?.id ?? "");
+    setSelectedFieldId(newRg.processes[0]?.fields[0]?.id ?? "");
     setActiveStep("rg");
   }
 
@@ -648,12 +746,13 @@ export function RgConfigurator({ lines }) {
 
   function addProcess() {
     const type = processTypes[0];
+    const processId = makeId("proc");
     const newProcess = {
-      id: makeId("proc"),
+      id: processId,
       type: type.id,
       name: type.label,
       frequency: defaultFrequencyForProcess(type.id),
-      fields: defaultFieldsForProcess(type.id)
+      fields: cloneFieldsForProcess(type.id, processId)
     };
     setRgs((current) =>
       current.map((rg) => (rg.id === selectedRg.id ? { ...rg, processes: [...rg.processes, newProcess] } : rg))
@@ -672,7 +771,7 @@ export function RgConfigurator({ lines }) {
               processes: rg.processes.map((process) => {
                 if (process.id !== processId) return process;
                 const typeInfo = field === "type" ? processTypes.find((type) => type.id === value) : null;
-                const nextFields = field === "type" ? defaultFieldsForProcess(value) : process.fields;
+                const nextFields = field === "type" ? cloneFieldsForProcess(value, process.id) : process.fields;
                 if (field === "type") setSelectedFieldId(nextFields[0]?.id ?? "");
                 return {
                   ...process,
@@ -701,19 +800,30 @@ export function RgConfigurator({ lines }) {
   }
 
   function addField() {
-    if (!selectedProcess) return;
     const newField = makeField(makeId("field"), "Novo componente", "c_nc", "Geral", { layout: "third" });
     const newTemplate = {
       id: makeId("tpl"),
-      processType: selectedProcess.type,
+      processType: selectedProcess?.type ?? "geral",
       name: newField.name,
       type: newField.type,
       section: newField.section,
       layout: newField.layout,
       required: newField.required,
-      nc: newField.nc
+      nc: newField.nc,
+      defaultMode: newField.defaultMode,
+      defaultTag: newField.defaultTag,
+      valueList: newField.valueList,
+      rulesByLine: newField.rulesByLine
     };
     setComponentLibrary((current) => [...current, newTemplate]);
+    setSelectedTemplateId(newTemplate.id);
+
+    if (componentMode === "biblioteca" || !selectedProcess) {
+      setActiveStep("componente");
+      setComponentMode("biblioteca");
+      return;
+    }
+
     setRgs((current) =>
       current.map((rg) =>
         rg.id === selectedRg.id
@@ -727,15 +837,15 @@ export function RgConfigurator({ lines }) {
       )
     );
     setSelectedFieldId(newField.id);
-    setSelectedTemplateId(newTemplate.id);
     setActiveStep("componente");
+    setComponentMode("layout");
   }
 
-  function addFieldFromTemplate(templateId = selectedTemplate?.id) {
+  function addFieldFromTemplate(templateId = selectedTemplate?.id, sectionOverride = "", openLayout = true) {
     if (!selectedProcess || !templateId) return;
     const template = componentLibrary.find((item) => item.id === templateId);
     if (!template) return;
-    const newField = makeField(makeId("field"), template.name, template.type, template.section, {
+    const newField = makeField(makeId("field"), template.name, template.type, sectionOverride || template.section, {
       layout: template.layout,
       required: template.required,
       nc: template.nc,
@@ -758,7 +868,21 @@ export function RgConfigurator({ lines }) {
       )
     );
     setSelectedFieldId(newField.id);
-    setActiveStep("componente");
+    if (openLayout) {
+      setActiveStep("componente");
+      setComponentMode("layout");
+    }
+  }
+
+  function addTemplateToSection(templateId) {
+    addFieldFromTemplate(templateId, addComponentSection, activeStep !== "processo");
+    setAddComponentSection("");
+  }
+
+  function toggleSection(section) {
+    if (!selectedProcess) return;
+    const key = `${selectedProcess.id}:${section}`;
+    setCollapsedSections((current) => ({ ...current, [key]: !current[key] }));
   }
 
   function updateField(fieldId, key, value) {
@@ -895,7 +1019,10 @@ export function RgConfigurator({ lines }) {
               className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 font-bold ${
                 active ? "bg-cicopal-blue text-white" : "bg-gray-50 text-cicopal-blue"
               }`}
-              onClick={() => setActiveStep(step.id)}
+              onClick={() => {
+                setActiveStep(step.id);
+                if (step.id === "componente") setComponentMode("biblioteca");
+              }}
             >
               <Icon size={20} />
               {step.label}
@@ -1085,7 +1212,10 @@ export function RgConfigurator({ lines }) {
                       <button
                         type="button"
                         className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white"
-                        onClick={() => setActiveStep("componente")}
+                        onClick={() => {
+                          setActiveStep("componente");
+                          setComponentMode("layout");
+                        }}
                       >
                         Editar layout
                         <LayoutTemplate size={18} />
@@ -1093,7 +1223,14 @@ export function RgConfigurator({ lines }) {
                     </div>
                     <div className="space-y-4">
                       {Object.entries(fieldsBySection).map(([section, fields]) => (
-                        <SectionCard key={section} section={section} fields={fields}>
+                        <SectionCard
+                          key={section}
+                          section={section}
+                          fields={fields}
+                          collapsed={Boolean(collapsedSections[`${selectedProcess.id}:${section}`])}
+                          onToggle={() => toggleSection(section)}
+                          onAddComponent={() => setAddComponentSection(section)}
+                        >
                           {isChecklistSection(fields) ? (
                             <div className="overflow-x-auto rounded-md bg-white">
                               <table className="audit-table min-w-[560px] text-left">
@@ -1140,35 +1277,30 @@ export function RgConfigurator({ lines }) {
                       ))}
                     </div>
                   </section>
-
                   <section className="rounded-md border border-gray-200 bg-white p-3">
-                    <h4 className="text-lg font-bold text-gray-950">Adicionar da biblioteca</h4>
-                    <p className="mb-3 text-sm font-semibold text-gray-500">Use componentes ja cadastrados para manter padrao entre processos.</p>
-                    <label>
-                      <FieldLabel>Componente existente</FieldLabel>
-                      <ConfigSelect value={selectedTemplate?.id ?? ""} onChange={(event) => setSelectedTemplateId(event.target.value)}>
-                        {availableComponents.map((component) => (
-                          <option key={component.id} value={component.id}>
-                            {component.name} - {fieldTypeLabel(component.type)}
-                          </option>
-                        ))}
-                      </ConfigSelect>
-                    </label>
+                    <h4 className="text-lg font-bold text-gray-950">Componentes disponiveis</h4>
+                    <p className="mb-3 text-sm font-semibold text-gray-500">Use o botao + no final de cada secao para inserir um componente ja cadastrado.</p>
+                    <div className="grid gap-2">
+                      {fieldTypes.map((type) => {
+                        const total = componentsByType[type.id]?.length ?? 0;
+                        if (!total) return null;
+                        return (
+                          <div key={type.id} className="flex min-h-11 items-center justify-between rounded-md bg-gray-50 px-3 font-bold text-gray-700">
+                            <span>{type.label}</span>
+                            <span className="audit-badge bg-white text-gray-700">{total}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                     <button
                       type="button"
                       className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                      onClick={() => addFieldFromTemplate()}
+                      onClick={() => {
+                        setActiveStep("componente");
+                        setComponentMode("biblioteca");
+                      }}
                     >
-                      <Plus size={20} />
-                      Inserir no processo
-                    </button>
-                    <button
-                      type="button"
-                      className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
-                      onClick={addField}
-                    >
-                      <Plus size={20} />
-                      Criar novo componente
+                      Abrir biblioteca
                     </button>
                   </section>
                 </div>
@@ -1181,19 +1313,36 @@ export function RgConfigurator({ lines }) {
           </section>
         </div>
       ) : null}
-
       {activeStep === "componente" ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
           <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
-                <p className="text-xs font-bold uppercase text-gray-500">Ajuste visual do processo</p>
-                <h3 className="text-xl font-bold text-gray-950">{selectedProcess?.name ?? "Selecione um processo"}</h3>
+                <p className="text-xs font-bold uppercase text-gray-500">{componentMode === "layout" ? "Ajuste visual do processo" : "Biblioteca de componentes"}</p>
+                <h3 className="text-xl font-bold text-gray-950">{componentMode === "layout" ? selectedProcess?.name ?? "Selecione um processo" : "Todos os componentes"}</h3>
                 <p className="text-sm font-semibold text-gray-500">
-                  {selectedRg.code} / {linkedLineNames.join(", ") || "sem linha vinculada"}
+                  {componentMode === "layout" ? `${selectedRg.code} / ${linkedLineNames.join(", ") || "sem linha vinculada"}` : "Separe, edite e reutilize componentes nos processos."}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`inline-flex min-h-12 items-center gap-2 rounded-md px-4 font-bold ${
+                    componentMode === "biblioteca" ? "bg-cicopal-blue text-white" : "border border-gray-300 bg-white text-gray-700"
+                  }`}
+                  onClick={() => setComponentMode("biblioteca")}
+                >
+                  Biblioteca
+                </button>
+                <button
+                  type="button"
+                  className={`inline-flex min-h-12 items-center gap-2 rounded-md px-4 font-bold ${
+                    componentMode === "layout" ? "bg-cicopal-blue text-white" : "border border-gray-300 bg-white text-gray-700"
+                  }`}
+                  onClick={() => setComponentMode("layout")}
+                >
+                  Layout
+                </button>
                 <button
                   type="button"
                   className="inline-flex min-h-12 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
@@ -1208,10 +1357,58 @@ export function RgConfigurator({ lines }) {
               </div>
             </div>
 
-            {selectedProcess ? (
+            {componentMode === "biblioteca" ? (
+              <div className="space-y-4">
+                {fieldTypes.map((type) => {
+                  const components = componentsByType[type.id] ?? [];
+                  if (!components.length) return null;
+                  return (
+                    <section key={type.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h4 className="text-xl font-bold text-gray-950">{type.label}</h4>
+                          <p className="text-sm font-semibold text-gray-500">Componentes cadastrados deste tipo.</p>
+                        </div>
+                        <span className="audit-badge bg-white text-gray-700">{components.length} componentes</span>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {components.map((component) => (
+                          <button
+                            key={component.id}
+                            type="button"
+                            className={`rounded-md border p-3 text-left ${
+                              component.id === selectedTemplate?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white"
+                            }`}
+                            onClick={() => setSelectedTemplateId(component.id)}
+                          >
+                            <span className="block text-base font-bold text-gray-950">{component.name}</span>
+                            <span className="text-xs font-semibold text-gray-500">
+                              {component.section} - {fieldTypeLabel(component.type)}
+                            </span>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
+                              {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
+                              {Object.keys(component.rulesByLine ?? {}).length ? <span className="audit-badge bg-yellow-100 text-yellow-800">Parametros</span> : null}
+                              {component.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : selectedProcess ? (
               <div className="space-y-4">
                 {Object.entries(fieldsBySection).map(([section, fields]) => (
-                  <SectionCard key={section} section={section} fields={fields}>
+                  <SectionCard
+                    key={section}
+                    section={section}
+                    fields={fields}
+                    collapsed={Boolean(collapsedSections[`${selectedProcess.id}:${section}`])}
+                    onToggle={() => toggleSection(section)}
+                    onAddComponent={() => setAddComponentSection(section)}
+                  >
                     {isChecklistSection(fields) ? (
                       <div className="overflow-x-auto rounded-md bg-white">
                         <table className="audit-table min-w-[560px] text-left">
@@ -1269,92 +1466,11 @@ export function RgConfigurator({ lines }) {
           </main>
 
           <aside className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="space-y-4">
-              {selectedField ? (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-bold text-gray-950">Componente no processo</h3>
-                  <label>
-                    <FieldLabel>Nome</FieldLabel>
-                    <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
-                  </label>
-                  <label>
-                    <FieldLabel>Tipo</FieldLabel>
-                    <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
-                      {fieldTypes.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </ConfigSelect>
-                  </label>
-                  <label>
-                    <FieldLabel>Secao</FieldLabel>
-                    <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
-                  </label>
-                  <label>
-                    <FieldLabel>Largura no formulario</FieldLabel>
-                    <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
-                      {layoutOptions.map((layout) => (
-                        <option key={layout.id} value={layout.id}>
-                          {layout.label}
-                        </option>
-                      ))}
-                    </ConfigSelect>
-                  </label>
-                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                    <input
-                      type="checkbox"
-                      className="size-6"
-                      checked={selectedField.required}
-                      onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
-                    />
-                    Obrigatorio
-                  </label>
-                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                    <input
-                      type="checkbox"
-                      className="size-6"
-                      checked={selectedField.nc}
-                      onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
-                    />
-                    Gera NC
-                  </label>
-                  <ComponentRulesEditor
-                    item={selectedField}
-                    lines={lines}
-                    onChange={(key, value) => updateField(selectedField.id, key, value)}
-                    onLineRuleChange={(lineId, key, value) => updateFieldLineRule(selectedField.id, lineId, key, value)}
-                  />
-                  <button
-                    type="button"
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
-                    onClick={() => removeField(selectedField.id)}
-                  >
-                    <Trash2 size={18} />
-                    Remover do processo
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
-                  Selecione um campo no formulario.
-                </div>
-              )}
-
-              <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-lg font-bold text-gray-950">Biblioteca</h3>
-                <p className="mb-3 text-sm font-semibold text-gray-500">Edite o componente padrao ou insira no processo atual.</p>
-                <label>
-                  <FieldLabel>Componente existente</FieldLabel>
-                  <ConfigSelect value={selectedTemplate?.id ?? ""} onChange={(event) => setSelectedTemplateId(event.target.value)}>
-                    {availableComponents.map((component) => (
-                      <option key={component.id} value={component.id}>
-                        {component.name}
-                      </option>
-                    ))}
-                  </ConfigSelect>
-                </label>
+            {componentMode === "biblioteca" ? (
+              <div className="space-y-3">
+                <h3 className="text-lg font-bold text-gray-950">Componente da biblioteca</h3>
                 {selectedTemplate ? (
-                  <div className="mt-3 space-y-3">
+                  <>
                     <label>
                       <FieldLabel>Nome padrao</FieldLabel>
                       <ConfigInput value={selectedTemplate.name} onChange={(event) => updateTemplate(selectedTemplate.id, "name", event.target.value)} />
@@ -1370,8 +1486,36 @@ export function RgConfigurator({ lines }) {
                       </ConfigSelect>
                     </label>
                     <label>
-                      <FieldLabel>Secao padrao</FieldLabel>
+                      <FieldLabel>Secao sugerida</FieldLabel>
                       <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Largura sugerida</FieldLabel>
+                      <ConfigSelect value={selectedTemplate.layout} onChange={(event) => updateTemplate(selectedTemplate.id, "layout", event.target.value)}>
+                        {layoutOptions.map((layout) => (
+                          <option key={layout.id} value={layout.id}>
+                            {layout.label}
+                          </option>
+                        ))}
+                      </ConfigSelect>
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="size-6"
+                        checked={selectedTemplate.required}
+                        onChange={(event) => updateTemplate(selectedTemplate.id, "required", event.target.checked)}
+                      />
+                      Obrigatorio
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="size-6"
+                        checked={selectedTemplate.nc}
+                        onChange={(event) => updateTemplate(selectedTemplate.id, "nc", event.target.checked)}
+                      />
+                      Gera NC
                     </label>
                     <ComponentRulesEditor
                       item={selectedTemplate}
@@ -1379,21 +1523,96 @@ export function RgConfigurator({ lines }) {
                       onChange={(key, value) => updateTemplate(selectedTemplate.id, key, value)}
                       onLineRuleChange={(lineId, key, value) => updateTemplateLineRule(selectedTemplate.id, lineId, key, value)}
                     />
+                  </>
+                ) : (
+                  <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
+                    Selecione um componente.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedField ? (
+                  <>
+                    <h3 className="text-lg font-bold text-gray-950">Componente no processo</h3>
+                    <label>
+                      <FieldLabel>Nome</FieldLabel>
+                      <ConfigInput value={selectedField.name} onChange={(event) => updateField(selectedField.id, "name", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Tipo</FieldLabel>
+                      <ConfigSelect value={selectedField.type} onChange={(event) => updateField(selectedField.id, "type", event.target.value)}>
+                        {fieldTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </ConfigSelect>
+                    </label>
+                    <label>
+                      <FieldLabel>Secao</FieldLabel>
+                      <ConfigInput value={selectedField.section} onChange={(event) => updateField(selectedField.id, "section", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Largura no formulario</FieldLabel>
+                      <ConfigSelect value={selectedField.layout} onChange={(event) => updateField(selectedField.id, "layout", event.target.value)}>
+                        {layoutOptions.map((layout) => (
+                          <option key={layout.id} value={layout.id}>
+                            {layout.label}
+                          </option>
+                        ))}
+                      </ConfigSelect>
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="size-6"
+                        checked={selectedField.required}
+                        onChange={(event) => updateField(selectedField.id, "required", event.target.checked)}
+                      />
+                      Obrigatorio
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="size-6"
+                        checked={selectedField.nc}
+                        onChange={(event) => updateField(selectedField.id, "nc", event.target.checked)}
+                      />
+                      Gera NC
+                    </label>
+                    <ComponentRulesEditor
+                      item={selectedField}
+                      lines={lines}
+                      onChange={(key, value) => updateField(selectedField.id, key, value)}
+                      onLineRuleChange={(lineId, key, value) => updateFieldLineRule(selectedField.id, lineId, key, value)}
+                    />
                     <button
                       type="button"
-                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                      onClick={() => addFieldFromTemplate(selectedTemplate.id)}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
+                      onClick={() => removeField(selectedField.id)}
                     >
-                      <Plus size={20} />
-                      Inserir no processo
+                      <Trash2 size={18} />
+                      Remover do processo
                     </button>
+                  </>
+                ) : (
+                  <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
+                    Selecione um campo no formulario.
                   </div>
-                ) : null}
+                )}
               </div>
-            </div>
+            )}
           </aside>
         </div>
       ) : null}
+      <AddComponentDialog
+        open={Boolean(addComponentSection)}
+        section={addComponentSection}
+        components={componentLibrary}
+        onClose={() => setAddComponentSection("")}
+        onSelect={addTemplateToSection}
+      />
     </section>
   );
 }
