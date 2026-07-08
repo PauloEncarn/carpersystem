@@ -78,6 +78,11 @@ const lineRuleDefaults = {
   redAbove: "70"
 };
 
+const initialNcTypes = [
+  { id: "nc-salgadinho", name: "NC Salgadinho", section: "Nao conformidades", indexIds: [] },
+  { id: "nc-higienizacao", name: "NC Higienizacao", section: "Detalhamento da NC", indexIds: [] }
+];
+
 const liberacaoProdutoComponents = [
   "Sabor e odor",
   "Textura",
@@ -702,10 +707,89 @@ function AddComponentDialog({ open, section, components, onClose, onSelect }) {
   );
 }
 
+function IndexDialog({ draft, lines, lists, onChange, onLineRuleChange, onClose, onSave }) {
+  if (!draft) return null;
+  const isCnc = draft.type === "c_nc";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+      <section className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-soft">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 p-4">
+          <div>
+            <h3 className="text-xl font-bold text-cicopal-blue">{draft.existing ? "Alterar indice" : "Novo indice"}</h3>
+            <p className="text-sm font-semibold text-gray-500">Configure o indice antes de usa-lo nos processos.</p>
+          </div>
+          <button type="button" className="min-h-11 rounded-md border border-gray-300 px-4 font-bold text-gray-700" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+
+        <div className="max-h-[68vh] overflow-y-auto p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label>
+              <FieldLabel>Nome</FieldLabel>
+              <ConfigInput value={draft.name} onChange={(event) => onChange("name", event.target.value)} />
+            </label>
+            <label>
+              <FieldLabel>Tipo</FieldLabel>
+              <ConfigSelect value={draft.type} onChange={(event) => onChange("type", event.target.value)}>
+                {fieldTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.label}
+                  </option>
+                ))}
+              </ConfigSelect>
+            </label>
+            <label>
+              <FieldLabel>Secao sugerida</FieldLabel>
+              <ConfigInput value={draft.section} onChange={(event) => onChange("section", event.target.value)} />
+            </label>
+            <label>
+              <FieldLabel>Largura sugerida</FieldLabel>
+              <ConfigSelect value={draft.layout} onChange={(event) => onChange("layout", event.target.value)}>
+                {layoutOptions.map((layout) => (
+                  <option key={layout.id} value={layout.id}>
+                    {layout.label}
+                  </option>
+                ))}
+              </ConfigSelect>
+            </label>
+          </div>
+
+          <label className="mt-3 flex min-h-11 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 font-bold text-gray-700">
+            <input type="checkbox" className="size-6" checked={draft.required} onChange={(event) => onChange("required", event.target.checked)} />
+            Obrigatorio
+          </label>
+
+          {isCnc ? (
+            <div className="mt-3 rounded-md border border-red-100 bg-red-50 p-3 text-sm font-bold text-cicopal-red">
+              Todo indice C / NC gera nao conformidade quando marcado como NC.
+            </div>
+          ) : null}
+
+          <div className="mt-3">
+            <ComponentRulesEditor item={draft} lines={lines} lists={lists} onChange={onChange} onLineRuleChange={onLineRuleChange} />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-gray-200 p-4">
+          <button type="button" className="min-h-12 rounded-md border border-gray-300 px-4 font-bold text-gray-700" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="min-h-12 rounded-md bg-cicopal-blue px-5 font-bold text-white" onClick={onSave}>
+            Salvar indice
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function RgConfigurator({ lines }) {
   const [rgs, setRgs] = useState(initialRgs);
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
   const [valueLists, setValueLists] = useState(initialValueLists);
+  const [ncTypes, setNcTypes] = useState(initialNcTypes);
   const [activeStep, setActiveStep] = useState("componente");
   const [selectedRgId, setSelectedRgId] = useState(initialRgs[0].id);
   const [selectedProcessId, setSelectedProcessId] = useState(initialRgs[0].processes[0].id);
@@ -717,6 +801,8 @@ export function RgConfigurator({ lines }) {
   const [componentMode, setComponentMode] = useState("biblioteca");
   const [indexTypeFilter, setIndexTypeFilter] = useState("todos");
   const [selectedListId, setSelectedListId] = useState(initialValueLists[0]?.id ?? "");
+  const [selectedNcTypeId, setSelectedNcTypeId] = useState(initialNcTypes[0]?.id ?? "");
+  const [indexDraft, setIndexDraft] = useState(null);
 
   const selectedRg = rgs.find((rg) => rg.id === selectedRgId) ?? rgs[0];
   const selectedProcess = selectedRg.processes.find((process) => process.id === selectedProcessId) ?? selectedRg.processes[0];
@@ -730,6 +816,8 @@ export function RgConfigurator({ lines }) {
   const componentsByType = useMemo(() => groupedByType(componentLibrary), [componentLibrary]);
   const filteredFieldTypes = fieldTypes.filter((type) => indexTypeFilter === "todos" || type.id === indexTypeFilter);
   const selectedList = valueLists.find((list) => list.id === selectedListId) ?? valueLists[0];
+  const selectedNcType = ncTypes.find((type) => type.id === selectedNcTypeId) ?? ncTypes[0];
+  const cncIndexes = componentLibrary.filter((component) => component.type === "c_nc");
   const collapsedKey = selectedProcess ? `${selectedProcess.id}:` : "";
 
   function updateRg(field, value) {
@@ -819,46 +907,11 @@ export function RgConfigurator({ lines }) {
   }
 
   function addField() {
-    const newField = makeField(makeId("field"), "Novo componente", "c_nc", "Geral", { layout: "third" });
-    const newTemplate = {
-      id: makeId("tpl"),
-      processType: selectedProcess?.type ?? "geral",
-      name: newField.name,
-      type: newField.type,
-      section: newField.section,
-      layout: newField.layout,
-      required: newField.required,
-      nc: newField.nc,
-      defaultMode: newField.defaultMode,
-      defaultTag: newField.defaultTag,
-      valueList: newField.valueList,
-      useLineRules: newField.useLineRules,
-      rulesByLine: newField.rulesByLine
-    };
-    setComponentLibrary((current) => [...current, newTemplate]);
-    setSelectedTemplateId(newTemplate.id);
-
-    if (componentMode === "biblioteca" || !selectedProcess) {
-      setActiveStep("componente");
-      setComponentMode("biblioteca");
-      return;
-    }
-
-    setRgs((current) =>
-      current.map((rg) =>
-        rg.id === selectedRg.id
-          ? {
-              ...rg,
-              processes: rg.processes.map((process) =>
-                process.id === selectedProcess.id ? { ...process, fields: [...process.fields, newField] } : process
-              )
-            }
-          : rg
-      )
-    );
-    setSelectedFieldId(newField.id);
-    setActiveStep("componente");
-    setComponentMode("layout");
+    setIndexDraft({
+      ...makeField(makeId("tpl"), "Novo indice", "texto", "Geral", { layout: "third", nc: false }),
+      processType: "geral",
+      existing: false
+    });
   }
 
   function addFieldFromTemplate(templateId = selectedTemplate?.id, sectionOverride = "", openLayout = true) {
@@ -972,6 +1025,68 @@ export function RgConfigurator({ lines }) {
             }
           : template
       )
+    );
+  }
+
+  function openEditIndex(template) {
+    setIndexDraft({ ...template, existing: true });
+  }
+
+  function updateIndexDraft(key, value) {
+    setIndexDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      if (key === "type") next.nc = value === "c_nc";
+      return next;
+    });
+  }
+
+  function updateIndexDraftLineRule(lineId, key, value) {
+    setIndexDraft((current) =>
+      current
+        ? {
+            ...current,
+            rulesByLine: {
+              ...(current.rulesByLine ?? {}),
+              [lineId]: { ...lineRuleDefaults, ...(current.rulesByLine?.[lineId] ?? {}), [key]: value }
+            }
+          }
+        : current
+    );
+  }
+
+  function saveIndexDraft() {
+    if (!indexDraft) return;
+    const saved = {
+      ...indexDraft,
+      nc: indexDraft.type === "c_nc"
+    };
+    delete saved.existing;
+    setComponentLibrary((current) => {
+      const exists = current.some((template) => template.id === saved.id);
+      return exists ? current.map((template) => (template.id === saved.id ? saved : template)) : [...current, saved];
+    });
+    setSelectedTemplateId(saved.id);
+    setIndexDraft(null);
+  }
+
+  function addNcType() {
+    const newType = { id: makeId("nc"), name: "Nova NC", section: "Nao conformidades", indexIds: [] };
+    setNcTypes((current) => [...current, newType]);
+    setSelectedNcTypeId(newType.id);
+  }
+
+  function updateNcType(key, value) {
+    setNcTypes((current) => current.map((type) => (type.id === selectedNcType?.id ? { ...type, [key]: value } : type)));
+  }
+
+  function toggleNcIndex(indexId) {
+    setNcTypes((current) =>
+      current.map((type) => {
+        if (type.id !== selectedNcType?.id) return type;
+        const active = type.indexIds.includes(indexId);
+        return { ...type, indexIds: active ? type.indexIds.filter((id) => id !== indexId) : [...type.indexIds, indexId] };
+      })
     );
   }
 
@@ -1380,25 +1495,32 @@ export function RgConfigurator({ lines }) {
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {components.map((component) => (
-                        <button
+                        <article
                           key={component.id}
-                          type="button"
                           className={`rounded-md border p-3 text-left ${
                             component.id === selectedTemplate?.id ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white"
                           }`}
-                          onClick={() => setSelectedTemplateId(component.id)}
                         >
-                          <span className="block text-base font-bold text-gray-950">{component.name}</span>
-                          <span className="text-xs font-semibold text-gray-500">
-                            {component.section} - {fieldTypeLabel(component.type)}
-                          </span>
+                          <button type="button" className="w-full text-left" onClick={() => setSelectedTemplateId(component.id)}>
+                            <span className="block text-base font-bold text-gray-950">{component.name}</span>
+                            <span className="text-xs font-semibold text-gray-500">
+                              {component.section} - {fieldTypeLabel(component.type)}
+                            </span>
+                          </button>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {component.defaultMode === "tag" && component.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
                             {component.defaultMode === "lista" && component.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
                             {component.useLineRules ? <span className="audit-badge bg-yellow-100 text-yellow-800">Por linha</span> : null}
-                            {component.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
+                            {component.type === "c_nc" ? <span className="audit-badge bg-red-100 text-cicopal-red">NC automatica</span> : null}
                           </div>
-                        </button>
+                          <button
+                            type="button"
+                            className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-md border border-cicopal-blue bg-white px-3 font-bold text-cicopal-blue"
+                            onClick={() => openEditIndex(component)}
+                          >
+                            Alterar indice
+                          </button>
+                        </article>
                       ))}
                     </div>
                   </section>
@@ -1453,58 +1575,54 @@ export function RgConfigurator({ lines }) {
 
           <aside className="rounded-md border border-gray-200 bg-white p-3">
             <div className="space-y-3">
-              <h3 className="text-lg font-bold text-gray-950">Indice selecionado</h3>
-              {selectedTemplate ? (
-                <>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-bold text-gray-950">Tipos de NC</h3>
+                <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addNcType}>
+                  <Plus size={16} />
+                  Nova
+                </button>
+              </div>
+              <div className="grid gap-2">
+                {ncTypes.map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    className={`rounded-md border p-3 text-left ${type.id === selectedNcType?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`}
+                    onClick={() => setSelectedNcTypeId(type.id)}
+                  >
+                    <span className="block font-bold text-gray-950">{type.name}</span>
+                    <span className="text-xs font-semibold text-gray-500">{type.indexIds.length} indices vinculados</span>
+                  </button>
+                ))}
+              </div>
+              {selectedNcType ? (
+                <div className="space-y-3 border-t border-gray-100 pt-3">
                   <label>
-                    <FieldLabel>Nome</FieldLabel>
-                    <ConfigInput value={selectedTemplate.name} onChange={(event) => updateTemplate(selectedTemplate.id, "name", event.target.value)} />
+                    <FieldLabel>Nome da NC</FieldLabel>
+                    <ConfigInput value={selectedNcType.name} onChange={(event) => updateNcType("name", event.target.value)} />
                   </label>
                   <label>
-                    <FieldLabel>Tipo</FieldLabel>
-                    <ConfigSelect value={selectedTemplate.type} onChange={(event) => updateTemplate(selectedTemplate.id, "type", event.target.value)}>
-                      {fieldTypes.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.label}
-                        </option>
+                    <FieldLabel>Secao vinculada</FieldLabel>
+                    <ConfigInput value={selectedNcType.section} onChange={(event) => updateNcType("section", event.target.value)} />
+                  </label>
+                  <div>
+                    <FieldLabel>Indices C / NC desta NC</FieldLabel>
+                    <div className="grid gap-2">
+                      {cncIndexes.map((index) => (
+                        <label key={index.id} className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 font-bold text-gray-700">
+                          <input
+                            type="checkbox"
+                            className="size-6"
+                            checked={selectedNcType.indexIds.includes(index.id)}
+                            onChange={() => toggleNcIndex(index.id)}
+                          />
+                          {index.name}
+                        </label>
                       ))}
-                    </ConfigSelect>
-                  </label>
-                  <label>
-                    <FieldLabel>Secao sugerida</FieldLabel>
-                    <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
-                  </label>
-                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                    <input
-                      type="checkbox"
-                      className="size-6"
-                      checked={selectedTemplate.required}
-                      onChange={(event) => updateTemplate(selectedTemplate.id, "required", event.target.checked)}
-                    />
-                    Obrigatorio
-                  </label>
-                  <label className="flex min-h-11 items-center gap-2 font-bold text-gray-700">
-                    <input
-                      type="checkbox"
-                      className="size-6"
-                      checked={selectedTemplate.nc}
-                      onChange={(event) => updateTemplate(selectedTemplate.id, "nc", event.target.checked)}
-                    />
-                    Gera NC
-                  </label>
-                  <ComponentRulesEditor
-                    item={selectedTemplate}
-                    lines={lines}
-                    lists={valueLists}
-                    onChange={(key, value) => updateTemplate(selectedTemplate.id, key, value)}
-                    onLineRuleChange={(lineId, key, value) => updateTemplateLineRule(selectedTemplate.id, lineId, key, value)}
-                  />
-                </>
-              ) : (
-                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center font-bold text-gray-500">
-                  Selecione um indice.
+                    </div>
+                  </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </aside>
         </div>
@@ -1515,6 +1633,15 @@ export function RgConfigurator({ lines }) {
         components={componentLibrary}
         onClose={() => setAddComponentSection("")}
         onSelect={addTemplateToSection}
+      />
+      <IndexDialog
+        draft={indexDraft}
+        lines={lines}
+        lists={valueLists}
+        onChange={updateIndexDraft}
+        onLineRuleChange={updateIndexDraftLineRule}
+        onClose={() => setIndexDraft(null)}
+        onSave={saveIndexDraft}
       />
     </section>
   );
