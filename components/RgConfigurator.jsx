@@ -51,6 +51,31 @@ const layoutOptions = [
 
 const frequencies = ["Por registro", "Por setup", "Por horario liberado", "Hora em hora", "Turno"];
 
+const defaultValueModes = [
+  { id: "manual", label: "Manual" },
+  { id: "tag", label: "Tag automatica" },
+  { id: "lista", label: "Lista de valores" }
+];
+
+const defaultTags = [
+  { id: "nome_usuario_logado", label: "<nome_usuario_logado>" },
+  { id: "turno_usuario_logado", label: "<turno_usuario_logado>" },
+  { id: "data_hora_atual", label: "<data_hora_atual>" }
+];
+
+const valueLists = [
+  { id: "gramatura_salgadinho", label: "gramatura_salgadinho", values: ["35g", "45g", "90g", "140g"] },
+  { id: "sabor_pururuca", label: "sabor_pururuca", values: ["Original", "Bacon", "Cebola", "Churrasco"] },
+  { id: "disposicao_imediata", label: "disposicao_imediata", values: ["Bloqueado", "Descarte"] }
+];
+
+const lineRuleDefaults = {
+  yellowBelow: "50",
+  greenMin: "60",
+  greenMax: "70",
+  redAbove: "70"
+};
+
 const liberacaoProdutoComponents = [
   "Sabor e odor",
   "Textura",
@@ -81,6 +106,10 @@ function makeField(id, name, type = "c_nc", section = "Geral", overrides = {}) {
     layout: type === "texto" || type === "foto" ? "half" : "third",
     required: true,
     nc: type === "c_nc",
+    defaultMode: "manual",
+    defaultTag: "",
+    valueList: "",
+    rulesByLine: {},
     ...overrides
   };
 }
@@ -178,7 +207,11 @@ function buildComponentLibrary() {
       section: field.section,
       layout: field.layout,
       required: field.required,
-      nc: field.nc
+      nc: field.nc,
+      defaultMode: field.defaultMode,
+      defaultTag: field.defaultTag,
+      valueList: field.valueList,
+      rulesByLine: field.rulesByLine
     }))
   );
 }
@@ -292,6 +325,9 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
           {layoutOptions.find((item) => item.id === field.layout)?.preview ?? "1/3"}
         </span>
         {field.nc ? <span className="audit-badge bg-red-100 text-cicopal-red">NC</span> : null}
+        {field.defaultMode === "tag" && field.defaultTag ? <span className="audit-badge bg-blue-100 text-cicopal-blue">Tag</span> : null}
+        {field.defaultMode === "lista" && field.valueList ? <span className="audit-badge bg-gray-900 text-white">Lista</span> : null}
+        {Object.keys(field.rulesByLine ?? {}).length ? <span className="audit-badge bg-yellow-100 text-yellow-800">Parametros</span> : null}
       </div>
     </article>
   );
@@ -328,6 +364,23 @@ function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, o
 }
 
 function OperatorFieldControl({ field }) {
+  if (field.defaultMode === "tag" && field.defaultTag) {
+    return (
+      <div className="flex min-h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 font-bold text-cicopal-blue">
+        {defaultTags.find((tag) => tag.id === field.defaultTag)?.label ?? field.defaultTag}
+      </div>
+    );
+  }
+
+  if (field.defaultMode === "lista" && field.valueList) {
+    return (
+      <div className="flex min-h-12 items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3">
+        <span className="font-semibold text-gray-500">Selecionar valor</span>
+        <span className="audit-badge bg-gray-100 text-gray-700">{field.valueList}</span>
+      </div>
+    );
+  }
+
   if (field.type === "c_nc") {
     return (
       <div className="grid gap-2 sm:grid-cols-2">
@@ -425,6 +478,118 @@ function SectionCard({ section, fields, children }) {
 
 function isChecklistSection(fields) {
   return fields.length > 3 && fields.every((field) => field.type === "c_nc");
+}
+
+function ComponentRulesEditor({ item, lines, onChange, onLineRuleChange }) {
+  const numeric = ["numero", "percentual", "temperatura"].includes(item.type);
+  const selectedList = valueLists.find((list) => list.id === item.valueList);
+
+  return (
+    <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+      <div>
+        <h4 className="text-base font-bold text-gray-950">Regras do componente</h4>
+        <p className="text-sm font-semibold text-gray-500">Defina como o campo nasce e como sera validado.</p>
+      </div>
+
+      <label>
+        <FieldLabel>Valor padrao</FieldLabel>
+        <ConfigSelect value={item.defaultMode ?? "manual"} onChange={(event) => onChange("defaultMode", event.target.value)}>
+          {defaultValueModes.map((mode) => (
+            <option key={mode.id} value={mode.id}>
+              {mode.label}
+            </option>
+          ))}
+        </ConfigSelect>
+      </label>
+
+      {item.defaultMode === "tag" ? (
+        <div className="rounded-md border border-blue-100 bg-white p-3">
+          <FieldLabel>Tag automatica</FieldLabel>
+          <div className="mb-2 grid gap-2">
+            {defaultTags.map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                className={`min-h-11 rounded-md border px-3 text-left font-bold ${
+                  item.defaultTag === tag.id ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-700"
+                }`}
+                onClick={() => onChange("defaultTag", tag.id)}
+              >
+                {tag.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {item.defaultMode === "lista" ? (
+        <div className="rounded-md border border-gray-200 bg-white p-3">
+          <label>
+            <FieldLabel>Lista de valores</FieldLabel>
+            <ConfigSelect value={item.valueList ?? ""} onChange={(event) => onChange("valueList", event.target.value)}>
+              <option value="">Selecione uma lista</option>
+              {valueLists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.label}
+                </option>
+              ))}
+            </ConfigSelect>
+          </label>
+          {selectedList ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedList.values.map((value) => (
+                <span key={value} className="audit-badge bg-gray-100 text-gray-700">
+                  {value}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {numeric ? (
+        <div className="rounded-md border border-gray-200 bg-white p-3">
+          <div className="mb-3">
+            <h5 className="font-bold text-gray-950">Parametros por linha</h5>
+            <p className="text-sm font-semibold text-gray-500">Use faixas diferentes quando PUR, SAL ou ROSCA tiverem limites proprios.</p>
+          </div>
+          <div className="grid gap-3">
+            {lines.map((line) => {
+              const rule = { ...lineRuleDefaults, ...(item.rulesByLine?.[line.id] ?? {}) };
+              return (
+                <div key={line.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="mb-2 font-bold text-gray-950">{line.nome}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label>
+                      <FieldLabel>Amarelo abaixo de</FieldLabel>
+                      <ConfigInput value={rule.yellowBelow} onChange={(event) => onLineRuleChange(line.id, "yellowBelow", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Verde de</FieldLabel>
+                      <ConfigInput value={rule.greenMin} onChange={(event) => onLineRuleChange(line.id, "greenMin", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Verde ate</FieldLabel>
+                      <ConfigInput value={rule.greenMax} onChange={(event) => onLineRuleChange(line.id, "greenMax", event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel>Vermelho acima de</FieldLabel>
+                      <ConfigInput value={rule.redAbove} onChange={(event) => onLineRuleChange(line.id, "redAbove", event.target.value)} />
+                    </label>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-md text-center text-xs font-bold">
+                    <span className="bg-yellow-100 px-2 py-2 text-yellow-800">&lt; {rule.yellowBelow}</span>
+                    <span className="bg-green-100 px-2 py-2 text-green-800">{rule.greenMin} a {rule.greenMax}</span>
+                    <span className="bg-red-100 px-2 py-2 text-red-800">&gt; {rule.redAbove}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function RgConfigurator({ lines }) {
@@ -573,7 +738,11 @@ export function RgConfigurator({ lines }) {
     const newField = makeField(makeId("field"), template.name, template.type, template.section, {
       layout: template.layout,
       required: template.required,
-      nc: template.nc
+      nc: template.nc,
+      defaultMode: template.defaultMode,
+      defaultTag: template.defaultTag,
+      valueList: template.valueList,
+      rulesByLine: template.rulesByLine
     });
 
     setRgs((current) =>
@@ -612,6 +781,52 @@ export function RgConfigurator({ lines }) {
   function updateTemplate(templateId, key, value) {
     setComponentLibrary((current) =>
       current.map((template) => (template.id === templateId ? { ...template, [key]: value } : template))
+    );
+  }
+
+  function updateFieldLineRule(fieldId, lineId, key, value) {
+    setRgs((current) =>
+      current.map((rg) =>
+        rg.id === selectedRg.id
+          ? {
+              ...rg,
+              processes: rg.processes.map((process) =>
+                process.id === selectedProcess.id
+                  ? {
+                      ...process,
+                      fields: process.fields.map((field) =>
+                        field.id === fieldId
+                          ? {
+                              ...field,
+                              rulesByLine: {
+                                ...(field.rulesByLine ?? {}),
+                                [lineId]: { ...lineRuleDefaults, ...(field.rulesByLine?.[lineId] ?? {}), [key]: value }
+                              }
+                            }
+                          : field
+                      )
+                    }
+                  : process
+              )
+            }
+          : rg
+      )
+    );
+  }
+
+  function updateTemplateLineRule(templateId, lineId, key, value) {
+    setComponentLibrary((current) =>
+      current.map((template) =>
+        template.id === templateId
+          ? {
+              ...template,
+              rulesByLine: {
+                ...(template.rulesByLine ?? {}),
+                [lineId]: { ...lineRuleDefaults, ...(template.rulesByLine?.[lineId] ?? {}), [key]: value }
+              }
+            }
+          : template
+      )
     );
   }
 
@@ -812,14 +1027,6 @@ export function RgConfigurator({ lines }) {
                     <h3 className="text-xl font-bold text-gray-950">Configuração do processo</h3>
                     <p className="text-sm font-semibold text-gray-500">Defina a regra do processo antes de montar os campos.</p>
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-                    onClick={() => setActiveStep("componente")}
-                  >
-                    Ajustar visualmente
-                    <LayoutTemplate size={20} />
-                  </button>
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
@@ -976,7 +1183,7 @@ export function RgConfigurator({ lines }) {
       ) : null}
 
       {activeStep === "componente" ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
           <main className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
@@ -1112,6 +1319,12 @@ export function RgConfigurator({ lines }) {
                     />
                     Gera NC
                   </label>
+                  <ComponentRulesEditor
+                    item={selectedField}
+                    lines={lines}
+                    onChange={(key, value) => updateField(selectedField.id, key, value)}
+                    onLineRuleChange={(lineId, key, value) => updateFieldLineRule(selectedField.id, lineId, key, value)}
+                  />
                   <button
                     type="button"
                     className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 font-bold text-cicopal-red"
@@ -1160,6 +1373,12 @@ export function RgConfigurator({ lines }) {
                       <FieldLabel>Secao padrao</FieldLabel>
                       <ConfigInput value={selectedTemplate.section} onChange={(event) => updateTemplate(selectedTemplate.id, "section", event.target.value)} />
                     </label>
+                    <ComponentRulesEditor
+                      item={selectedTemplate}
+                      lines={lines}
+                      onChange={(key, value) => updateTemplate(selectedTemplate.id, key, value)}
+                      onLineRuleChange={(lineId, key, value) => updateTemplateLineRule(selectedTemplate.id, lineId, key, value)}
+                    />
                     <button
                       type="button"
                       className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
