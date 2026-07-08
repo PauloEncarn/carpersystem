@@ -268,10 +268,10 @@ function sectionKind(section) {
   return "Bloco do formulario";
 }
 
-function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
+function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver, draggable = true }) {
   return (
     <article
-      draggable
+      draggable={draggable}
       className={`${previewGridClass(field.layout)} cursor-pointer rounded-md border p-3 text-left transition ${
         selected ? "border-cicopal-blue bg-blue-50 shadow-soft" : "border-gray-200 bg-white hover:border-cicopal-blue"
       }`}
@@ -284,7 +284,7 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <span className="text-sm font-bold text-gray-950">{field.name}</span>
-        <GripVertical size={18} className="shrink-0 text-gray-400" />
+        {draggable ? <GripVertical size={18} className="shrink-0 text-gray-400" /> : null}
       </div>
       <OperatorFieldControl field={field} />
       <div className="mt-2 flex flex-wrap gap-2">
@@ -297,10 +297,10 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
   );
 }
 
-function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver }) {
+function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver, draggable = true }) {
   return (
     <tr
-      draggable
+      draggable={draggable}
       className={`${selected ? "bg-blue-50" : "bg-white"} cursor-pointer`}
       onClick={onSelect}
       onDragStart={onDragStart}
@@ -309,7 +309,7 @@ function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, o
     >
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <GripVertical size={17} className="shrink-0 text-gray-400" />
+          {draggable ? <GripVertical size={17} className="shrink-0 text-gray-400" /> : null}
           <span className="text-base font-semibold text-gray-950">{field.name}</span>
         </div>
       </td>
@@ -869,11 +869,11 @@ export function RgConfigurator({ lines }) {
                 </div>
 
                 <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-                  <section className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-lg font-bold text-gray-950">Componentes deste processo</h4>
-                        <p className="text-sm font-semibold text-gray-500">Clique para editar no ajuste visual.</p>
+                        <h4 className="text-lg font-bold text-gray-950">Visualizacao do processo</h4>
+                        <p className="text-sm font-semibold text-gray-500">Previa do formulario como ele aparece para a operacao.</p>
                       </div>
                       <button
                         type="button"
@@ -884,24 +884,52 @@ export function RgConfigurator({ lines }) {
                         <LayoutTemplate size={18} />
                       </button>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {selectedProcess.fields.map((field) => (
-                        <button
-                          key={field.id}
-                          type="button"
-                          className={`rounded-md border p-3 text-left ${
-                            field.id === selectedField?.id ? "border-cicopal-blue bg-white shadow-soft" : "border-gray-200 bg-white"
-                          }`}
-                          onClick={() => {
-                            setSelectedFieldId(field.id);
-                            setActiveStep("componente");
-                          }}
-                        >
-                          <span className="block text-sm font-bold text-gray-950">{field.name}</span>
-                          <span className="text-xs font-semibold text-gray-500">
-                            {field.section} - {fieldTypeLabel(field.type)}
-                          </span>
-                        </button>
+                    <div className="space-y-4">
+                      {Object.entries(fieldsBySection).map(([section, fields]) => (
+                        <SectionCard key={section} section={section} fields={fields}>
+                          {isChecklistSection(fields) ? (
+                            <div className="overflow-x-auto rounded-md bg-white">
+                              <table className="audit-table min-w-[560px] text-left">
+                                <thead>
+                                  <tr>
+                                    <th className="px-4 py-3">Item</th>
+                                    <th className="w-40 px-4 py-3">1 AV</th>
+                                    <th className="w-40 px-4 py-3">2 AV</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {fields.map((field) => (
+                                    <ChecklistRowPreview
+                                      key={field.id}
+                                      field={field}
+                                      selected={field.id === selectedField?.id}
+                                      onSelect={() => setSelectedFieldId(field.id)}
+                                      draggable={false}
+                                      onDragStart={() => {}}
+                                      onDrop={(event) => event.preventDefault()}
+                                      onDragOver={(event) => event.preventDefault()}
+                                    />
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="grid gap-3 md:grid-cols-12">
+                              {fields.map((field) => (
+                                <FieldPreview
+                                  key={field.id}
+                                  field={field}
+                                  selected={field.id === selectedField?.id}
+                                  onSelect={() => setSelectedFieldId(field.id)}
+                                  draggable={false}
+                                  onDragStart={() => {}}
+                                  onDrop={(event) => event.preventDefault()}
+                                  onDragOver={(event) => event.preventDefault()}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </SectionCard>
                       ))}
                     </div>
                   </section>
