@@ -95,6 +95,17 @@ function Field({ label, defaultValue = "", placeholder = "", type = "text" }) {
   );
 }
 
+function LockedField({ label, value = "" }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-bold uppercase text-gray-500">{label}</span>
+      <div className="flex min-h-12 items-center rounded-md border border-gray-200 bg-gray-50 px-3 font-bold text-gray-800">
+        {value || "-"}
+      </div>
+    </label>
+  );
+}
+
 function SelectField({ label, defaultValue = "", options }) {
   return (
     <label className="block">
@@ -107,37 +118,6 @@ function SelectField({ label, defaultValue = "", options }) {
         ))}
       </select>
     </label>
-  );
-}
-
-function ObservacoesProcesso({ value, onChange }) {
-  return (
-    <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
-      <div className="mb-3">
-        <h2 className="text-lg font-bold text-gray-950">Observacoes</h2>
-        <p className="text-sm font-semibold text-gray-500">Anote pontos importantes do RG e deste processo.</p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao do RG</span>
-          <textarea
-            className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
-            value={value.rg}
-            onChange={(event) => onChange({ ...value, rg: event.target.value })}
-            placeholder="Observacao geral deste RG no lote/data"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao do processo</span>
-          <textarea
-            className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
-            value={value.processo}
-            onChange={(event) => onChange({ ...value, processo: event.target.value })}
-            placeholder="Observacao especifica deste preenchimento"
-          />
-        </label>
-      </div>
-    </section>
   );
 }
 
@@ -205,7 +185,7 @@ function makeNcId(base = "NC") {
     .toUpperCase();
 }
 
-function HourlyTable({ title, columns, minWidth = "min-w-[980px]", onSave }) {
+function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onSave }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
 
@@ -238,8 +218,8 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]", onSave }) {
         acao: "Nao informada",
         disposicaoImediata: "Nao informada",
         disposicaoFinal: "Nao informada",
-        operador: "Operador logado",
-        produto: "-",
+        operador: registro?.operador ?? "",
+        produto: registro?.produto ?? "-",
         assinaturaSupervisorAt: null
       }));
 
@@ -298,7 +278,7 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]", onSave }) {
   );
 }
 
-function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, onSave }) {
+function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, registro, onSave }) {
   const [rows, setRows] = useState([{ id: 1 }]);
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
@@ -336,8 +316,8 @@ function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, onSave }) {
         acao: "Nao informada",
         disposicaoImediata: "Nao informada",
         disposicaoFinal: "Nao informada",
-        operador: "Operador logado",
-        produto: "-",
+        operador: registro?.operador ?? "",
+        produto: registro?.produto ?? "-",
         assinaturaSupervisorAt: null
       }));
 
@@ -468,7 +448,7 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function MachineHourlySections({ title, machines = [], onSave }) {
+function MachineHourlySections({ title, machines = [], registro, onSave }) {
   if (!machines.length) return null;
 
   return (
@@ -479,6 +459,7 @@ function MachineHourlySections({ title, machines = [], onSave }) {
           title={`${title} - ${machine.label}`}
           columns={machine.columns}
           minWidth="min-w-[860px]"
+          registro={registro}
           onSave={onSave}
         />
       ))}
@@ -614,7 +595,7 @@ function ClextralParameterTable({ registro }) {
             <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Operador deste horario</span>
             <input
               className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold"
-              value={hourValues[activeHour]?.operador ?? registro?.operador ?? "Operador logado"}
+              value={hourValues[activeHour]?.operador ?? registro?.operador ?? ""}
               onChange={(event) =>
                 setHourValues((current) => ({
                   ...current,
@@ -830,7 +811,7 @@ function BateladaMilhoForm({ registro }) {
                       <input type="time" className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold" defaultValue={row.horario} />
                     </td>
                     <td className="px-3 py-3">
-                      <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" defaultValue={registro?.operador ?? "Operador logado"} />
+                      <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" defaultValue={registro?.operador ?? ""} />
                     </td>
                     <td className="px-3 py-3">
                       <NumericUnitInput unit="kg" />
@@ -1058,7 +1039,7 @@ function AssinaturasRegistro({ registro }) {
   const [activeSigner, setActiveSigner] = useState(null);
 
   const names = {
-    Operador: registro?.operador ?? "Operador logado",
+    Operador: registro?.operador ?? "",
     Qualidade: "Qualidade",
     Supervisor: "Supervisor"
   };
@@ -1181,15 +1162,16 @@ function HigienizacaoContexto({ registro }) {
   return (
     <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
       <div className="mb-3 grid gap-3 md:grid-cols-3">
-        <Field label="Operador logado" defaultValue={registro?.operador ?? "Operador logado"} />
-        <SelectField label="Turno operador" defaultValue={registro?.turno ?? "A"} options={["A", "B", "C"]} />
+        <LockedField label="Operador logado" value={registro?.operador} />
+        <LockedField label="Turno operador" value={registro?.turno} />
+        <LockedField label="Data/Hora do registro" value={registro?.dataRegistro} />
+      </div>
+      <div className="mb-3 grid gap-3 md:grid-cols-3">
         <SelectField
           label="Tipo de setup"
           defaultValue={registro?.motivo ?? "Troca de sabor/produto"}
           options={["Troca de sabor/produto", "Inicio de producao semana", "Final de producao", "Outros"]}
         />
-      </div>
-      <div className="mb-3 grid gap-3 md:grid-cols-2">
         <Field label="Troca de sabor/produto de" defaultValue={registro?.setupDe ?? ""} placeholder="Produto anterior" />
         <Field label="Para" defaultValue={registro?.setupPara ?? registro?.produto ?? ""} placeholder="Produto novo" />
       </div>
@@ -1198,44 +1180,49 @@ function HigienizacaoContexto({ registro }) {
   );
 }
 
-function ProdutoContexto({ registro }) {
+function ProdutoContexto({ registro, options }) {
+  const produtoOptions = options ?? {};
+
   return (
     <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
       <div className="mb-3 grid gap-3 md:grid-cols-3">
-        <Field label="Marca" defaultValue={registro?.marca ?? ""} />
-        <Field label="Sabor" defaultValue={registro?.sabor ?? registro?.produto ?? ""} />
-        <Field label="Gramatura" defaultValue={registro?.gramatura ?? ""} />
+        <SelectField label="Marca" defaultValue={registro?.marca ?? ""} options={["", ...(produtoOptions.marcas ?? [])]} />
+        <SelectField label="Sabor" defaultValue={registro?.sabor ?? registro?.produto ?? ""} options={["", ...(produtoOptions.sabores ?? [])]} />
+        <SelectField label="Gramatura" defaultValue={registro?.gramatura ?? ""} options={["", ...(produtoOptions.gramaturas ?? [])]} />
       </div>
       <div className="grid gap-3 md:grid-cols-3">
-        <Field label="Operador logado" defaultValue={registro?.operador ?? "Operador logado"} />
-        <SelectField label="Turno operador" defaultValue={registro?.turno ?? "A"} options={["A", "B", "C"]} />
-        <Field label="Data/Hora do registro" defaultValue={registro?.dataRegistro ?? ""} />
+        <LockedField label="Operador logado" value={registro?.operador} />
+        <LockedField label="Turno operador" value={registro?.turno} />
+        <LockedField label="Data/Hora do registro" value={registro?.dataRegistro} />
       </div>
     </section>
   );
 }
 
-export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, onSave }) {
-  const [observacoes, setObservacoes] = useState({ rg: "", processo: "" });
+export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, loggedUser, onSave }) {
   const [savedAt, setSavedAt] = useState("");
+  const [registroDataHora] = useState(() => new Date().toLocaleString("pt-BR"));
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
-  const observacoesPanel = <ObservacoesProcesso value={observacoes} onChange={setObservacoes} />;
+  const effectiveRegistro = {
+    ...registro,
+    operador: loggedUser?.nome ?? registro?.operador ?? "",
+    operadorId: loggedUser?.id ?? registro?.operadorId,
+    turno: loggedUser?.turno ?? registro?.turno ?? "",
+    dataRegistro: registro?.dataRegistro && registro.dataRegistro !== "Novo registro" ? registro.dataRegistro : registroDataHora
+  };
 
   function saveProcesso(payload = {}) {
     onSave?.({
       registro: {
-        ...registro,
+        ...effectiveRegistro,
         status: "Gravado",
-        observacaoRg: observacoes.rg,
-        observacaoProcesso: observacoes.processo,
-        dataRegistro: registro?.dataRegistro === "Novo registro" ? new Date().toLocaleString("pt-BR") : registro?.dataRegistro
+        dataRegistro: effectiveRegistro.dataRegistro
       },
       subregistro: {
         ...subregistro,
         ...payload,
-        status: payload.ncs?.length ? "Com NC" : "Gravado",
-        observacoes
+        status: payload.ncs?.length ? "Com NC" : "Gravado"
       }
     });
     setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
@@ -1244,17 +1231,16 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "higienizacao") {
     return (
       <>
-        {observacoesPanel}
-        <HigienizacaoContexto registro={registro} />
+        <HigienizacaoContexto registro={effectiveRegistro} />
         <ChecklistTable
           documentName={`${documentName} - Higienizacao`}
           loteId={loteId}
-          registro={registro}
+          registro={effectiveRegistro}
           subregistro={subregistro}
           groups={config.checklistGroups}
           onSave={saveProcesso}
         />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }
@@ -1262,10 +1248,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {observacoesPanel}
-        <ProdutoContexto registro={registro} />
-        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} onSave={saveProcesso} />
-        <AssinaturasRegistro registro={registro} />
+        <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
+        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }
@@ -1273,12 +1258,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
-        {observacoesPanel}
-        <ProdutoContexto registro={registro} />
+        <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
         <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />
-        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} onSave={saveProcesso} />
+        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }
@@ -1286,13 +1270,13 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
-        {observacoesPanel}
         <MachineHourlySections
           title="RG - Processo"
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
+          registro={effectiveRegistro}
           onSave={saveProcesso}
         />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }
@@ -1300,10 +1284,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "fotografico") {
     return (
       <>
-        {observacoesPanel}
         <PhotoHourlyGrid />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }
@@ -1311,12 +1294,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "extrusora_clextral") {
     return (
       <div className="space-y-4">
-        {observacoesPanel}
-        <ClextralContexto registro={registro} />
-        <ClextralParameterTable registro={registro} />
+        <ClextralContexto registro={effectiveRegistro} />
+        <ClextralParameterTable registro={effectiveRegistro} />
         <ClextralOccurrencesTable />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </div>
     );
   }
@@ -1324,10 +1306,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "batelada_milho") {
     return (
       <>
-        {observacoesPanel}
-        <BateladaMilhoForm registro={registro} />
+        <BateladaMilhoForm registro={effectiveRegistro} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
-        <AssinaturasRegistro registro={registro} />
+        <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
   }

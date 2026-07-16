@@ -229,6 +229,7 @@ export default function HomePage() {
                 loteId={selected.lote?.id}
                 registro={selected.registro}
                 subregistro={selected.subregistro}
+                loggedUser={loggedUser}
                 onSave={saveRegistroSnapshot}
               />
             ) : null}

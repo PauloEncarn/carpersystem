@@ -262,7 +262,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         acao: row.nc.acao || "Nao informada",
         disposicaoImediata: row.nc.disposicaoImediata || "Nao informada",
         disposicaoFinal: row.nc.disposicaoFinal || "Nao informada",
-        operador: registro?.operador ?? "Operador logado",
+        operador: registro?.operador ?? "",
         produto: registro?.produto ?? "-",
         assinaturaSupervisorAt: null
       }));
