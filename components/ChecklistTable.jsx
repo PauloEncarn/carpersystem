@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
 
@@ -51,18 +51,29 @@ function buildInitialRows(subregistro, groups) {
 }
 
 function StatusClickButton({ value, onChange }) {
+  const lastTapRef = useRef(0);
+
+  function handlePointerUp() {
+    const now = Date.now();
+    if (now - lastTapRef.current < 340) {
+      onChange("NC");
+    } else {
+      onChange("C");
+    }
+    lastTapRef.current = now;
+  }
+
   return (
     <button
       type="button"
-      className={`inline-flex min-h-12 w-full items-center justify-center rounded-md border px-3 font-bold ${
+      className={`inline-flex min-h-12 w-full touch-manipulation items-center justify-center rounded-md border px-3 font-bold ${
         value === "NC"
           ? "border-cicopal-red bg-cicopal-red text-white"
           : value === "C"
             ? "border-cicopal-green bg-cicopal-green text-white"
             : "border-green-200 bg-green-50 text-cicopal-green"
       }`}
-      onClick={() => onChange("C")}
-      onDoubleClick={() => onChange("NC")}
+      onPointerUp={handlePointerUp}
       title="Um clique confirma C. Dois cliques marcam NC."
     >
       {value || "C"}
@@ -186,8 +197,9 @@ function ChecklistGroupTable({ title, rows, onChange }) {
   );
 }
 
-export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", registro, subregistro, groups = checklistGroups }) {
+export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", registro, subregistro, groups = checklistGroups, onSave }) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
+  const [savedAt, setSavedAt] = useState("");
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -225,6 +237,41 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
     );
   }
 
+  function saveChecklist() {
+    const avaliacoes = rows
+      .filter((row) => row.av1 || row.av2)
+      .map((row) => ({
+        item: row.item,
+        grupo: row.group,
+        av1: row.av1,
+        av2: row.av2
+      }));
+    const ncs = rows
+      .filter((row) => row.av1 === "NC")
+      .map((row, index) => ({
+        id: `${registro?.id ?? loteId}-NC-${String(index + 1).padStart(2, "0")}`,
+        item: row.item,
+        grupo: row.group,
+        status: row.av2 === "C" ? "Tratada" : "Aberta",
+        horario: row.nc.horario || new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        quantidade: row.nc.quantidade || "-",
+        descricao: `${row.item} marcado como NC na 1 AV`,
+        causa: row.nc.causa || "Nao informada",
+        acao: row.nc.acao || "Nao informada",
+        disposicaoImediata: row.nc.disposicaoImediata || "Nao informada",
+        disposicaoFinal: row.nc.disposicaoFinal || "Nao informada",
+        operador: registro?.operador ?? "Operador logado",
+        produto: registro?.produto ?? "-",
+        assinaturaSupervisorAt: null
+      }));
+
+    onSave?.({
+      avaliacoes,
+      ncs
+    });
+    setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }
+
   return (
     <section className="rounded-md border border-gray-200 bg-white p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
@@ -255,6 +302,19 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
             onChange={updateRow}
           />
         ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
+        <span className="text-sm font-bold text-gray-500">
+          {savedAt ? `Registro gravado as ${savedAt}` : "As NCs entram na Central de NC ao gravar."}
+        </span>
+        <button
+          type="button"
+          className="inline-flex min-h-14 items-center justify-center rounded-md bg-cicopal-blue px-5 text-base font-bold text-white shadow-soft"
+          onClick={saveChecklist}
+        >
+          Gravar registro
+        </button>
       </div>
     </section>
   );

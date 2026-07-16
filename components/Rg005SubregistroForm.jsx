@@ -110,8 +110,57 @@ function SelectField({ label, defaultValue = "", options }) {
   );
 }
 
+function ObservacoesProcesso({ value, onChange }) {
+  return (
+    <section className="mb-4 rounded-md border border-gray-200 bg-white p-3">
+      <div className="mb-3">
+        <h2 className="text-lg font-bold text-gray-950">Observacoes</h2>
+        <p className="text-sm font-semibold text-gray-500">Anote pontos importantes do RG e deste processo.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao do RG</span>
+          <textarea
+            className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
+            value={value.rg}
+            onChange={(event) => onChange({ ...value, rg: event.target.value })}
+            placeholder="Observacao geral deste RG no lote/data"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao do processo</span>
+          <textarea
+            className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
+            value={value.processo}
+            onChange={(event) => onChange({ ...value, processo: event.target.value })}
+            placeholder="Observacao especifica deste preenchimento"
+          />
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function SaveProcessBar({ savedAt, onSave }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
+      <span className="text-sm font-bold text-gray-500">
+        {savedAt ? `Registro gravado as ${savedAt}` : "Grave para aparecer na lista de registros do processo."}
+      </span>
+      <button
+        type="button"
+        className="inline-flex min-h-14 items-center justify-center rounded-md bg-cicopal-blue px-5 text-base font-bold text-white shadow-soft"
+        onClick={onSave}
+      >
+        Gravar registro
+      </button>
+    </div>
+  );
+}
+
 function StatusClickButton({ value: controlledValue, onChange }) {
   const [internalValue, setInternalValue] = useState("");
+  const lastTapRef = useRef(0);
   const value = controlledValue ?? internalValue;
 
   function setValue(nextValue) {
@@ -119,18 +168,27 @@ function StatusClickButton({ value: controlledValue, onChange }) {
     onChange?.(nextValue);
   }
 
+  function handlePointerUp() {
+    const now = Date.now();
+    if (now - lastTapRef.current < 340) {
+      setValue("NC");
+    } else {
+      setValue("C");
+    }
+    lastTapRef.current = now;
+  }
+
   return (
     <button
       type="button"
-      className={`min-h-12 w-full rounded-md border px-2 text-sm font-bold ${
+      className={`min-h-12 w-full touch-manipulation rounded-md border px-2 text-sm font-bold ${
         value === "NC"
           ? "border-cicopal-red bg-cicopal-red text-white"
           : value === "C"
             ? "border-cicopal-green bg-cicopal-green text-white"
             : "border-green-200 bg-green-50 text-cicopal-green"
       }`}
-      onClick={() => setValue("C")}
-      onDoubleClick={() => setValue("NC")}
+      onPointerUp={handlePointerUp}
       title="Um clique confirma C. Dois cliques marcam NC."
     >
       {value || "C"}
@@ -138,7 +196,57 @@ function StatusClickButton({ value: controlledValue, onChange }) {
   );
 }
 
-function HourlyTable({ title, columns, minWidth = "min-w-[980px]" }) {
+function makeNcId(base = "NC") {
+  return base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
+}
+
+function HourlyTable({ title, columns, minWidth = "min-w-[980px]", onSave }) {
+  const [values, setValues] = useState({});
+  const [savedAt, setSavedAt] = useState("");
+
+  function valueKey(hour, column) {
+    return `${hour}|${column}`;
+  }
+
+  function updateValue(hour, column, value) {
+    setValues((current) => ({
+      ...current,
+      [valueKey(hour, column)]: value
+    }));
+  }
+
+  function saveHourlyTable() {
+    const apontamentos = Object.entries(values).map(([key, resultado]) => {
+      const [horario, item] = key.split("|");
+      return { horario, item, resultado };
+    });
+    const ncs = apontamentos
+      .filter((apontamento) => apontamento.resultado === "NC")
+      .map((apontamento, index) => ({
+        id: `${makeNcId(title)}-NC-${String(index + 1).padStart(2, "0")}`,
+        item: apontamento.item,
+        status: "Aberta",
+        horario: apontamento.horario,
+        quantidade: "-",
+        descricao: `${apontamento.item} marcado como NC em ${apontamento.horario}`,
+        causa: "Nao informada",
+        acao: "Nao informada",
+        disposicaoImediata: "Nao informada",
+        disposicaoFinal: "Nao informada",
+        operador: "Operador logado",
+        produto: "-",
+        assinaturaSupervisorAt: null
+      }));
+
+    onSave?.({ apontamentos, ncs });
+    setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }
+
   return (
     <section className="overflow-hidden rounded-md border border-gray-200 bg-white">
       <div className="flex items-center gap-3 border-b border-gray-200 p-3">
@@ -165,8 +273,8 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]" }) {
               <tr key={hour} className="bg-white">
                 <td className="px-3 py-3 text-base font-bold text-gray-950">{hour}</td>
                 {columns.map((column) => (
-                  <td key={`${hour}-${column}`} className="px-3 py-3">
-                    <StatusClickButton />
+                <td key={`${hour}-${column}`} className="px-3 py-3">
+                    <StatusClickButton value={values[valueKey(hour, column)]} onChange={(value) => updateValue(hour, column, value)} />
                   </td>
                 ))}
               </tr>
@@ -174,12 +282,66 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]" }) {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 p-3">
+        <span className="text-sm font-bold text-gray-500">
+          {savedAt ? `Bloco gravado as ${savedAt}` : "Dois toques em um item geram NC ao gravar."}
+        </span>
+        <button
+          type="button"
+          className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 font-bold text-white"
+          onClick={saveHourlyTable}
+        >
+          Gravar bloco
+        </button>
+      </div>
     </section>
   );
 }
 
-function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns }) {
+function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, onSave }) {
   const [rows, setRows] = useState([{ id: 1 }]);
+  const [values, setValues] = useState({});
+  const [savedAt, setSavedAt] = useState("");
+
+  function valueKey(rowId, column) {
+    return `${rowId}|${column}`;
+  }
+
+  function updateValue(rowId, column, value) {
+    setValues((current) => ({ ...current, [valueKey(rowId, column)]: value }));
+  }
+
+  function saveLiberacao() {
+    const apontamentos = rows.flatMap((row) =>
+      columns
+        .filter((column) => values[valueKey(row.id, column)])
+        .map((column) => ({
+          horario: row.horario || "-",
+          item: column,
+          resultado: values[valueKey(row.id, column)]
+        }))
+    );
+    const ncs = apontamentos
+      .filter((apontamento) => apontamento.resultado === "NC")
+      .map((apontamento, index) => ({
+        id: `LIBP-NC-${String(index + 1).padStart(2, "0")}`,
+        item: apontamento.item,
+        status: "Aberta",
+        horario: apontamento.horario,
+        quantidade: "-",
+        descricao: `${apontamento.item} marcado como NC na liberacao`,
+        causa: "Nao informada",
+        acao: "Nao informada",
+        disposicaoImediata: "Nao informada",
+        disposicaoFinal: "Nao informada",
+        operador: "Operador logado",
+        produto: "-",
+        assinaturaSupervisorAt: null
+      }));
+
+    onSave?.({ apontamentos, ncs });
+    setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }
 
   return (
     <section className="overflow-hidden rounded-md border border-gray-200 bg-white">
@@ -206,11 +368,20 @@ function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns }) {
             {rows.map((row) => (
               <tr key={row.id} className="bg-white">
                 <td className="px-3 py-3">
-                  <input type="time" className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold" />
+                  <input
+                    type="time"
+                    className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold"
+                    value={row.horario ?? ""}
+                    onChange={(event) =>
+                      setRows((current) =>
+                        current.map((entry) => (entry.id === row.id ? { ...entry, horario: event.target.value } : entry))
+                      )
+                    }
+                  />
                 </td>
                 {columns.map((column) => (
                   <td key={column} className="px-3 py-3">
-                    <StatusClickButton />
+                    <StatusClickButton value={values[valueKey(row.id, column)]} onChange={(value) => updateValue(row.id, column, value)} />
                   </td>
                 ))}
               </tr>
@@ -219,14 +390,28 @@ function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns }) {
         </table>
       </div>
       <div className="border-t border-gray-200 p-3">
-        <button
-          type="button"
-          className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
-          onClick={() => setRows((current) => [...current, { id: current.length + 1 }])}
-        >
-          <Plus size={18} />
-          Adicionar horario
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
+            onClick={() => setRows((current) => [...current, { id: current.length + 1 }])}
+          >
+            <Plus size={18} />
+            Adicionar horario
+          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-bold text-gray-500">
+              {savedAt ? `Liberacao gravada as ${savedAt}` : "Dois toques em item C/NC geram NC ao gravar."}
+            </span>
+            <button
+              type="button"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 font-bold text-white"
+              onClick={saveLiberacao}
+            >
+              Gravar liberacao
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -281,7 +466,7 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function MachineHourlySections({ title, machines = [] }) {
+function MachineHourlySections({ title, machines = [], onSave }) {
   if (!machines.length) return null;
 
   return (
@@ -292,6 +477,7 @@ function MachineHourlySections({ title, machines = [] }) {
           title={`${title} - ${machine.label}`}
           columns={machine.columns}
           minWidth="min-w-[860px]"
+          onSave={onSave}
         />
       ))}
     </div>
@@ -1027,13 +1213,36 @@ function ProdutoContexto({ registro }) {
   );
 }
 
-export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro }) {
+export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, onSave }) {
+  const [observacoes, setObservacoes] = useState({ rg: "", processo: "" });
+  const [savedAt, setSavedAt] = useState("");
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
+  const observacoesPanel = <ObservacoesProcesso value={observacoes} onChange={setObservacoes} />;
+
+  function saveProcesso(payload = {}) {
+    onSave?.({
+      registro: {
+        ...registro,
+        status: "Gravado",
+        observacaoRg: observacoes.rg,
+        observacaoProcesso: observacoes.processo,
+        dataRegistro: registro?.dataRegistro === "Novo registro" ? new Date().toLocaleString("pt-BR") : registro?.dataRegistro
+      },
+      subregistro: {
+        ...subregistro,
+        ...payload,
+        status: payload.ncs?.length ? "Com NC" : "Gravado",
+        observacoes
+      }
+    });
+    setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }
 
   if (subregistro.id === "higienizacao") {
     return (
       <>
+        {observacoesPanel}
         <HigienizacaoContexto registro={registro} />
         <ChecklistTable
           documentName={`${documentName} - Higienizacao`}
@@ -1041,6 +1250,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           registro={registro}
           subregistro={subregistro}
           groups={config.checklistGroups}
+          onSave={saveProcesso}
         />
         <AssinaturasRegistro registro={registro} />
       </>
@@ -1050,8 +1260,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
+        {observacoesPanel}
         <ProdutoContexto registro={registro} />
-        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} />
+        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} onSave={saveProcesso} />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1060,9 +1271,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
+        {observacoesPanel}
         <ProdutoContexto registro={registro} />
         <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />
-        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} />
+        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} onSave={saveProcesso} />
+        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1071,7 +1284,12 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
-        <MachineHourlySections title="RG - Processo" machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]} />
+        {observacoesPanel}
+        <MachineHourlySections
+          title="RG - Processo"
+          machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
+          onSave={saveProcesso}
+        />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1080,7 +1298,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "fotografico") {
     return (
       <>
+        {observacoesPanel}
         <PhotoHourlyGrid />
+        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1089,9 +1309,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "extrusora_clextral") {
     return (
       <div className="space-y-4">
+        {observacoesPanel}
         <ClextralContexto registro={registro} />
         <ClextralParameterTable registro={registro} />
         <ClextralOccurrencesTable />
+        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={registro} />
       </div>
     );
@@ -1100,7 +1322,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "batelada_milho") {
     return (
       <>
+        {observacoesPanel}
         <BateladaMilhoForm registro={registro} />
+        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={registro} />
       </>
     );

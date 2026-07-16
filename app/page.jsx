@@ -11,10 +11,11 @@ import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/r
 export default function HomePage() {
   const [workspace, setWorkspace] = useState("operacao");
   const [loggedUser, setLoggedUser] = useState(null);
+  const [operationTree, setOperationTree] = useState(rastreabilidadeTree);
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
   const currentStepRef = useRef(currentStep);
-  const selected = useMemo(() => findSelection(selection), [selection]);
+  const selected = useMemo(() => findSelection(selection, operationTree), [selection, operationTree]);
   const canAccessConfigurator = loggedUser?.permissoes?.includes("configurador:acessar") || loggedUser?.permissoes?.includes("admin:acessar");
 
   useEffect(() => {
@@ -46,12 +47,118 @@ export default function HomePage() {
     setWorkspace("operacao");
     setLoggedUser(null);
     setCurrentStep(1);
-    setSelection(getInitialSelection());
+    setSelection(getInitialSelection(operationTree));
   }
 
   function openConfigurator() {
     if (!canAccessConfigurator) return;
     setWorkspace("configurador");
+  }
+
+  function saveRegistroSnapshot(snapshot) {
+    if (!selection.linhaId || !selection.dataId || !selection.documentoId || !selection.loteId || !selection.registroId) return;
+
+    setOperationTree((currentTree) =>
+      currentTree.map((linha) => {
+        if (linha.id !== selection.linhaId) return linha;
+
+        const dataIndex = linha.datas.findIndex((data) => data.id === selection.dataId);
+        const nextDatas = [...linha.datas];
+        const dataAtual =
+          dataIndex >= 0
+            ? nextDatas[dataIndex]
+            : {
+                id: selection.dataId,
+                documentos: []
+              };
+
+        const documentoIndex = dataAtual.documentos.findIndex((documento) => documento.id === selection.documentoId);
+        const nextDocumentos = [...dataAtual.documentos];
+        const documentoAtual =
+          documentoIndex >= 0
+            ? nextDocumentos[documentoIndex]
+            : {
+                id: selection.documentoId,
+                nome: selected.documento?.nome ?? selection.documentoId,
+                lotes: []
+              };
+
+        const loteIndex = documentoAtual.lotes.findIndex((lote) => lote.id === selection.loteId);
+        const nextLotes = [...documentoAtual.lotes];
+        const loteAtual =
+          loteIndex >= 0
+            ? nextLotes[loteIndex]
+            : {
+                id: selection.loteId,
+                produto: snapshot.registro.produto ?? "Lote do dia",
+                registros: []
+              };
+
+        const registroIndex = loteAtual.registros.findIndex((registro) => registro.id === selection.registroId);
+        const registroBase =
+          registroIndex >= 0
+            ? loteAtual.registros[registroIndex]
+            : {
+                ...selected.registro,
+                id: selection.registroId,
+                processoId: selection.subregistroId,
+                subregistros: []
+              };
+
+        const subregistroIndex = (registroBase.subregistros ?? []).findIndex((subregistro) => subregistro.id === selection.subregistroId);
+        const nextSubregistros = [...(registroBase.subregistros ?? [])];
+        const nextSubregistro = {
+          ...(selected.subregistro ?? {}),
+          ...(nextSubregistros[subregistroIndex] ?? {}),
+          ...snapshot.subregistro,
+          id: selection.subregistroId
+        };
+
+        if (subregistroIndex >= 0) {
+          nextSubregistros[subregistroIndex] = nextSubregistro;
+        } else {
+          nextSubregistros.push(nextSubregistro);
+        }
+
+        const nextRegistro = {
+          ...registroBase,
+          ...snapshot.registro,
+          id: selection.registroId,
+          processoId: selection.subregistroId,
+          subregistros: nextSubregistros
+        };
+
+        const nextRegistros = [...loteAtual.registros];
+        if (registroIndex >= 0) {
+          nextRegistros[registroIndex] = nextRegistro;
+        } else {
+          nextRegistros.push(nextRegistro);
+        }
+
+        const nextLote = { ...loteAtual, registros: nextRegistros };
+        if (loteIndex >= 0) {
+          nextLotes[loteIndex] = nextLote;
+        } else {
+          nextLotes.push(nextLote);
+        }
+
+        const nextDocumento = { ...documentoAtual, lotes: nextLotes };
+        if (documentoIndex >= 0) {
+          nextDocumentos[documentoIndex] = nextDocumento;
+        } else {
+          nextDocumentos.push(nextDocumento);
+        }
+
+        const nextData = { ...dataAtual, documentos: nextDocumentos };
+        if (dataIndex >= 0) {
+          nextDatas[dataIndex] = nextData;
+        } else {
+          nextDatas.push(nextData);
+        }
+
+        return { ...linha, datas: nextDatas };
+      })
+    );
   }
 
   if (!loggedUser) {
@@ -109,7 +216,7 @@ export default function HomePage() {
           <RgConfigurator lines={rastreabilidadeTree} />
         ) : (
           <HierarchyNavigator
-            tree={rastreabilidadeTree}
+            tree={operationTree}
             selection={selection}
             selected={selected}
             onSelectionChange={setSelection}
@@ -122,6 +229,7 @@ export default function HomePage() {
                 loteId={selected.lote?.id}
                 registro={selected.registro}
                 subregistro={selected.subregistro}
+                onSave={saveRegistroSnapshot}
               />
             ) : null}
           </HierarchyNavigator>
