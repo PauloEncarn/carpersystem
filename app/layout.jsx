@@ -1,4 +1,5 @@
 import { Montserrat } from "next/font/google";
+import { ChunkReloadGuard } from "@/components/ChunkReloadGuard";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -15,7 +16,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body className={montserrat.variable}>{children}</body>
+      <body className={montserrat.variable}>
+        <ChunkReloadGuard />
+        {children}
+      </body>
     </html>
   );
 }
