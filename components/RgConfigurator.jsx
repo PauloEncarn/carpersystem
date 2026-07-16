@@ -379,6 +379,22 @@ const initialRgs = [
     processes: buildProcessesForRg("rg-005")
   },
   {
+    id: "rg-qua-ba-004",
+    code: "RG.QUA.BA.004",
+    title: "Controle de Liberacao de Produto - Milho",
+    revision: "03",
+    linkedLines: ["SAL"],
+    processes: buildProcessesForRg("rg-qua-ba-004")
+  },
+  {
+    id: "rg-qua-ba-003",
+    code: "RG.QUA.BA.003",
+    title: "Controle de Liberacao de Produto - Rosca",
+    revision: "03",
+    linkedLines: ["ROS"],
+    processes: buildProcessesForRg("rg-qua-ba-003")
+  },
+  {
     id: "rg-prd-ba-004",
     code: "RG.PRD.BA.004",
     title: "Parametros de Processo Extrusados - Linha Clextral",

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
+import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
 
@@ -177,7 +178,7 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]" }) {
   );
 }
 
-function LiberacaoProdutoTable() {
+function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns }) {
   const [rows, setRows] = useState([{ id: 1 }]);
 
   return (
@@ -194,7 +195,7 @@ function LiberacaoProdutoTable() {
           <thead>
             <tr>
               <th className="w-28 px-3 py-3">Hora</th>
-              {liberacaoProdutoColumns.map((column) => (
+              {columns.map((column) => (
                 <th key={column} className="px-3 py-3">
                   {column}
                 </th>
@@ -207,7 +208,7 @@ function LiberacaoProdutoTable() {
                 <td className="px-3 py-3">
                   <input type="time" className="min-h-12 w-full rounded-md border border-gray-300 px-2 font-semibold" />
                 </td>
-                {liberacaoProdutoColumns.map((column) => (
+                {columns.map((column) => (
                   <td key={column} className="px-3 py-3">
                     <StatusClickButton />
                   </td>
@@ -231,7 +232,7 @@ function LiberacaoProdutoTable() {
   );
 }
 
-function ProductEvaluationHourlyTable() {
+function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   return (
     <section className="overflow-hidden rounded-md border border-gray-200 bg-white">
       <div className="flex items-center gap-3 border-b border-gray-200 p-3">
@@ -246,7 +247,7 @@ function ProductEvaluationHourlyTable() {
           <thead>
             <tr>
               <th className="w-24 px-3 py-3">Hora</th>
-              {avaliacaoProdutoColumns.map((column) => (
+              {columns.map((column) => (
                 <th key={column.label} className="px-3 py-3">
                   {column.label}
                 </th>
@@ -257,7 +258,7 @@ function ProductEvaluationHourlyTable() {
             {hours.map((hour) => (
               <tr key={hour} className="bg-white">
                 <td className="px-3 py-3 text-base font-bold text-gray-950">{hour}</td>
-                {avaliacaoProdutoColumns.map((column) => (
+                {columns.map((column) => (
                   <td key={`${hour}-${column.label}`} className="px-3 py-3">
                     <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
                       <input
@@ -277,6 +278,23 @@ function ProductEvaluationHourlyTable() {
         </table>
       </div>
     </section>
+  );
+}
+
+function MachineHourlySections({ title, machines = [] }) {
+  if (!machines.length) return null;
+
+  return (
+    <div className="space-y-4">
+      {machines.map((machine) => (
+        <HourlyTable
+          key={machine.label}
+          title={`${title} - ${machine.label}`}
+          columns={machine.columns}
+          minWidth="min-w-[860px]"
+        />
+      ))}
+    </div>
   );
 }
 
@@ -1011,6 +1029,7 @@ function ProdutoContexto({ registro }) {
 
 export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro }) {
   if (!subregistro) return null;
+  const config = getRgDocumentConfig(documentName);
 
   if (subregistro.id === "higienizacao") {
     return (
@@ -1021,6 +1040,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           loteId={loteId}
           registro={registro}
           subregistro={subregistro}
+          groups={config.checklistGroups}
         />
         <AssinaturasRegistro registro={registro} />
       </>
@@ -1031,7 +1051,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return (
       <>
         <ProdutoContexto registro={registro} />
-        <LiberacaoProdutoTable />
+        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1041,7 +1061,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return (
       <>
         <ProdutoContexto registro={registro} />
-        <ProductEvaluationHourlyTable />
+        <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />
+        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} />
         <AssinaturasRegistro registro={registro} />
       </>
     );
@@ -1050,7 +1071,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
-        <HourlyTable title="RG - Processo" columns={processoColumns} />
+        <MachineHourlySections title="RG - Processo" machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]} />
         <AssinaturasRegistro registro={registro} />
       </>
     );

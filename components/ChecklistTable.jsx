@@ -4,29 +4,31 @@ import { Fragment, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
 
-const initialState = checklistGroups.flatMap((group) =>
-  group.items.map((item) => ({
-    group: group.title,
-    item,
-    av1: "",
-    av2: "",
-    ncOpen: false,
-    nc: {
-      horario: "",
-      quantidade: "",
-      causa: "",
-      acao: "",
-      disposicaoImediata: "",
-      disposicaoFinal: ""
-    }
-  }))
-);
+function makeInitialState(groups = checklistGroups) {
+  return groups.flatMap((group) =>
+    group.items.map((item) => ({
+      group: group.title,
+      item,
+      av1: "",
+      av2: "",
+      ncOpen: false,
+      nc: {
+        horario: "",
+        quantidade: "",
+        causa: "",
+        acao: "",
+        disposicaoImediata: "",
+        disposicaoFinal: ""
+      }
+    }))
+  );
+}
 
-function buildInitialRows(subregistro) {
+function buildInitialRows(subregistro, groups) {
   const avaliacoes = subregistro?.avaliacoes ?? [];
   const ncs = subregistro?.ncs ?? [];
 
-  return initialState.map((row) => {
+  return makeInitialState(groups).map((row) => {
     const avaliacao = avaliacoes.find((entry) => entry.item === row.item);
     const nc = ncs.find((entry) => entry.item === row.item);
     if (!avaliacao && !nc) return row;
@@ -184,8 +186,8 @@ function ChecklistGroupTable({ title, rows, onChange }) {
   );
 }
 
-export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", registro, subregistro }) {
-  const [rows, setRows] = useState(() => buildInitialRows(subregistro));
+export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", registro, subregistro, groups = checklistGroups }) {
+  const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -243,7 +245,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        {checklistGroups.map((group) => (
+        {groups.map((group) => (
           <ChecklistGroupTable
             key={group.id}
             title={group.title}
