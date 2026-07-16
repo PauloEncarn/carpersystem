@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
+import { LoginScreen } from "@/components/LoginScreen";
 import { RgConfigurator } from "@/components/RgConfigurator";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
 import { FileCog, ShieldCheck } from "lucide-react";
@@ -9,10 +10,12 @@ import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/r
 
 export default function HomePage() {
   const [workspace, setWorkspace] = useState("operacao");
+  const [loggedUser, setLoggedUser] = useState(null);
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
   const currentStepRef = useRef(currentStep);
   const selected = useMemo(() => findSelection(selection), [selection]);
+  const canAccessConfigurator = loggedUser?.permissoes?.includes("configurador:acessar") || loggedUser?.permissoes?.includes("admin:acessar");
 
   useEffect(() => {
     currentStepRef.current = currentStep;
@@ -33,6 +36,28 @@ export default function HomePage() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    if (workspace === "configurador" && !canAccessConfigurator) {
+      setWorkspace("operacao");
+    }
+  }, [workspace, canAccessConfigurator]);
+
+  function handleLogout() {
+    setWorkspace("operacao");
+    setLoggedUser(null);
+    setCurrentStep(1);
+    setSelection(getInitialSelection());
+  }
+
+  function openConfigurator() {
+    if (!canAccessConfigurator) return;
+    setWorkspace("configurador");
+  }
+
+  if (!loggedUser) {
+    return <LoginScreen onLogin={setLoggedUser} />;
+  }
+
   return (
     <main className="min-h-screen bg-cicopal-surface">
       <header className="brand-header sticky top-0 z-10 text-white shadow-sm">
@@ -45,9 +70,9 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
-            <span className="rounded-md border border-white/40 px-3 py-2">Ola, Joao Silva</span>
-            <span className="rounded-md bg-white px-3 py-2 text-cicopal-blue">OPERADOR</span>
-            <button type="button" className="min-h-10 rounded-md border border-white/50 px-3 py-2 text-white">
+            <span className="rounded-md border border-white/40 px-3 py-2">Ola, {loggedUser.nome}</span>
+            <span className="rounded-md bg-white px-3 py-2 text-cicopal-blue">{loggedUser.perfil?.nome ?? "Operador"}</span>
+            <button type="button" className="min-h-10 rounded-md border border-white/50 px-3 py-2 text-white" onClick={handleLogout}>
               Sair
             </button>
           </div>
@@ -70,8 +95,10 @@ export default function HomePage() {
             type="button"
             className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-4 text-base font-bold ${
               workspace === "configurador" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
-            }`}
-            onClick={() => setWorkspace("configurador")}
+            } disabled:bg-gray-100 disabled:text-gray-400`}
+            onClick={openConfigurator}
+            disabled={!canAccessConfigurator}
+            title={canAccessConfigurator ? "Abrir configurador" : "Seu perfil nao acessa o configurador"}
           >
             <FileCog size={20} />
             Configurador
