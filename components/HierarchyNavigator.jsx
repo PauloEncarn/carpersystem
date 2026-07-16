@@ -580,11 +580,13 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   }, []);
   const selectedDateLabel = formatDateLabel(selection.dataId);
   const generatedLoteId = selected.linha && selection.dataId ? generateLoteId(selected.linha.id, selection.dataId) : "";
-  const documentosDoDia = rgCatalog.map((documento) => {
-    const preenchido = selected.data?.documentos.find((item) => item.id === documento.id);
-    const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
-    return { ...documento, loteId };
-  });
+  const documentosDoDia = rgCatalog
+    .filter((documento) => !documento.linkedLines?.length || documento.linkedLines.includes(selection.linhaId))
+    .map((documento) => {
+      const preenchido = selected.data?.documentos.find((item) => item.id === documento.id);
+      const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
+      return { ...documento, loteId };
+    });
   const processosDoDocumento = useMemo(() => {
     const processIds = selected.documento?.processos;
     if (!processIds?.length) return processCatalog.filter((processo) => !["extrusora_clextral", "batelada_milho"].includes(processo.id));
