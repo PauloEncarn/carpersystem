@@ -94,7 +94,7 @@ const processDisplayPrefixes = {
 function getShortRegistroId(registroId = "", processoId = "") {
   const idSemRg = registroId.replace(/^RG\d+-/, "");
   const parts = idSemRg.split("-");
-  const suffix = parts.at(-1) ?? "";
+  const suffix = parts[parts.length - 1] ?? "";
   const letters = suffix.match(/^[A-Z]+/)?.[0] ?? processDisplayPrefixes[processoId] ?? "REG";
   const number = suffix.match(/\d+$/)?.[0] ?? "01";
   const displayPrefix = letters === "HG" ? "HIG" : letters;
@@ -207,7 +207,8 @@ function StageHeader({ title, meta }) {
 }
 
 function getRgPrefix(documentoId = "") {
-  const number = documentoId.match(/\d+/g)?.at(-1) ?? "000";
+  const numbers = documentoId.match(/\d+/g) ?? [];
+  const number = numbers[numbers.length - 1] ?? "000";
   return `RG${number.padStart(3, "0")}`;
 }
 
