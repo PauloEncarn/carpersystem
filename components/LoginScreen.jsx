@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 const fallbackUsers = [
   {
@@ -58,6 +58,19 @@ export function LoginScreen({ onLogin }) {
 
     setLoading(true);
     setError("");
+
+    if (!isSupabaseConfigured || !supabase) {
+      const fallbackUser = fallbackUsers.find((user) => user.codigo_pin === cleanPin);
+      if (fallbackUser) {
+        onLogin(normalizeUser(fallbackUser));
+        setLoading(false);
+        return;
+      }
+
+      setError("Supabase nao configurado no ambiente. Cadastre as variaveis na Vercel ou use PIN demo.");
+      setLoading(false);
+      return;
+    }
 
     const { data, error: loginError } = await supabase
       .from("operadores_login")
