@@ -224,8 +224,8 @@ function ChecklistMirrorModal({ registro, processoId, onClose, onOpenRegistro })
   const isHigienizacao = processo?.id === "higienizacao";
   const isFotografico = processo?.id === "fotografico";
   const rows = isHigienizacao
-    ? checklistGroups.flatMap((group) =>
-        group.items.map((item) => {
+    ? checklistGroups.reduce((acc, group) => {
+        const groupRows = group.items.map((item) => {
           const nc = ncs.find((entry) => entry.item === item);
           const avaliacao = avaliacoes.find((entry) => entry.item === item);
           return {
@@ -235,8 +235,10 @@ function ChecklistMirrorModal({ registro, processoId, onClose, onOpenRegistro })
             av2: avaliacao?.av2 || "-",
             nc
           };
-        })
-      )
+        });
+
+        return acc.concat(groupRows);
+      }, [])
     : [];
 
   return (
@@ -483,17 +485,21 @@ function RegistroCard({ registro, danger, onPreview }) {
 function collectNcsFromLote(lote) {
   if (!lote) return [];
 
-  return lote.registros.flatMap((registro) =>
-    (registro.subregistros ?? []).flatMap((subregistro) =>
-      (subregistro.ncs ?? []).map((nc) => ({
+  return lote.registros.reduce((acc, registro) => {
+    const registroNcs = (registro.subregistros ?? []).reduce((subAcc, subregistro) => {
+      const ncs = (subregistro.ncs ?? []).map((nc) => ({
         ...nc,
         registroId: registro.id,
         turno: registro.turno,
         etapa: subregistro.nome,
         subregistroId: subregistro.id
-      }))
-    )
-  );
+      }));
+
+      return subAcc.concat(ncs);
+    }, []);
+
+    return acc.concat(registroNcs);
+  }, []);
 }
 
 function CentralNc({ ncs, onDetail }) {

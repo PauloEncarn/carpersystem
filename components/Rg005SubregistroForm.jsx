@@ -197,8 +197,8 @@ function StatusClickButton({ value: controlledValue, onChange }) {
 }
 
 function makeNcId(base = "NC") {
-  return base
-    .normalize("NFD")
+  const normalized = typeof base.normalize === "function" ? base.normalize("NFD") : base;
+  return normalized
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
@@ -312,15 +312,17 @@ function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, onSave }) {
   }
 
   function saveLiberacao() {
-    const apontamentos = rows.flatMap((row) =>
-      columns
+    const apontamentos = rows.reduce((acc, row) => {
+      const rowApontamentos = columns
         .filter((column) => values[valueKey(row.id, column)])
         .map((column) => ({
           horario: row.horario || "-",
           item: column,
           resultado: values[valueKey(row.id, column)]
-        }))
-    );
+        }));
+
+      return acc.concat(rowApontamentos);
+    }, []);
     const ncs = apontamentos
       .filter((apontamento) => apontamento.resultado === "NC")
       .map((apontamento, index) => ({

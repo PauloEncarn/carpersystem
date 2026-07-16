@@ -253,7 +253,9 @@ function defaultFieldsForProcess(type) {
       makeField("hig-context-4", "Troca de sabor/produto de", "texto", "Cabecalho", { nc: false, required: false }),
       makeField("hig-context-5", "Para", "texto", "Cabecalho", { nc: false, required: false }),
       makeField("hig-context-6", "Matriz de troca", "texto", "Cabecalho", { nc: false, layout: "full" }),
-      ...checklistGroups.flatMap((group) => makeFields(`hig-${group.id}`, group.items, group.title, "c_nc")),
+      ...checklistGroups.reduce((acc, group) => {
+        return acc.concat(makeFields(`hig-${group.id}`, group.items, group.title, "c_nc"));
+      }, []),
       makeField("hig-nc-1", "Horario do desvio", "hora", "Detalhamento da NC", { required: false, nc: true }),
       makeField("hig-nc-2", "Quantidade / impacto", "numero", "Detalhamento da NC", { required: false, nc: true }),
       makeField("hig-nc-3", "Causa", "texto", "Detalhamento da NC", { required: false, nc: true }),
@@ -311,8 +313,8 @@ function defaultFrequencyForProcess(type) {
 }
 
 function buildComponentLibrary() {
-  return processTypes.flatMap((processType) =>
-    defaultFieldsForProcess(processType.id).map((field, index) => ({
+  return processTypes.reduce((acc, processType) => {
+    const processFields = defaultFieldsForProcess(processType.id).map((field, index) => ({
       id: `tpl-${processType.id}-${index + 1}`,
       processType: processType.id,
       name: field.name,
@@ -327,8 +329,10 @@ function buildComponentLibrary() {
       useLineRules: field.useLineRules,
       rulesByLine: field.rulesByLine,
       subfields: field.subfields ?? []
-    }))
-  );
+    }));
+
+    return acc.concat(processFields);
+  }, []);
 }
 
 function buildClextralComponentLibrary() {

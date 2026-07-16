@@ -5,8 +5,8 @@ import { AlertTriangle } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
 
 function makeInitialState(groups = checklistGroups) {
-  return groups.flatMap((group) =>
-    group.items.map((item) => ({
+  return groups.reduce((acc, group) => {
+    const rows = group.items.map((item) => ({
       group: group.title,
       item,
       av1: "",
@@ -20,8 +20,10 @@ function makeInitialState(groups = checklistGroups) {
         disposicaoImediata: "",
         disposicaoFinal: ""
       }
-    }))
-  );
+    }));
+
+    return acc.concat(rows);
+  }, []);
 }
 
 function buildInitialRows(subregistro, groups) {

@@ -29,7 +29,13 @@ const fallbackUsers = [
 
 function normalizeUser(user) {
   const perfis = Array.isArray(user.perfis) ? user.perfis : [];
-  const permissoes = [...new Set(perfis.flatMap((perfil) => perfil.permissoes ?? []))];
+  const permissoes = Array.from(
+    new Set(
+      perfis.reduce((acc, perfil) => {
+        return acc.concat(perfil.permissoes ?? []);
+      }, [])
+    )
+  );
   const perfilPrincipal = perfis.find((perfil) => perfil.principal) ?? perfis[0] ?? { codigo: "operador", nome: "Operador" };
 
   return {
