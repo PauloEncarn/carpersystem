@@ -280,6 +280,11 @@ button {
   transform-origin: center;
 }
 
+.factory-inactive-hotspot {
+  background: rgba(90, 96, 108, .20) !important;
+  backdrop-filter: grayscale(1) saturate(.15);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .factory-pulse { animation: none; }
 }
