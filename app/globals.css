@@ -268,3 +268,18 @@ button {
   content: "";
   background: var(--cicopal-red);
 }
+
+@keyframes factory-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .45; transform: scale(1.35); }
+}
+
+.factory-pulse {
+  animation: factory-pulse 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .factory-pulse { animation: none; }
+}

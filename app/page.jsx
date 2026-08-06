@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
-import { FileCog, ShieldCheck } from "lucide-react";
+import { Factory, FileCog, ShieldCheck } from "lucide-react";
 import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/rastreabilidade";
 import { clearUserSession, loadUserSession, saveUserSession } from "@/lib/userSession";
 
@@ -183,6 +183,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
             <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-gray-700 sm:inline">Olá, {loggedUser.nome}</span>
             <span className="rounded-full bg-blue-50 px-3 py-2 text-cicopal-blue">{loggedUser.perfil?.nome ?? "Operador"}</span>
+            <Link href="/supervisao" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700"><Factory size={17} /> Supervisão</Link>
             {canAccessConfigurator ? <Link href="/configurador" className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cicopal-blue px-3 py-2 text-white shadow-sm"><FileCog size={17} /> Configurador</Link> : null}
             <button type="button" className="min-h-10 border border-gray-200 bg-white px-3 py-2 text-gray-600" onClick={handleLogout}>
               Sair

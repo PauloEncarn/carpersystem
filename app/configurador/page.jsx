@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, FileCog, LogOut, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Factory, FileCog, LogOut, ShieldCheck } from "lucide-react";
 import { LoginScreen } from "@/components/LoginScreen";
 import { RgConfigurator } from "@/components/RgConfigurator";
 import { rastreabilidadeTree } from "@/lib/rastreabilidade";
@@ -64,6 +64,7 @@ export default function ConfiguradorPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 sm:inline">{loggedUser.nome}</span>
             <Link href="/" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"><ArrowLeft size={17} /> Operação</Link>
+            <Link href="/supervisao" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"><Factory size={17} /> Supervisão</Link>
             <button type="button" className="inline-flex min-h-10 items-center gap-2 border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600" onClick={handleLogout}><LogOut size={17} /> Sair</button>
           </div>
         </div>
