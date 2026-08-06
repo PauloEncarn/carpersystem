@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Gauge, Radio, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, Radio } from "lucide-react";
 
 const plantLines = [
   {
@@ -61,31 +61,25 @@ function PlantLine({ line, active, hovered, onHover, onSelect, now }) {
 export function FactorySupervision() {
   const [now, setNow] = useState(() => new Date());
   const [hoveredLineId, setHoveredLineId] = useState("");
-  const [selectedLineId, setSelectedLineId] = useState("SAL");
+  const [selectedLineId, setSelectedLineId] = useState("");
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const selectedLine = plantLines.find((line) => line.id === selectedLineId) ?? plantLines[0];
+  const selectedLine = plantLines.find((line) => line.id === selectedLineId);
   const hoveredLine = plantLines.find((line) => line.id === hoveredLineId);
   const currentSlot = `${String(now.getHours()).padStart(2, "0")}:00–${String((now.getHours() + 1) % 24).padStart(2, "0")}:00`;
-  const activeLines = useMemo(() => plantLines.filter((line) => line.status !== "stopped"), []);
-  const totalNcs = useMemo(() => activeLines.reduce((total, line) => total + line.ncs, 0), [activeLines]);
 
   return (
-    <div className="space-y-4">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="modern-panel flex items-center gap-3 p-4"><span className="grid size-11 place-items-center rounded-xl bg-blue-50 text-cicopal-blue"><Clock3 size={22} /></span><div><p className="text-xs font-bold uppercase text-gray-400">Agora</p><p className="text-xl font-black tabular-nums text-gray-950">{formatTime(now)}</p><p className="text-xs font-semibold text-gray-500">{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</p></div></div>
-        <div className="modern-panel flex items-center gap-3 p-4"><span className="grid size-11 place-items-center rounded-xl bg-green-50 text-cicopal-green"><Radio size={22} /></span><div><p className="text-xs font-bold uppercase text-gray-400">Linhas com registro hoje</p><p className="text-xl font-black text-gray-950">{activeLines.length}</p><p className="text-xs font-semibold text-cicopal-green">Com preenchimento ativo</p></div></div>
-        <div className="modern-panel flex items-center gap-3 p-4"><span className="grid size-11 place-items-center rounded-xl bg-yellow-50 text-yellow-700"><Gauge size={22} /></span><div><p className="text-xs font-bold uppercase text-gray-400">Janela atual</p><p className="text-xl font-black text-gray-950">{currentSlot}</p><p className="text-xs font-semibold text-gray-500">77% preenchido em média</p></div></div>
-        <div className="modern-panel flex items-center gap-3 p-4"><span className="grid size-11 place-items-center rounded-xl bg-red-50 text-cicopal-red"><AlertTriangle size={22} /></span><div><p className="text-xs font-bold uppercase text-gray-400">NCs abertas hoje</p><p className="text-xl font-black text-gray-950">{totalNcs}</p><p className="text-xs font-semibold text-cicopal-red">2 aguardam tratamento</p></div></div>
-      </section>
-
-      <section className="modern-panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wider text-cicopal-red">Mapa operacional</p><h2 className="mt-1 text-xl font-black text-gray-950">Planta industrial — Unidade Cicopal</h2><p className="text-sm font-semibold text-gray-500">Passe o mouse para consultar • clique para abrir a linha</p></div><div className="flex items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-xs font-bold text-cicopal-green"><span className="size-2 rounded-full bg-cicopal-green factory-pulse" /> Atualização em tempo real</div></div>
-        <div className="relative overflow-x-auto bg-[#f0f2f6] p-3 md:p-5">
+    <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[24px] border border-gray-300 bg-[#e7e9ed] shadow-xl">
+      <div className="absolute left-5 top-5 z-10 flex items-center gap-3 rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
+        <span className="grid size-10 place-items-center rounded-xl bg-cicopal-blue text-white"><Radio size={20} /></span>
+        <div><p className="text-xs font-bold uppercase tracking-wider text-gray-400">Planta Cicopal • ao vivo</p><p className="font-black tabular-nums text-gray-950">{formatTime(now)} <span className="ml-2 text-xs font-semibold text-gray-500">{currentSlot}</span></p></div>
+      </div>
+      <div className="absolute right-5 top-5 z-10 hidden rounded-full border border-white/80 bg-white/90 px-4 py-2 text-xs font-bold text-gray-600 shadow-lg backdrop-blur sm:block">Passe o mouse • clique para detalhes</div>
+      <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-20 md:p-5 md:pt-20">
           <svg viewBox="0 0 1100 590" className="min-w-[820px] w-full" aria-label="Representação gráfica das linhas da fábrica">
             <defs><pattern id="floor-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#dfe2e9" strokeWidth="1" /></pattern><marker id="flow-arrow" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#aeb4c1" /></marker></defs>
             <rect x="20" y="20" width="1060" height="550" rx="28" fill="url(#floor-grid)" stroke="#cfd3dc" strokeWidth="2" />
@@ -99,16 +93,8 @@ export function FactorySupervision() {
             <rect x="695" y="470" width="285" height="65" rx="12" fill="#fff" stroke="#cdd1da" /><text x="715" y="497" fill="#555c6c" fontSize="11" fontWeight="800">UTILIDADES</text><text x="715" y="517" fill="#8a909d" fontSize="10" fontWeight="600">Ar, água, gás e energia</text>
           </svg>
           {hoveredLine ? <div className="pointer-events-none absolute right-6 top-6 z-10 hidden w-72 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-2xl backdrop-blur md:block"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-bold uppercase text-cicopal-blue">{hoveredLine.id}</p><h3 className="text-lg font-black text-gray-950">Linha {hoveredLine.name}</h3></div><span className="rounded-full px-2 py-1 text-xs font-bold" style={{ color: statusMeta[hoveredLine.status].color, background: statusMeta[hoveredLine.status].fill }}>{statusMeta[hoveredLine.status].label}</span></div><p className="mt-2 text-sm font-semibold text-gray-600">{hoveredLine.product}</p><div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-lg bg-gray-50 p-2"><p className="text-[10px] font-bold uppercase text-gray-400">Último horário</p><p className="font-black text-gray-900">{lastUpdate(now, hoveredLine.lastOffset)}</p></div><div className="rounded-lg bg-gray-50 p-2"><p className="text-[10px] font-bold uppercase text-gray-400">NCs abertas</p><p className={`font-black ${hoveredLine.ncs ? "text-cicopal-red" : "text-cicopal-green"}`}>{hoveredLine.ncs}</p></div></div><p className="mt-3 text-xs font-bold text-cicopal-blue">Clique para ver detalhes →</p></div> : null}
-        </div>
-      </section>
-
-      <section className="modern-panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">{selectedLine.id} • Detalhes da linha</p><h2 className="mt-1 text-xl font-black text-gray-950">{selectedLine.name} — {selectedLine.product}</h2></div><span className="rounded-full px-3 py-2 text-xs font-bold" style={{ color: statusMeta[selectedLine.status].color, background: statusMeta[selectedLine.status].fill }}>{statusMeta[selectedLine.status].label}</span></div>
-        <div className="grid gap-4 p-5 xl:grid-cols-[1fr_1.4fr]">
-          <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-gray-50 p-4"><Users size={19} className="text-cicopal-blue" /><p className="mt-3 text-xs font-bold uppercase text-gray-400">Operador / turno</p><p className="mt-1 font-black text-gray-900">{selectedLine.operator}</p><p className="text-xs font-semibold text-gray-500">Turno {selectedLine.shift}</p></div><div className="rounded-xl bg-gray-50 p-4"><FileText size={19} className="text-cicopal-blue" /><p className="mt-3 text-xs font-bold uppercase text-gray-400">Origem da informação</p><p className="mt-1 font-black text-gray-900">{selectedLine.sourceRg}</p><p className="text-xs font-semibold text-gray-500">Último registro da linha</p></div><div className="rounded-xl bg-gray-50 p-4 sm:col-span-2"><div className="flex justify-between text-xs font-bold"><span>Preenchimento do horário</span><span>{selectedLine.completion}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full" style={{ width: `${selectedLine.completion}%`, background: statusMeta[selectedLine.status].color }} /></div><p className="mt-2 text-xs font-semibold text-gray-500">Último envio às {lastUpdate(now, selectedLine.lastOffset)} • produto informado em {selectedLine.sourceRg}</p></div></div>
-          <div><h3 className="mb-3 font-black text-gray-950">Últimos controles preenchidos</h3><div className="space-y-2">{selectedLine.controls.map((control) => <div key={control.label} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3"><span className="flex items-center gap-3">{control.ok ? <CheckCircle2 size={20} className="text-cicopal-green" /> : <AlertTriangle size={20} className="text-cicopal-red" />}<span><span className="block text-sm font-bold text-gray-900">{control.label}</span><span className="text-xs font-semibold text-gray-500">Horário {currentSlot}</span></span></span><strong className={control.ok ? "text-gray-900" : "text-cicopal-red"}>{control.value}</strong></div>)}</div>{selectedLine.ncs ? <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3"><p className="font-black text-cicopal-red">{selectedLine.ncs} não conformidade(s) aberta(s)</p><p className="mt-1 text-xs font-semibold text-red-800">Clique no registro operacional para consultar causa, ação e responsável.</p></div> : null}</div>
-        </div>
-      </section>
-    </div>
+          {selectedLine ? <aside className="absolute bottom-6 left-6 z-10 w-[min(390px,calc(100%-3rem))] rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-2xl backdrop-blur"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase text-cicopal-blue">Linha selecionada • {selectedLine.sourceRg}</p><h2 className="mt-1 text-xl font-black text-gray-950">{selectedLine.name}</h2><p className="text-sm font-semibold text-gray-500">{selectedLine.status === "stopped" ? "Sem produto ativo no horário" : selectedLine.product}</p></div><span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: statusMeta[selectedLine.status].color, background: statusMeta[selectedLine.status].fill }}>{statusMeta[selectedLine.status].label}</span></div>{selectedLine.status !== "stopped" ? <><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-gray-50 p-2"><p className="text-[9px] font-bold uppercase text-gray-400">Atualizado</p><p className="text-sm font-black">{lastUpdate(now, selectedLine.lastOffset)}</p></div><div className="rounded-lg bg-gray-50 p-2"><p className="text-[9px] font-bold uppercase text-gray-400">Preenchido</p><p className="text-sm font-black">{selectedLine.completion}%</p></div><div className="rounded-lg bg-gray-50 p-2"><p className="text-[9px] font-bold uppercase text-gray-400">NCs</p><p className={`text-sm font-black ${selectedLine.ncs ? "text-cicopal-red" : "text-cicopal-green"}`}>{selectedLine.ncs}</p></div></div><div className="mt-3 space-y-1.5">{selectedLine.controls.slice(0, 3).map((control) => <div key={control.label} className="flex items-center justify-between text-xs"><span className="flex items-center gap-2 font-semibold text-gray-600">{control.ok ? <CheckCircle2 size={15} className="text-cicopal-green" /> : <AlertTriangle size={15} className="text-cicopal-red" />}{control.label}</span><strong>{control.value}</strong></div>)}</div></> : null}</aside> : null}
+      </div>
+    </section>
   );
 }
