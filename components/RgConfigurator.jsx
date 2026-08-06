@@ -22,10 +22,10 @@ import { checklistGroups } from "@/lib/checklist";
 import { GuidedRgBuilder } from "@/components/GuidedRgBuilder";
 
 const steps = [
-  { id: "rg", label: "RG", icon: FileText },
-  { id: "processo", label: "Processo", icon: ClipboardList },
-  { id: "componente", label: "Indice", icon: Layers3 },
-  { id: "nao_conformidade", label: "Nao Conformidade", icon: AlertTriangle }
+  { id: "rg", label: "Documentos", description: "RGs e linhas", icon: FileText },
+  { id: "processo", label: "Processos", description: "Fluxos do RG", icon: ClipboardList },
+  { id: "componente", label: "Biblioteca", description: "Campos e listas", icon: Layers3 },
+  { id: "nao_conformidade", label: "Não conformidades", description: "Tipos e vínculos", icon: AlertTriangle }
 ];
 
 const processTypes = [
@@ -1034,7 +1034,7 @@ export function RgConfigurator({ lines, loggedUser }) {
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
   const [valueLists, setValueLists] = useState(initialValueLists);
   const [ncTypes, setNcTypes] = useState(initialNcTypes);
-  const [activeStep, setActiveStep] = useState("componente");
+  const [activeStep, setActiveStep] = useState("rg");
   const [selectedRgId, setSelectedRgId] = useState(initialRgs[0].id);
   const [selectedProcessId, setSelectedProcessId] = useState(initialRgs[0].processes[0].id);
   const [selectedFieldId, setSelectedFieldId] = useState(initialRgs[0].processes[0].fields[0].id);
@@ -1448,57 +1448,62 @@ export function RgConfigurator({ lines, loggedUser }) {
   }
 
   return (
-    <section className="rounded-[20px] border border-gray-200/80 bg-[#f5f7fc] p-3 shadow-soft">
-      <div className="modern-panel mb-3 flex flex-wrap items-center justify-between gap-3 p-4">
+    <section className="overflow-hidden rounded-[22px] border border-gray-200/80 bg-[#f5f7fc] shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-5 py-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Workspace de configuração</p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-950">Configurador visual de RG</h2>
-          <p className="text-sm font-semibold text-gray-500">Crie documentos, processos e regras sem precisar programar.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-cicopal-red">Central de configuração</p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-950">Meus documentos RG</h2>
+          <p className="text-sm font-semibold text-gray-500">Crie, organize e mantenha seus modelos em um só lugar.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-cicopal-blue bg-blue-50 px-4 font-bold text-cicopal-blue" onClick={() => setGuidedMode(true)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 md:inline">{rgs.length} documentos</span>
+          <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-cicopal-blue px-4 font-bold text-white shadow-lg shadow-blue-900/10" onClick={() => setGuidedMode(true)}>
             <Plus size={20} />
-            Criar RG guiado
-          </button>
-          <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white">
-            <LayoutTemplate size={20} />
-            Salvar modelo
+            Novo RG
           </button>
         </div>
       </div>
 
-      <div className="modern-panel mb-3 grid grid-cols-2 gap-2 p-1.5 md:grid-cols-4">
-        {steps.map((step) => {
-          const Icon = step.icon;
-          const active = activeStep === step.id;
-          return (
-            <button
-              key={step.id}
-              type="button"
-              className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-3 font-bold ${
-                active ? "bg-cicopal-blue text-white" : "bg-gray-50 text-cicopal-blue"
-              }`}
-              onClick={() => {
-                setActiveStep(step.id);
-                if (step.id === "componente") setComponentMode("biblioteca");
-              }}
-            >
-              <Icon size={20} />
-              {step.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="grid min-h-[680px] lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="border-b border-gray-200 bg-white p-3 lg:border-b-0 lg:border-r">
+          <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[.12em] text-gray-400">Configuração</p>
+          <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-1">
+            {steps.map((step) => {
+              const Icon = step.icon;
+              const active = activeStep === step.id;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={`group flex min-h-16 items-center gap-3 rounded-xl px-3 text-left ${active ? "bg-cicopal-blue text-white shadow-md shadow-blue-900/10" : "bg-transparent text-gray-600 hover:bg-gray-100"}`}
+                  onClick={() => {
+                    setActiveStep(step.id);
+                    if (step.id === "componente") setComponentMode("biblioteca");
+                  }}
+                >
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-white/15" : "bg-gray-100 text-cicopal-blue group-hover:bg-white"}`}><Icon size={18} /></span>
+                  <span className="min-w-0"><span className="block truncate text-sm font-bold">{step.label}</span><span className={`hidden text-[11px] font-semibold lg:block ${active ? "text-white/65" : "text-gray-400"}`}>{step.description}</span></span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="mt-5 hidden rounded-xl border border-gray-200 bg-gray-50 p-3 lg:block">
+            <p className="text-xs font-bold uppercase text-gray-400">Em edição</p>
+            <p className="mt-2 truncate font-black text-gray-900">{selectedRg.code}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs font-semibold text-gray-500">{selectedRg.title}</p>
+            <div className="mt-3 flex gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-gray-500">Rev. {selectedRg.revision}</span><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-gray-500">{selectedRg.processes.length} processos</span></div>
+          </div>
+          <button type="button" className="mt-3 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-cicopal-blue lg:inline-flex" onClick={() => setGuidedMode(true)}><LayoutTemplate size={17} /> Criação guiada</button>
+        </aside>
+
+        <div className="min-w-0 p-3 md:p-5">
 
       {activeStep === "rg" ? (
         <div className="grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
           <section className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-950">RGs disponíveis</h3>
-              <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addRg}>
-                <Plus size={18} />
-                Novo RG
-              </button>
+            <div className="mb-3">
+              <h3 className="text-lg font-bold text-gray-950">Documentos disponíveis</h3>
+              <p className="text-xs font-semibold text-gray-500">Selecione um RG para consultar ou editar.</p>
             </div>
             <div className="grid gap-2">
               {rgs.map((rg) => (
@@ -1965,6 +1970,8 @@ export function RgConfigurator({ lines, loggedUser }) {
           </section>
         </div>
       ) : null}
+        </div>
+      </div>
       <AddComponentDialog
         open={Boolean(addComponentSection)}
         section={addComponentSection}
