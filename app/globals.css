@@ -11,6 +11,11 @@
   --cicopal-surface: #f3f5f9;
   --cicopal-border: #d9dee8;
   --cicopal-ink: #232936;
+  --ui-radius-sm: 10px;
+  --ui-radius: 16px;
+  --ui-radius-lg: 24px;
+  --ui-shadow-sm: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px rgba(15, 23, 42, .05);
+  --ui-shadow: 0 18px 45px rgba(30, 34, 80, .10);
 }
 
 * {
@@ -25,9 +30,8 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(30,34,168,.06), rgba(243,245,249,0) 280px),
-    var(--cicopal-surface);
+  background: radial-gradient(circle at 8% 0%, rgba(91, 97, 255, .12), transparent 28rem),
+    radial-gradient(circle at 92% 15%, rgba(227, 6, 19, .05), transparent 24rem), #f6f7fb;
   color: var(--cicopal-ink);
 }
 
@@ -42,9 +46,146 @@ button {
   min-height: 48px;
 }
 
+.modern-ui button,
+.modern-login button {
+  border-radius: 12px !important;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease, color .16s ease;
+}
+
+.modern-ui button:not(:disabled):hover,
+.modern-login button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(30, 34, 80, .12);
+}
+
+.modern-ui button:not(:disabled):active,
+.modern-login button:not(:disabled):active {
+  transform: translateY(0) scale(.985);
+}
+
+.modern-ui button:focus-visible,
+.modern-login button:focus-visible,
+.modern-ui input:focus-visible,
+.modern-login input:focus-visible,
+.modern-ui select:focus-visible,
+.modern-ui textarea:focus-visible {
+  outline: 3px solid rgba(76, 82, 230, .22);
+  outline-offset: 2px;
+}
+
+.modern-ui input,
+.modern-ui select,
+.modern-ui textarea,
+.modern-login input {
+  border-radius: 12px !important;
+  border-color: #d7dbea;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.modern-ui input:focus,
+.modern-ui select:focus,
+.modern-ui textarea:focus,
+.modern-login input:focus {
+  border-color: #555bd6 !important;
+  box-shadow: 0 0 0 4px rgba(76, 82, 230, .10);
+}
+
+.modern-ui .rounded-md,
+.modern-login .rounded-md {
+  border-radius: var(--ui-radius-sm);
+}
+
+.modern-ui .shadow-soft,
+.modern-login .shadow-soft {
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.app-topbar {
+  background: rgba(255, 255, 255, .86);
+  border-bottom: 1px solid rgba(214, 218, 233, .9);
+  color: var(--cicopal-ink);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.app-brand-mark {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: white;
+  background: linear-gradient(145deg, #3439c8, #14187e);
+  box-shadow: 0 8px 18px rgba(30, 34, 168, .25);
+}
+
+.workspace-switcher {
+  border: 1px solid #e1e4ee;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .78);
+  box-shadow: var(--ui-shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.workspace-switcher button {
+  border-radius: 12px !important;
+}
+
+.workspace-switcher button[data-active="true"] {
+  background: linear-gradient(135deg, #3035bd, #1e22a8);
+  box-shadow: 0 9px 22px rgba(30, 34, 168, .22);
+}
+
+.modern-login-shell {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 32px 90px rgba(25, 30, 80, .18);
+  backdrop-filter: blur(18px);
+}
+
+.modern-login-visual {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(145deg, #10146f, #292eb7 62%, #464bd5);
+}
+
+.modern-login-visual::before,
+.modern-login-visual::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  border-radius: 999px;
+  filter: blur(1px);
+}
+
+.modern-login-visual::before {
+  top: -90px;
+  right: -70px;
+  width: 260px;
+  height: 260px;
+  background: rgba(255, 255, 255, .10);
+}
+
+.modern-login-visual::after {
+  bottom: -110px;
+  left: -60px;
+  width: 240px;
+  height: 240px;
+  background: rgba(227, 6, 19, .18);
+}
+
+.modern-panel {
+  border: 1px solid rgba(218, 222, 235, .9) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, .94) !important;
+  box-shadow: var(--ui-shadow-sm);
+}
+
 .quality-card {
   border-top: 5px solid var(--cicopal-blue);
-  border-radius: 8px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 10px 24px rgba(20, 25, 60, .08);
   border-right: 0;
@@ -59,7 +200,7 @@ button {
 .audit-card {
   border: 1px solid var(--cicopal-border);
   border-top: 5px solid var(--cicopal-blue);
-  border-radius: 8px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(20, 25, 60, .08);
 }
@@ -90,7 +231,7 @@ button {
   display: inline-flex;
   min-height: 28px;
   align-items: center;
-  border-radius: 6px;
+  border-radius: 999px;
   padding: 0 .65rem;
   font-size: .75rem;
   font-weight: 700;

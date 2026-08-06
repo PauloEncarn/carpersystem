@@ -193,8 +193,8 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
   }
 
   return (
-    <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3 shadow-soft">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white p-4">
+    <section className="rounded-[20px] border border-gray-200/80 bg-[#f5f7fc] p-3 shadow-soft">
+      <div className="modern-panel mb-3 flex flex-wrap items-center justify-between gap-3 p-5">
         <div>
           <p className="text-xs font-bold uppercase text-cicopal-blue">Criação guiada</p>
           <h2 className="text-2xl font-bold text-gray-950">Criar um novo RG</h2>

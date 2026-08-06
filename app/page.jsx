@@ -166,20 +166,20 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-cicopal-surface">
-      <header className="brand-header sticky top-0 z-10 text-white shadow-sm">
+    <main className="modern-ui min-h-screen">
+      <header className="app-topbar sticky top-0 z-20 shadow-sm">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
-            <ShieldCheck size={28} />
+            <span className="app-brand-mark"><ShieldCheck size={24} /></span>
             <div>
-              <h1 className="text-xl font-bold">CICOPAL</h1>
-              <p className="text-xs font-semibold text-white/80">Produzindo sabor de felicidade</p>
+              <h1 className="text-lg font-black tracking-tight text-gray-950">Carper RG</h1>
+              <p className="text-xs font-semibold text-gray-500">Qualidade e rastreabilidade</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
-            <span className="rounded-md border border-white/40 px-3 py-2">Ola, {loggedUser.nome}</span>
-            <span className="rounded-md bg-white px-3 py-2 text-cicopal-blue">{loggedUser.perfil?.nome ?? "Operador"}</span>
-            <button type="button" className="min-h-10 rounded-md border border-white/50 px-3 py-2 text-white" onClick={handleLogout}>
+            <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-gray-700 sm:inline">Olá, {loggedUser.nome}</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-cicopal-blue">{loggedUser.perfil?.nome ?? "Operador"}</span>
+            <button type="button" className="min-h-10 border border-gray-200 bg-white px-3 py-2 text-gray-600" onClick={handleLogout}>
               Sair
             </button>
           </div>
@@ -187,10 +187,11 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-200 p-1">
+        <div className="workspace-switcher grid grid-cols-2 gap-2 p-1.5">
           <button
             type="button"
-            className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-4 text-base font-bold ${
+            data-active={workspace === "operacao"}
+            className={`inline-flex min-h-14 items-center justify-center gap-2 px-4 text-base font-bold ${
               workspace === "operacao" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
             }`}
             onClick={() => setWorkspace("operacao")}
@@ -200,7 +201,8 @@ export default function HomePage() {
           </button>
           <button
             type="button"
-            className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-md px-4 text-base font-bold ${
+            data-active={workspace === "configurador"}
+            className={`inline-flex min-h-14 items-center justify-center gap-2 px-4 text-base font-bold ${
               workspace === "configurador" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
             } disabled:bg-gray-100 disabled:text-gray-400`}
             onClick={openConfigurator}

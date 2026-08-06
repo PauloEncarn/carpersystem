@@ -110,37 +110,37 @@ export function LoginScreen({ onLogin }) {
   }
 
   return (
-    <main className="min-h-screen bg-cicopal-surface px-4 py-6">
+    <main className="modern-login min-h-screen px-4 py-6">
       <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center">
-        <div className="grid w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-soft md:grid-cols-[1fr_420px]">
-          <div className="brand-header flex min-h-[360px] flex-col justify-between p-6 text-white">
+        <div className="modern-login-shell grid w-full md:grid-cols-[1fr_420px]">
+          <div className="modern-login-visual flex min-h-[390px] flex-col justify-between p-8 text-white">
             <div className="flex items-center gap-3">
-              <ShieldCheck size={34} />
+              <span className="grid size-12 place-items-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur"><ShieldCheck size={27} /></span>
               <div>
-                <h1 className="text-2xl font-black">CICOPAL</h1>
-                <p className="text-sm font-semibold text-white/80">Sistema RG Qualidade</p>
+                <h1 className="text-xl font-black tracking-tight">Carper RG</h1>
+                <p className="text-sm font-semibold text-white/70">Qualidade Cicopal</p>
               </div>
             </div>
             <div>
-              <p className="text-sm font-bold uppercase text-white/70">Entrada controlada</p>
-              <h2 className="mt-2 text-4xl font-black leading-tight">Identifique o operador antes do preenchimento.</h2>
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white/80">Entrada segura</span>
+              <h2 className="mt-4 text-4xl font-black leading-[1.08] tracking-tight">Registros de qualidade, mais simples.</h2>
               <p className="mt-3 max-w-xl text-base font-semibold text-white/85">
-                O perfil define se a pessoa acessa somente a operacao ou tambem o configurador de RGs, processos e indices.
+                Identifique-se para acessar seus processos, preenchimentos e configurações.
               </p>
             </div>
           </div>
 
-          <form className="flex flex-col justify-center p-5" onSubmit={login}>
-            <div className="mb-5 inline-flex size-14 items-center justify-center rounded-md bg-blue-50 text-cicopal-blue">
+          <form className="flex flex-col justify-center p-7" onSubmit={login}>
+            <div className="mb-5 inline-flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-cicopal-blue shadow-sm">
               <LockKeyhole size={28} />
             </div>
-            <h2 className="text-2xl font-black text-gray-950">Login por PIN</h2>
-            <p className="mt-1 text-sm font-semibold text-gray-500">Use o PIN do operador, qualidade ou configurador.</p>
+            <h2 className="text-2xl font-black tracking-tight text-gray-950">Bem-vindo</h2>
+            <p className="mt-1 text-sm font-semibold text-gray-500">Digite seu PIN para continuar.</p>
 
             <label className="mt-5 block">
               <span className="mb-1 block text-xs font-bold uppercase text-gray-500">PIN</span>
               <input
-                className="min-h-16 w-full rounded-md border border-gray-300 px-4 text-center text-3xl font-black tracking-[.35em] outline-none focus:border-cicopal-blue"
+                className="min-h-16 w-full border border-gray-300 bg-gray-50 px-4 text-center text-3xl font-black tracking-[.35em] outline-none focus:bg-white focus:border-cicopal-blue"
                 inputMode="numeric"
                 type="password"
                 value={pin}
@@ -153,14 +153,14 @@ export function LoginScreen({ onLogin }) {
 
             <button
               type="submit"
-              className="mt-5 min-h-14 rounded-md bg-cicopal-blue px-4 text-lg font-black text-white disabled:bg-gray-300"
+              className="mt-5 min-h-14 bg-gradient-to-r from-cicopal-blue to-indigo-700 px-4 text-lg font-black text-white shadow-lg shadow-blue-900/15 disabled:bg-gray-300"
               disabled={loading}
             >
               {loading ? "Entrando..." : "Entrar"}
             </button>
 
-            <div className="mt-4 rounded-md bg-gray-50 p-3 text-xs font-semibold text-gray-500">
-              Demo: operador `1111`, configurador `3333`. Troque esses PINs depois de validar o fluxo.
+            <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-semibold text-gray-500">
+              Ambiente de demonstração: operador 1111 • configurador 3333
             </div>
           </form>
         </div>

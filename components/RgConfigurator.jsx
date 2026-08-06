@@ -1423,11 +1423,12 @@ export function RgConfigurator({ lines }) {
   }
 
   return (
-    <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3 shadow-soft">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
+    <section className="rounded-[20px] border border-gray-200/80 bg-[#f5f7fc] p-3 shadow-soft">
+      <div className="modern-panel mb-3 flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <h2 className="text-2xl font-bold text-cicopal-blue">Configurador visual de RG</h2>
-          <p className="text-sm font-semibold text-gray-600">Monte o formulario arrastando, selecionando e ajustando os campos.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Workspace de configuração</p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-950">Configurador visual de RG</h2>
+          <p className="text-sm font-semibold text-gray-500">Crie documentos, processos e regras sem precisar programar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-cicopal-blue bg-blue-50 px-4 font-bold text-cicopal-blue" onClick={() => setGuidedMode(true)}>
@@ -1441,7 +1442,7 @@ export function RgConfigurator({ lines }) {
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 rounded-md bg-white p-1 md:grid-cols-4">
+      <div className="modern-panel mb-3 grid grid-cols-2 gap-2 p-1.5 md:grid-cols-4">
         {steps.map((step) => {
           const Icon = step.icon;
           const active = activeStep === step.id;
