@@ -1,16 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
 import { LoginScreen } from "@/components/LoginScreen";
-import { RgConfigurator } from "@/components/RgConfigurator";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
 import { FileCog, ShieldCheck } from "lucide-react";
 import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/rastreabilidade";
+import { clearUserSession, loadUserSession, saveUserSession } from "@/lib/userSession";
 
 export default function HomePage() {
-  const [workspace, setWorkspace] = useState("operacao");
   const [loggedUser, setLoggedUser] = useState(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const [operationTree, setOperationTree] = useState(rastreabilidadeTree);
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
@@ -38,21 +39,20 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (workspace === "configurador" && !canAccessConfigurator) {
-      setWorkspace("operacao");
-    }
-  }, [workspace, canAccessConfigurator]);
+    setLoggedUser(loadUserSession());
+    setSessionReady(true);
+  }, []);
+
+  function handleLogin(user) {
+    saveUserSession(user);
+    setLoggedUser(user);
+  }
 
   function handleLogout() {
-    setWorkspace("operacao");
+    clearUserSession();
     setLoggedUser(null);
     setCurrentStep(1);
     setSelection(getInitialSelection(operationTree));
-  }
-
-  function openConfigurator() {
-    if (!canAccessConfigurator) return;
-    setWorkspace("configurador");
   }
 
   function saveRegistroSnapshot(snapshot) {
@@ -161,8 +161,12 @@ export default function HomePage() {
     );
   }
 
+  if (!sessionReady) {
+    return <main className="min-h-screen bg-[#f6f7fb]" />;
+  }
+
   if (!loggedUser) {
-    return <LoginScreen onLogin={setLoggedUser} />;
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
@@ -179,6 +183,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
             <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-gray-700 sm:inline">Olá, {loggedUser.nome}</span>
             <span className="rounded-full bg-blue-50 px-3 py-2 text-cicopal-blue">{loggedUser.perfil?.nome ?? "Operador"}</span>
+            {canAccessConfigurator ? <Link href="/configurador" className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cicopal-blue px-3 py-2 text-white shadow-sm"><FileCog size={17} /> Configurador</Link> : null}
             <button type="button" className="min-h-10 border border-gray-200 bg-white px-3 py-2 text-gray-600" onClick={handleLogout}>
               Sair
             </button>
@@ -187,37 +192,7 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        <div className="workspace-switcher grid grid-cols-2 gap-2 p-1.5">
-          <button
-            type="button"
-            data-active={workspace === "operacao"}
-            className={`inline-flex min-h-14 items-center justify-center gap-2 px-4 text-base font-bold ${
-              workspace === "operacao" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
-            }`}
-            onClick={() => setWorkspace("operacao")}
-          >
-            <ShieldCheck size={20} />
-            Operacao
-          </button>
-          <button
-            type="button"
-            data-active={workspace === "configurador"}
-            className={`inline-flex min-h-14 items-center justify-center gap-2 px-4 text-base font-bold ${
-              workspace === "configurador" ? "bg-cicopal-blue text-white" : "bg-white text-cicopal-blue"
-            } disabled:bg-gray-100 disabled:text-gray-400`}
-            onClick={openConfigurator}
-            disabled={!canAccessConfigurator}
-            title={canAccessConfigurator ? "Abrir configurador" : "Seu perfil nao acessa o configurador"}
-          >
-            <FileCog size={20} />
-            Configurador
-          </button>
-        </div>
-
-        {workspace === "configurador" ? (
-          <RgConfigurator lines={rastreabilidadeTree} loggedUser={loggedUser} />
-        ) : (
-          <HierarchyNavigator
+        <HierarchyNavigator
             tree={operationTree}
             selection={selection}
             selected={selected}
@@ -236,7 +211,6 @@ export default function HomePage() {
               />
             ) : null}
           </HierarchyNavigator>
-        )}
       </div>
     </main>
   );
