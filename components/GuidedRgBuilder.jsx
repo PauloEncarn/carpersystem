@@ -18,6 +18,16 @@ const layoutOptions = [
   { id: "full", label: "100%", columns: "md:col-span-12" }
 ];
 
+const systemValues = [
+  { id: "data_atual", label: "Data atual", token: "<data_atual>" },
+  { id: "hora_atual", label: "Hora atual", token: "<hora_atual>" },
+  { id: "data_hora_atual", label: "Data e hora atuais", token: "<data_hora_atual>" },
+  { id: "nome_usuario_logado", label: "Nome do usuário logado", token: "<usuario_logado>" },
+  { id: "turno_usuario_logado", label: "Turno do usuário", token: "<turno_usuario>" },
+  { id: "linha_selecionada", label: "Linha vinculada", token: "<linha>" },
+  { id: "codigo_rg", label: "Código do RG", token: "<codigo_rg>" }
+];
+
 const guidedFieldTypes = [
   { id: "titulo", label: "Título de conteúdo", visual: true },
   { id: "instrucao", label: "Texto de orientação", visual: true },
@@ -30,6 +40,38 @@ const guidedFieldTypes = [
   { id: "hora", label: "Hora" },
   { id: "foto", label: "Foto" },
   { id: "assinatura", label: "Assinatura" }
+  ,{ id: "grupo", label: "Grupo de campos" }
+];
+
+const groupedTemplates = [
+  {
+    id: "bateladas",
+    name: "Bateladas",
+    description: "Controle repetível de bateladas e matérias-primas.",
+    subfields: [
+      { id: "numero", label: "N", type: "sequencia", width: "72px" },
+      { id: "horario", label: "Horário", type: "hora" },
+      { id: "operador", label: "Operador", type: "texto", systemValue: "nome_usuario_logado" },
+      { id: "quantidade", label: "Quantidade", type: "numero", unit: "kg" },
+      { id: "fornecedor", label: "Fornecedor", type: "texto" },
+      { id: "lote", label: "Lote", type: "texto" },
+      { id: "validade", label: "Validade", type: "data" },
+      { id: "urucum", label: "Urucum", type: "numero", unit: "kg" },
+      { id: "carbonato_calcio", label: "Carbonato cálcio", type: "numero", unit: "kg" }
+    ]
+  },
+  {
+    id: "registro_fotografico",
+    name: "Registro fotográfico",
+    description: "Evidências fotográficas identificadas por horário e operador.",
+    subfields: [
+      { id: "numero", label: "N", type: "sequencia", width: "72px" },
+      { id: "horario", label: "Horário", type: "hora" },
+      { id: "operador", label: "Operador", type: "texto", systemValue: "nome_usuario_logado" },
+      { id: "foto", label: "Foto", type: "foto" },
+      { id: "observacao", label: "Observação", type: "texto" }
+    ]
+  }
 ];
 
 const emptyDraft = () => ({
@@ -61,7 +103,10 @@ function makeField() {
     min: "",
     max: "",
     options: [],
-    layout: "half"
+    layout: "half",
+    defaultMode: "manual",
+    systemValue: "",
+    defaultLocked: true
   };
 }
 
@@ -76,7 +121,7 @@ function GuidedInput({ label, required, ...props }) {
   );
 }
 
-function OperatorField({ field, value, onChange }) {
+function OperatorField({ field, value, systemValue, loggedUserName, onChange }) {
   if (field.type === "titulo") {
     return <div className="border-l-4 border-cicopal-blue pl-3"><h5 className="text-lg font-black tracking-tight text-gray-950">{field.name}</h5></div>;
   }
@@ -87,6 +132,29 @@ function OperatorField({ field, value, onChange }) {
 
   if (field.type === "separador") {
     return <div className="flex items-center gap-3 py-2"><span className="h-px flex-1 bg-gray-200" />{field.name ? <span className="text-xs font-bold uppercase tracking-wider text-gray-400">{field.name}</span> : null}<span className="h-px flex-1 bg-gray-200" /></div>;
+  }
+
+  if (field.type === "grupo") {
+    const rows = Array.isArray(value) && value.length ? value : [{}];
+    function updateCell(rowIndex, subfieldId, nextValue) {
+      const nextRows = rows.map((row, index) => index === rowIndex ? { ...row, [subfieldId]: nextValue } : row);
+      onChange(nextRows);
+    }
+    return (
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-3">
+          <div><p className="font-black text-gray-950">{field.name}</p><p className="text-xs font-semibold text-gray-500">{field.groupDescription}</p></div>
+          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-gray-600 shadow-sm">{rows.length} {rows.length === 1 ? "registro" : "registros"}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[920px] w-full border-collapse text-left">
+            <thead className="bg-gray-900 text-xs uppercase text-white"><tr>{field.subfields.map((subfield) => <th key={subfield.id} className="px-3 py-3" style={{ width: subfield.width }}>{subfield.label}</th>)}<th className="w-16 px-2 py-3" /></tr></thead>
+            <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-gray-100 last:border-0">{field.subfields.map((subfield) => <td key={subfield.id} className="p-2">{subfield.type === "sequencia" ? <span className="grid min-h-10 place-items-center rounded-lg bg-gray-100 font-black text-gray-600">{rowIndex + 1}</span> : subfield.type === "foto" ? <button type="button" className="min-h-10 w-full rounded-lg border border-blue-200 bg-blue-50 px-2 text-xs font-bold text-cicopal-blue" onClick={() => updateCell(rowIndex, subfield.id, "Foto anexada")}>{row[subfield.id] || "Tirar foto"}</button> : <input className="min-h-10 w-full min-w-28 rounded-lg border border-gray-200 px-2 text-sm font-semibold" type={subfield.type === "numero" ? "number" : subfield.type === "data" ? "date" : subfield.type === "hora" ? "time" : "text"} value={row[subfield.id] ?? (subfield.systemValue === "nome_usuario_logado" ? loggedUserName : "")} placeholder={subfield.unit || "Preencher"} onChange={(event) => updateCell(rowIndex, subfield.id, event.target.value)} />}</td>)}<td className="p-2"><button type="button" className="min-h-10 w-10 rounded-lg border border-red-100 bg-red-50 font-bold text-cicopal-red" title="Remover linha" onClick={() => onChange(rows.filter((_, index) => index !== rowIndex))}>×</button></td></tr>)}</tbody>
+          </table>
+        </div>
+        <div className="border-t border-gray-100 p-3"><button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-cicopal-blue bg-blue-50 px-3 text-sm font-bold text-cicopal-blue" onClick={() => onChange([...rows, {}])}><Plus size={16} /> Adicionar registro</button></div>
+      </div>
+    );
   }
 
   const label = (
@@ -100,10 +168,10 @@ function OperatorField({ field, value, onChange }) {
       <label className="block">
         {label}
         <span className="grid grid-cols-2 gap-2">
-          <button type="button" className={`min-h-12 rounded-md border font-bold ${value === "C" ? "border-cicopal-green bg-green-50 text-cicopal-green" : "border-gray-300 bg-white"}`} onClick={() => onChange("C")}>
+          <button type="button" disabled={field.defaultLocked && field.defaultMode === "sistema"} className={`min-h-12 rounded-md border font-bold ${value === "C" ? "border-cicopal-green bg-green-50 text-cicopal-green" : "border-gray-300 bg-white"}`} onClick={() => onChange("C")}>
             Conforme
           </button>
-          <button type="button" className={`min-h-12 rounded-md border font-bold ${value === "NC" ? "border-cicopal-red bg-red-50 text-cicopal-red" : "border-gray-300 bg-white"}`} onClick={() => onChange("NC")}>
+          <button type="button" disabled={field.defaultLocked && field.defaultMode === "sistema"} className={`min-h-12 rounded-md border font-bold ${value === "NC" ? "border-cicopal-red bg-red-50 text-cicopal-red" : "border-gray-300 bg-white"}`} onClick={() => onChange("NC")}>
             Não conforme
           </button>
         </span>
@@ -115,7 +183,7 @@ function OperatorField({ field, value, onChange }) {
     return (
       <label className="block">
         {label}
-        <select className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
+        <select disabled={field.defaultLocked && field.defaultMode === "sistema"} className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold disabled:bg-gray-100" value={value ?? systemValue ?? ""} onChange={(event) => onChange(event.target.value)}>
           <option value="">Selecione...</option>
           {field.options.map((option) => <option key={option}>{option}</option>)}
         </select>
@@ -140,7 +208,8 @@ function OperatorField({ field, value, onChange }) {
       <input
         className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold"
         type={field.type === "numero" ? "number" : field.type === "data" ? "date" : field.type === "hora" ? "time" : "text"}
-        value={value ?? ""}
+        value={value ?? systemValue ?? ""}
+        readOnly={field.defaultLocked && field.defaultMode === "sistema"}
         placeholder={field.unit ? `Unidade: ${field.unit}` : "Digite aqui"}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -148,7 +217,7 @@ function OperatorField({ field, value, onChange }) {
   );
 }
 
-export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
+export function GuidedRgBuilder({ lines, loggedUser, onCancel, onCreate }) {
   const [draft, setDraft] = useState(() => emptyDraft());
   const [activeStep, setActiveStep] = useState("basico");
   const [selectedFieldId, setSelectedFieldId] = useState("");
@@ -158,6 +227,21 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
   const stepIndex = guidedSteps.findIndex((step) => step.id === activeStep);
   const fields = useMemo(() => draft.sections.flatMap((section) => section.fields.map((field) => ({ ...field, sectionId: section.id, sectionName: section.name }))), [draft.sections]);
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0];
+
+  function resolveSystemValue(field) {
+    if (field.defaultMode !== "sistema") return "";
+    const now = new Date();
+    const values = {
+      data_atual: now.toISOString().slice(0, 10),
+      hora_atual: now.toTimeString().slice(0, 5),
+      data_hora_atual: now.toLocaleString("pt-BR"),
+      nome_usuario_logado: loggedUser?.nome ?? "Usuário logado",
+      turno_usuario_logado: loggedUser?.turno ?? "Turno atual",
+      linha_selecionada: lines.find((line) => draft.linkedLines.includes(line.id))?.nome ?? "Linha selecionada",
+      codigo_rg: draft.code
+    };
+    return values[field.systemValue] ?? "";
+  }
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -188,6 +272,22 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
       separador: ""
     };
     const field = { ...makeField(), name: defaults[type], type, layout: "full" };
+    updateSection(sectionId, { fields: [...(draft.sections.find((section) => section.id === sectionId)?.fields ?? []), field] });
+    setSelectedFieldId(field.id);
+  }
+
+  function addGroupedField(sectionId, templateId) {
+    const template = groupedTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+    const field = {
+      ...makeField(),
+      name: template.name,
+      type: "grupo",
+      layout: "full",
+      groupTemplate: template.id,
+      groupDescription: template.description,
+      subfields: template.subfields.map((subfield) => ({ ...subfield }))
+    };
     updateSection(sectionId, { fields: [...(draft.sections.find((section) => section.id === sectionId)?.fields ?? []), field] });
     setSelectedFieldId(field.id);
   }
@@ -263,7 +363,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
   function validateTest() {
     const issues = [];
     fields.forEach((field) => {
-      const value = testValues[field.id];
+      const value = testValues[field.id] ?? resolveSystemValue(field);
       if (field.required && !value) issues.push(`${field.name}: preenchimento obrigatório`);
       if (field.type === "c_nc" && value === "NC" && field.nc) issues.push(`${field.name}: gera uma não conformidade`);
       if (field.type === "numero" && value !== "" && value !== undefined && ((field.min !== "" && Number(value) < Number(field.min)) || (field.max !== "" && Number(value) > Number(field.max))) && field.nc) issues.push(`${field.name}: valor fora dos limites`);
@@ -328,7 +428,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
       {activeStep === "estrutura" ? (
         <section className="rounded-md border border-gray-200 bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold text-gray-950">Seções e campos</h3><p className="text-sm font-semibold text-gray-500">Divida o preenchimento em blocos curtos e objetivos.</p></div><button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={addSection}><Plus size={18} /> Nova seção</button></div>
-          <div className="space-y-3">{draft.sections.map((section, sectionIndex) => <article key={section.id} className="rounded-md border border-gray-200 bg-gray-50 p-3"><div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><GuidedInput label={`Nome da seção ${sectionIndex + 1}`} value={section.name} onChange={(event) => updateSection(section.id, { name: event.target.value })} /><GuidedInput label="Orientação" value={section.description} onChange={(event) => updateSection(section.id, { description: event.target.value })} /><button type="button" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-md border border-red-200 bg-red-50 px-3 text-cicopal-red" title="Excluir seção" onClick={() => removeSection(section.id)}><Trash2 size={18} /></button></div><div className="mt-3 space-y-2">{section.fields.map((field) => <div key={field.id} className="flex min-h-14 w-full items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3"><span className="min-w-0"><span className="block truncate font-bold text-gray-950">{field.name || "Separador"}</span><span className="text-xs font-semibold text-gray-500">{guidedFieldTypes.find((type) => type.id === field.type)?.label}{field.required ? " • obrigatório" : ""}</span></span><div className="flex shrink-0 gap-1"><button type="button" className="min-h-9 rounded-lg border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-600" onClick={() => { setSelectedFieldId(field.id); setActiveStep("layout"); }}>Posição</button><button type="button" className="min-h-9 rounded-lg border border-blue-100 bg-blue-50 px-2 text-xs font-bold text-cicopal-blue" onClick={() => { setSelectedFieldId(field.id); setActiveStep("regras"); }}>Editar</button></div></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={() => addField(section.id)}><Plus size={18} /> Campo de resposta</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "titulo")}>+ Título</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "instrucao")}>+ Orientação</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "separador")}>+ Separador</button></div></article>)}</div>
+          <div className="space-y-3">{draft.sections.map((section, sectionIndex) => <article key={section.id} className="rounded-md border border-gray-200 bg-gray-50 p-3"><div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><GuidedInput label={`Nome da seção ${sectionIndex + 1}`} value={section.name} onChange={(event) => updateSection(section.id, { name: event.target.value })} /><GuidedInput label="Orientação" value={section.description} onChange={(event) => updateSection(section.id, { description: event.target.value })} /><button type="button" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-md border border-red-200 bg-red-50 px-3 text-cicopal-red" title="Excluir seção" onClick={() => removeSection(section.id)}><Trash2 size={18} /></button></div><div className="mt-3 space-y-2">{section.fields.map((field) => <div key={field.id} className="flex min-h-14 w-full items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3"><span className="min-w-0"><span className="block truncate font-bold text-gray-950">{field.name || "Separador"}</span><span className="text-xs font-semibold text-gray-500">{guidedFieldTypes.find((type) => type.id === field.type)?.label}{field.required ? " • obrigatório" : ""}</span></span><div className="flex shrink-0 gap-1"><button type="button" className="min-h-9 rounded-lg border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-600" onClick={() => { setSelectedFieldId(field.id); setActiveStep("layout"); }}>Posição</button><button type="button" className="min-h-9 rounded-lg border border-blue-100 bg-blue-50 px-2 text-xs font-bold text-cicopal-blue" onClick={() => { setSelectedFieldId(field.id); setActiveStep("regras"); }}>Editar</button></div></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-cicopal-blue px-3 font-bold text-white" onClick={() => addField(section.id)}><Plus size={18} /> Campo de resposta</button><button type="button" className="min-h-11 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-bold text-indigo-800" onClick={() => addGroupedField(section.id, "bateladas")}>+ Grupo Bateladas</button><button type="button" className="min-h-11 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-bold text-indigo-800" onClick={() => addGroupedField(section.id, "registro_fotografico")}>+ Registro fotográfico</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "titulo")}>+ Título</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "instrucao")}>+ Orientação</button><button type="button" className="min-h-11 rounded-md border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700" onClick={() => addVisualField(section.id, "separador")}>+ Separador</button></div></article>)}</div>
         </section>
       ) : null}
 
@@ -410,7 +510,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
       {activeStep === "regras" ? (
         <section className="rounded-md border border-gray-200 bg-white p-4">
           <div className="mb-4"><h3 className="text-xl font-bold text-gray-950">Campos e regras</h3><p className="text-sm font-semibold text-gray-500">Selecione um campo e defina seu comportamento.</p></div>
-          {fields.length ? <div className="grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]"><aside className="grid content-start gap-2">{fields.map((field) => <button key={field.id} type="button" className={`rounded-md border p-3 text-left ${field.id === selectedField?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`} onClick={() => setSelectedFieldId(field.id)}><span className="block font-bold">{field.name || "Separador"}</span><span className="text-xs font-semibold text-gray-500">{field.sectionName}</span></button>)}</aside>{selectedField ? <div className="rounded-md border border-gray-200 bg-gray-50 p-4"><div className="grid gap-3 md:grid-cols-2"><GuidedInput label={guidedFieldTypes.find((type) => type.id === selectedField.type)?.visual ? "Conteúdo" : "Nome do campo"} value={selectedField.name} onChange={(event) => updateField(selectedField.id, { name: event.target.value })} /><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Tipo de elemento</span><select className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" value={selectedField.type} onChange={(event) => updateField(selectedField.id, { type: event.target.value })}>{guidedFieldTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}</select></label>{selectedField.type === "lista" ? <label className="md:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Opções, uma por linha</span><textarea className="min-h-28 w-full rounded-md border border-gray-300 bg-white p-3 font-semibold" value={selectedField.options.join("\n")} onChange={(event) => updateField(selectedField.id, { options: event.target.value.split("\n").map((item) => item.trim()).filter(Boolean) })} /></label> : null}{selectedField.type === "numero" ? <><GuidedInput label="Unidade" value={selectedField.unit} onChange={(event) => updateField(selectedField.id, { unit: event.target.value })} /><div className="grid grid-cols-2 gap-2"><GuidedInput label="Mínimo" type="number" value={selectedField.min} onChange={(event) => updateField(selectedField.id, { min: event.target.value })} /><GuidedInput label="Máximo" type="number" value={selectedField.max} onChange={(event) => updateField(selectedField.id, { max: event.target.value })} /></div></> : null}</div>{!guidedFieldTypes.find((type) => type.id === selectedField.type)?.visual ? <div className="mt-4 grid gap-2"><label className="flex min-h-14 items-center gap-3 rounded-md border border-gray-200 bg-white p-3"><input type="checkbox" className="size-6" checked={selectedField.required} onChange={(event) => updateField(selectedField.id, { required: event.target.checked })} /><span><span className="block font-bold">Preenchimento obrigatório</span><span className="text-xs font-semibold text-gray-500">Impede a conclusão sem resposta.</span></span></label><label className="flex min-h-14 items-center gap-3 rounded-md border border-gray-200 bg-white p-3"><input type="checkbox" className="size-6" checked={selectedField.nc} onChange={(event) => updateField(selectedField.id, { nc: event.target.checked })} /><span><span className="block font-bold">Gerar NC automaticamente</span><span className="text-xs font-semibold text-gray-500">Para resposta NC ou valor fora dos limites.</span></span></label></div> : <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-blue-900">Este é um elemento visual. Ele organiza e orienta o formulário, mas não solicita resposta do operador.</div>}<button type="button" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 font-bold text-cicopal-red" onClick={() => removeField(selectedField.id)}><Trash2 size={18} /> Excluir elemento</button></div> : null}</div> : <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">Adicione campos na etapa Estrutura.</div>}
+          {fields.length ? <div className="grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]"><aside className="grid content-start gap-2">{fields.map((field) => <button key={field.id} type="button" className={`rounded-md border p-3 text-left ${field.id === selectedField?.id ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50"}`} onClick={() => setSelectedFieldId(field.id)}><span className="block font-bold">{field.name || "Separador"}</span><span className="text-xs font-semibold text-gray-500">{field.sectionName}</span></button>)}</aside>{selectedField ? <div className="rounded-md border border-gray-200 bg-gray-50 p-4"><div className="grid gap-3 md:grid-cols-2"><GuidedInput label={guidedFieldTypes.find((type) => type.id === selectedField.type)?.visual ? "Conteúdo" : "Nome do campo"} value={selectedField.name} onChange={(event) => updateField(selectedField.id, { name: event.target.value })} /><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Tipo de elemento</span><select className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" value={selectedField.type} onChange={(event) => updateField(selectedField.id, { type: event.target.value })}>{guidedFieldTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}</select></label>{selectedField.type === "lista" ? <label className="md:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Opções, uma por linha</span><textarea className="min-h-28 w-full rounded-md border border-gray-300 bg-white p-3 font-semibold" value={selectedField.options.join("\n")} onChange={(event) => updateField(selectedField.id, { options: event.target.value.split("\n").map((item) => item.trim()).filter(Boolean) })} /></label> : null}{selectedField.type === "numero" ? <><GuidedInput label="Unidade" value={selectedField.unit} onChange={(event) => updateField(selectedField.id, { unit: event.target.value })} /><div className="grid grid-cols-2 gap-2"><GuidedInput label="Mínimo" type="number" value={selectedField.min} onChange={(event) => updateField(selectedField.id, { min: event.target.value })} /><GuidedInput label="Máximo" type="number" value={selectedField.max} onChange={(event) => updateField(selectedField.id, { max: event.target.value })} /></div></> : null}</div>{!guidedFieldTypes.find((type) => type.id === selectedField.type)?.visual ? <><div className="mt-4 rounded-xl border border-indigo-100 bg-white p-3"><p className="text-sm font-black text-gray-900">Valor inicial</p><p className="mb-3 text-xs font-semibold text-gray-500">Escolha se o operador preenche ou se o sistema informa automaticamente.</p><div className="grid gap-2 sm:grid-cols-2"><button type="button" className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${selectedField.defaultMode !== "sistema" ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-600"}`} onClick={() => updateField(selectedField.id, { defaultMode: "manual", systemValue: "" })}>Preenchido pelo operador</button><button type="button" className={`min-h-11 rounded-lg border px-3 text-sm font-bold ${selectedField.defaultMode === "sistema" ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-600"}`} onClick={() => updateField(selectedField.id, { defaultMode: "sistema", systemValue: selectedField.systemValue || "data_atual" })}>Preenchido pelo sistema</button></div>{selectedField.defaultMode === "sistema" ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Informação automática</span><select className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" value={selectedField.systemValue} onChange={(event) => updateField(selectedField.id, { systemValue: event.target.value })}>{systemValues.map((item) => <option key={item.id} value={item.id}>{item.label} — {item.token}</option>)}</select></label><label className="flex min-h-12 items-center gap-3 self-end rounded-md border border-gray-200 bg-gray-50 px-3"><input type="checkbox" className="size-6" checked={selectedField.defaultLocked} onChange={(event) => updateField(selectedField.id, { defaultLocked: event.target.checked })} /><span><span className="block text-sm font-bold">Bloquear edição</span><span className="text-xs font-semibold text-gray-500">Operador apenas visualiza.</span></span></label></div> : null}</div><div className="mt-4 grid gap-2"><label className="flex min-h-14 items-center gap-3 rounded-md border border-gray-200 bg-white p-3"><input type="checkbox" className="size-6" checked={selectedField.required} onChange={(event) => updateField(selectedField.id, { required: event.target.checked })} /><span><span className="block font-bold">Preenchimento obrigatório</span><span className="text-xs font-semibold text-gray-500">Impede a conclusão sem resposta.</span></span></label><label className="flex min-h-14 items-center gap-3 rounded-md border border-gray-200 bg-white p-3"><input type="checkbox" className="size-6" checked={selectedField.nc} onChange={(event) => updateField(selectedField.id, { nc: event.target.checked })} /><span><span className="block font-bold">Gerar NC automaticamente</span><span className="text-xs font-semibold text-gray-500">Para resposta NC ou valor fora dos limites.</span></span></label></div></> : <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-blue-900">Este é um elemento visual. Ele organiza e orienta o formulário, mas não solicita resposta do operador.</div>}<button type="button" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 font-bold text-cicopal-red" onClick={() => removeField(selectedField.id)}><Trash2 size={18} /> Excluir elemento</button></div> : null}</div> : <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">Adicione campos na etapa Estrutura.</div>}
         </section>
       ) : null}
 
@@ -418,7 +518,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
         <section className="rounded-md border border-gray-200 bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold text-gray-950">Prévia para o operador</h3><p className="text-sm font-semibold text-gray-500">Faça um preenchimento de teste antes de criar o modelo.</p></div><span className="audit-badge bg-blue-50 text-cicopal-blue">SIMULAÇÃO</span></div>
           <div className="rounded-md bg-cicopal-blue p-4 text-white"><p className="text-xs font-bold uppercase text-white/70">{draft.code} • Revisão {draft.revision}</p><h4 className="mt-1 text-xl font-bold">{draft.title}</h4><p className="mt-1 text-sm font-semibold text-white/80">{draft.description}</p></div>
-          <div className="mt-3 space-y-3">{draft.sections.map((section) => <article key={section.id} className="rounded-md border border-gray-200 p-4"><h4 className="text-lg font-bold text-gray-950">{section.name}</h4><p className="text-sm font-semibold text-gray-500">{section.description}</p><div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-12">{section.fields.map((field) => { const layout = layoutOptions.find((option) => option.id === field.layout) ?? layoutOptions[2]; return <div key={field.id} className={layout.columns}><OperatorField field={field} value={testValues[field.id]} onChange={(value) => setTestValues((current) => ({ ...current, [field.id]: value }))} /></div>; })}</div></article>)}</div>
+          <div className="mt-3 space-y-3">{draft.sections.map((section) => <article key={section.id} className="rounded-md border border-gray-200 p-4"><h4 className="text-lg font-bold text-gray-950">{section.name}</h4><p className="text-sm font-semibold text-gray-500">{section.description}</p><div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-12">{section.fields.map((field) => { const layout = layoutOptions.find((option) => option.id === field.layout) ?? layoutOptions[2]; return <div key={field.id} className={layout.columns}><OperatorField field={field} value={testValues[field.id]} systemValue={resolveSystemValue(field)} loggedUserName={loggedUser?.nome ?? "Usuário logado"} onChange={(value) => setTestValues((current) => ({ ...current, [field.id]: value }))} /></div>; })}</div></article>)}</div>
           <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-cicopal-blue bg-blue-50 px-4 font-bold text-cicopal-blue" onClick={validateTest}><ClipboardCheck size={19} /> Validar teste</button><button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-green px-4 font-bold text-white" onClick={() => onCreate(draft)}><Check size={19} /> Criar RG no configurador</button></div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4"><div className="flex flex-wrap gap-2"><button type="button" className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600" onClick={() => goToStep("estrutura")}>Editar conteúdo</button><button type="button" className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600" onClick={() => goToStep("layout")}>Editar disposição</button><button type="button" className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600" onClick={() => goToStep("regras")}>Editar regras</button></div></div>
         </section>

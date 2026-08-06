@@ -71,7 +71,11 @@ const defaultValueModes = [
 const defaultTags = [
   { id: "nome_usuario_logado", label: "<nome_usuario_logado>" },
   { id: "turno_usuario_logado", label: "<turno_usuario_logado>" },
-  { id: "data_hora_atual", label: "<data_hora_atual>" }
+  { id: "data_atual", label: "<data_atual>" },
+  { id: "hora_atual", label: "<hora_atual>" },
+  { id: "data_hora_atual", label: "<data_hora_atual>" },
+  { id: "linha_selecionada", label: "<linha_selecionada>" },
+  { id: "codigo_rg", label: "<codigo_rg>" }
 ];
 
 const initialValueLists = [
@@ -1024,7 +1028,7 @@ function IndexDialog({ draft, lines, lists, onChange, onLineRuleChange, onClose,
   );
 }
 
-export function RgConfigurator({ lines }) {
+export function RgConfigurator({ lines, loggedUser }) {
   const [guidedMode, setGuidedMode] = useState(false);
   const [rgs, setRgs] = useState(initialRgs);
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
@@ -1099,7 +1103,12 @@ export function RgConfigurator({ lines }) {
           min: field.min ?? "",
           max: field.max ?? "",
           options: field.options ?? [],
-          defaultMode: field.type === "lista" ? "lista" : "manual"
+          subfields: field.subfields ?? [],
+          groupTemplate: field.groupTemplate ?? "",
+          groupDescription: field.groupDescription ?? "",
+          defaultMode: field.defaultMode === "sistema" ? "tag" : field.type === "lista" ? "lista" : "manual",
+          defaultTag: field.systemValue ?? "",
+          defaultLocked: field.defaultLocked ?? false
         })
       )
     );
@@ -1435,7 +1444,7 @@ export function RgConfigurator({ lines }) {
   }
 
   if (guidedMode) {
-    return <GuidedRgBuilder lines={lines} onCancel={() => setGuidedMode(false)} onCreate={createGuidedRg} />;
+    return <GuidedRgBuilder lines={lines} loggedUser={loggedUser} onCancel={() => setGuidedMode(false)} onCreate={createGuidedRg} />;
   }
 
   return (

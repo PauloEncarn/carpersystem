@@ -215,7 +215,7 @@ export default function HomePage() {
         </div>
 
         {workspace === "configurador" ? (
-          <RgConfigurator lines={rastreabilidadeTree} />
+          <RgConfigurator lines={rastreabilidadeTree} loggedUser={loggedUser} />
         ) : (
           <HierarchyNavigator
             tree={operationTree}
