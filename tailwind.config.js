@@ -16,7 +16,7 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ["var(--font-montserrat)", "Arial", "sans-serif"]
+        sans: ["Gotham", "Montserrat", "Avenir Next", "Arial", "sans-serif"]
       },
       boxShadow: {
         soft: "0 .125rem .25rem rgba(0,0,0,.075)"

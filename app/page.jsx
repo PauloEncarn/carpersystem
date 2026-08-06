@@ -172,8 +172,8 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <span className="app-brand-mark"><ShieldCheck size={24} /></span>
             <div>
-              <h1 className="text-lg font-black tracking-tight text-gray-950">Carper RG</h1>
-              <p className="text-xs font-semibold text-gray-500">Qualidade e rastreabilidade</p>
+              <h1 className="text-lg font-black tracking-tight text-cicopal-blue">CICOPAL</h1>
+              <p className="text-xs font-semibold text-gray-500">Produzindo sabor de <strong className="text-cicopal-red">felicidade.</strong></p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm font-bold">

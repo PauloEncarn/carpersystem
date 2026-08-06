@@ -117,13 +117,13 @@ export function LoginScreen({ onLogin }) {
             <div className="flex items-center gap-3">
               <span className="grid size-12 place-items-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur"><ShieldCheck size={27} /></span>
               <div>
-                <h1 className="text-xl font-black tracking-tight">Carper RG</h1>
-                <p className="text-sm font-semibold text-white/70">Qualidade Cicopal</p>
+                <h1 className="text-xl font-black tracking-tight">CICOPAL</h1>
+                <p className="text-sm font-semibold text-white/75">Sistema RG Qualidade</p>
               </div>
             </div>
             <div>
               <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white/80">Entrada segura</span>
-              <h2 className="mt-4 text-4xl font-black leading-[1.08] tracking-tight">Registros de qualidade, mais simples.</h2>
+              <h2 className="mt-4 text-4xl font-black leading-[1.08] tracking-tight">Produzindo sabor de <span className="text-white underline decoration-cicopal-red decoration-4 underline-offset-8">felicidade.</span></h2>
               <p className="mt-3 max-w-xl text-base font-semibold text-white/85">
                 Identifique-se para acessar seus processos, preenchimentos e configurações.
               </p>
@@ -153,7 +153,7 @@ export function LoginScreen({ onLogin }) {
 
             <button
               type="submit"
-              className="mt-5 min-h-14 bg-gradient-to-r from-cicopal-blue to-indigo-700 px-4 text-lg font-black text-white shadow-lg shadow-blue-900/15 disabled:bg-gray-300"
+              className="mt-5 min-h-14 bg-cicopal-blue px-4 text-lg font-black text-white shadow-lg shadow-blue-900/15 disabled:bg-gray-300"
               disabled={loading}
             >
               {loading ? "Entrando..." : "Entrar"}
