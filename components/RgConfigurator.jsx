@@ -1076,7 +1076,7 @@ export function RgConfigurator({ lines }) {
     const fields = draft.sections.flatMap((section) =>
       section.fields.map((field) =>
         makeField(makeId("field"), field.name, field.type === "lista" ? "texto" : field.type, section.name, {
-          layout: "half",
+          layout: field.layout ?? "half",
           required: field.required,
           nc: field.nc,
           unit: field.unit ?? "",

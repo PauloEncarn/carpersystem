@@ -1,13 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ClipboardCheck, Eye, FileText, Plus, Settings2, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ClipboardCheck, Eye, FileText, GripVertical, LayoutGrid, Plus, Settings2, Trash2, X } from "lucide-react";
 
 const guidedSteps = [
   { id: "basico", label: "Dados básicos", help: "Identificação", icon: FileText },
   { id: "estrutura", label: "Estrutura", help: "Seções e campos", icon: Plus },
+  { id: "layout", label: "Layout visual", help: "Posição e tamanho", icon: LayoutGrid },
   { id: "regras", label: "Regras", help: "Validações e NC", icon: Settings2 },
   { id: "teste", label: "Testar", help: "Visão do operador", icon: Eye }
+];
+
+const layoutOptions = [
+  { id: "quarter", label: "25%", columns: "md:col-span-3" },
+  { id: "third", label: "33%", columns: "md:col-span-4" },
+  { id: "half", label: "50%", columns: "md:col-span-6" },
+  { id: "full", label: "100%", columns: "md:col-span-12" }
 ];
 
 const guidedFieldTypes = [
@@ -49,7 +57,8 @@ function makeField() {
     unit: "",
     min: "",
     max: "",
-    options: []
+    options: [],
+    layout: "half"
   };
 }
 
@@ -130,6 +139,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
   const [selectedFieldId, setSelectedFieldId] = useState("");
   const [testValues, setTestValues] = useState({});
   const [message, setMessage] = useState("");
+  const [draggedFieldId, setDraggedFieldId] = useState("");
   const stepIndex = guidedSteps.findIndex((step) => step.id === activeStep);
   const fields = useMemo(() => draft.sections.flatMap((section) => section.fields.map((field) => ({ ...field, sectionId: section.id, sectionName: section.name }))), [draft.sections]);
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0];
@@ -168,6 +178,49 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
     setSelectedFieldId("");
   }
 
+  function moveField(targetSectionId, targetFieldId = "") {
+    if (!draggedFieldId) return;
+    if (targetFieldId === draggedFieldId) {
+      setDraggedFieldId("");
+      return;
+    }
+    setDraft((current) => {
+      let movedField;
+      const withoutMoved = current.sections.map((section) => {
+        const found = section.fields.find((field) => field.id === draggedFieldId);
+        if (found) movedField = found;
+        return { ...section, fields: section.fields.filter((field) => field.id !== draggedFieldId) };
+      });
+      if (!movedField) return current;
+      return {
+        ...current,
+        sections: withoutMoved.map((section) => {
+          if (section.id !== targetSectionId) return section;
+          const fields = [...section.fields];
+          const targetIndex = targetFieldId ? fields.findIndex((field) => field.id === targetFieldId) : fields.length;
+          fields.splice(targetIndex < 0 ? fields.length : targetIndex, 0, movedField);
+          return { ...section, fields };
+        })
+      };
+    });
+    setDraggedFieldId("");
+  }
+
+  function moveFieldByOffset(sectionId, fieldId, offset) {
+    setDraft((current) => ({
+      ...current,
+      sections: current.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const fields = [...section.fields];
+        const index = fields.findIndex((field) => field.id === fieldId);
+        const nextIndex = index + offset;
+        if (index < 0 || nextIndex < 0 || nextIndex >= fields.length) return section;
+        [fields[index], fields[nextIndex]] = [fields[nextIndex], fields[index]];
+        return { ...section, fields };
+      })
+    }));
+  }
+
   function toggleLine(lineId) {
     updateDraft({ linkedLines: draft.linkedLines.includes(lineId) ? draft.linkedLines.filter((id) => id !== lineId) : [...draft.linkedLines, lineId] });
   }
@@ -203,7 +256,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
         <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 font-bold text-gray-700" onClick={onCancel}><X size={18} /> Cancelar</button>
       </div>
 
-      <div className="mb-3 grid gap-2 rounded-md bg-white p-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-3 grid gap-2 rounded-md bg-white p-2 sm:grid-cols-2 xl:grid-cols-5">
         {guidedSteps.map((step, index) => {
           const Icon = step.icon;
           const active = step.id === activeStep;
@@ -241,6 +294,81 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
         </section>
       ) : null}
 
+      {activeStep === "layout" ? (
+        <section className="rounded-md border border-gray-200 bg-white p-4">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-bold text-gray-950">Monte a disposição do formulário</h3>
+              <p className="text-sm font-semibold text-gray-500">Arraste os campos para mudar a posição. Escolha a largura diretamente em cada bloco.</p>
+            </div>
+            <span className="inline-flex min-h-9 items-center rounded-full bg-blue-50 px-3 text-xs font-bold text-cicopal-blue">Grade responsiva de 12 colunas</span>
+          </div>
+
+          {fields.length ? (
+            <div className="space-y-5">
+              {draft.sections.map((section) => (
+                <article
+                  key={section.id}
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-[#f7f8fc]"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => moveField(section.id)}
+                >
+                  <div className="border-b border-gray-200 bg-white px-4 py-3">
+                    <h4 className="font-bold text-gray-950">{section.name}</h4>
+                    <p className="text-xs font-semibold text-gray-500">{section.description || "Sem orientação"}</p>
+                  </div>
+                  <div className="grid min-h-28 grid-cols-1 gap-3 p-3 md:grid-cols-12">
+                    {section.fields.map((field) => {
+                      const layout = layoutOptions.find((option) => option.id === field.layout) ?? layoutOptions[2];
+                      return (
+                        <div
+                          key={field.id}
+                          draggable
+                          onDragStart={() => setDraggedFieldId(field.id)}
+                          onDragEnd={() => setDraggedFieldId("")}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => { event.stopPropagation(); moveField(section.id, field.id); }}
+                          className={`${layout.columns} group rounded-xl border-2 border-white bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md ${draggedFieldId === field.id ? "opacity-40" : ""}`}
+                        >
+                          <div className="mb-3 flex items-start justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="cursor-grab text-gray-400 active:cursor-grabbing"><GripVertical size={19} /></span>
+                              <span className="min-w-0"><span className="block truncate font-bold text-gray-900">{field.name}</span><span className="block text-[11px] font-semibold text-gray-500">{guidedFieldTypes.find((type) => type.id === field.type)?.label}</span></span>
+                            </div>
+                            <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-500">{layout.label}</span>
+                          </div>
+                          <div className="h-11 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-xs font-semibold text-gray-400">Prévia da resposta</div>
+                          <div className="mt-3 grid grid-cols-4 gap-1 rounded-lg bg-gray-100 p-1">
+                            {layoutOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                className={`min-h-8 rounded-md px-1 text-[11px] font-bold ${field.layout === option.id ? "bg-cicopal-blue text-white shadow-sm" : "bg-transparent text-gray-500 hover:bg-white"}`}
+                                onClick={() => updateField(field.id, { layout: option.id })}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-1 md:hidden">
+                            <button type="button" className="min-h-9 rounded-md border border-gray-200 bg-white text-xs font-bold text-gray-600" onClick={() => moveFieldByOffset(section.id, field.id, -1)}>← Antes</button>
+                            <button type="button" className="min-h-9 rounded-md border border-gray-200 bg-white text-xs font-bold text-gray-600" onClick={() => moveFieldByOffset(section.id, field.id, 1)}>Depois →</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!section.fields.length ? <div className="md:col-span-12 flex min-h-24 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-sm font-bold text-gray-400">Arraste um campo para esta seção</div> : null}
+                  </div>
+                </article>
+              ))}
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+                No celular os campos ocupam automaticamente a largura total. Em telas maiores, a disposição configurada é preservada.
+              </div>
+            </div>
+          ) : <div className="rounded-md border border-dashed border-gray-300 p-8 text-center font-bold text-gray-500">Adicione campos na etapa Estrutura para montar o layout.</div>}
+        </section>
+      ) : null}
+
       {activeStep === "regras" ? (
         <section className="rounded-md border border-gray-200 bg-white p-4">
           <div className="mb-4"><h3 className="text-xl font-bold text-gray-950">Campos e regras</h3><p className="text-sm font-semibold text-gray-500">Selecione um campo e defina seu comportamento.</p></div>
@@ -252,7 +380,7 @@ export function GuidedRgBuilder({ lines, onCancel, onCreate }) {
         <section className="rounded-md border border-gray-200 bg-white p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold text-gray-950">Prévia para o operador</h3><p className="text-sm font-semibold text-gray-500">Faça um preenchimento de teste antes de criar o modelo.</p></div><span className="audit-badge bg-blue-50 text-cicopal-blue">SIMULAÇÃO</span></div>
           <div className="rounded-md bg-cicopal-blue p-4 text-white"><p className="text-xs font-bold uppercase text-white/70">{draft.code} • Revisão {draft.revision}</p><h4 className="mt-1 text-xl font-bold">{draft.title}</h4><p className="mt-1 text-sm font-semibold text-white/80">{draft.description}</p></div>
-          <div className="mt-3 space-y-3">{draft.sections.map((section) => <article key={section.id} className="rounded-md border border-gray-200 p-4"><h4 className="text-lg font-bold text-gray-950">{section.name}</h4><p className="text-sm font-semibold text-gray-500">{section.description}</p><div className="mt-3 grid gap-3 md:grid-cols-2">{section.fields.map((field) => <OperatorField key={field.id} field={field} value={testValues[field.id]} onChange={(value) => setTestValues((current) => ({ ...current, [field.id]: value }))} />)}</div></article>)}</div>
+          <div className="mt-3 space-y-3">{draft.sections.map((section) => <article key={section.id} className="rounded-md border border-gray-200 p-4"><h4 className="text-lg font-bold text-gray-950">{section.name}</h4><p className="text-sm font-semibold text-gray-500">{section.description}</p><div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-12">{section.fields.map((field) => { const layout = layoutOptions.find((option) => option.id === field.layout) ?? layoutOptions[2]; return <div key={field.id} className={layout.columns}><OperatorField field={field} value={testValues[field.id]} onChange={(value) => setTestValues((current) => ({ ...current, [field.id]: value }))} /></div>; })}</div></article>)}</div>
           <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-cicopal-blue bg-blue-50 px-4 font-bold text-cicopal-blue" onClick={validateTest}><ClipboardCheck size={19} /> Validar teste</button><button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-green px-4 font-bold text-white" onClick={() => onCreate(draft)}><Check size={19} /> Criar RG no configurador</button></div>
         </section>
       ) : null}
