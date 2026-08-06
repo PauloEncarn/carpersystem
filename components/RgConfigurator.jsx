@@ -38,6 +38,9 @@ const processTypes = [
 ];
 
 const fieldTypes = [
+  { id: "titulo", label: "Titulo visual" },
+  { id: "instrucao", label: "Texto de orientacao" },
+  { id: "separador", label: "Separador visual" },
   { id: "c_nc", label: "C / NC" },
   { id: "numero", label: "Numero" },
   { id: "percentual", label: "%" },
@@ -509,6 +512,7 @@ function sectionKind(section) {
 }
 
 function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOver, draggable = true }) {
+  const visualType = ["titulo", "instrucao", "separador"].includes(field.type);
   return (
     <article
       draggable={draggable}
@@ -522,12 +526,12 @@ function FieldPreview({ field, selected, onSelect, onDragStart, onDrop, onDragOv
       role="button"
       tabIndex={0}
     >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <span className="text-sm font-bold text-gray-950">{field.name}</span>
+      <div className={`${visualType ? "mb-0" : "mb-2"} flex items-start justify-between gap-2`}>
+        {!visualType ? <span className="text-sm font-bold text-gray-950">{field.name}</span> : <span />}
         {draggable ? <GripVertical size={18} className="shrink-0 text-gray-400" /> : null}
       </div>
       <OperatorFieldControl field={field} />
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className={`${visualType ? "mt-3" : "mt-2"} flex flex-wrap gap-2`}>
         <span className="audit-badge bg-gray-100 text-gray-600">
           {layoutOptions.find((item) => item.id === field.layout)?.preview ?? "1/3"}
         </span>
@@ -571,6 +575,18 @@ function ChecklistRowPreview({ field, selected, onSelect, onDragStart, onDrop, o
 }
 
 function OperatorFieldControl({ field }) {
+  if (field.type === "titulo") {
+    return <div className="border-l-4 border-cicopal-blue pl-3 text-lg font-black tracking-tight text-gray-950">{field.name}</div>;
+  }
+
+  if (field.type === "instrucao") {
+    return <div className="rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 text-sm font-semibold leading-relaxed text-blue-950">{field.name}</div>;
+  }
+
+  if (field.type === "separador") {
+    return <div className="flex items-center gap-3 py-2"><span className="h-px flex-1 bg-gray-200" />{field.name ? <span className="text-xs font-bold uppercase tracking-wider text-gray-400">{field.name}</span> : null}<span className="h-px flex-1 bg-gray-200" /></div>;
+  }
+
   if (field.defaultMode === "tag" && field.defaultTag) {
     return (
       <div className="flex min-h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 font-bold text-cicopal-blue">
