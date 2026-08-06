@@ -207,9 +207,10 @@ function StageHeader({ title, meta }) {
   );
 }
 
-function FlowProcessCard({ node, selected, onClick }) {
-  const tone = !node.unlocked ? "border-gray-200 bg-gray-100 text-gray-400" : node.done ? "border-green-300 bg-green-50 text-cicopal-green" : selected ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-900";
-  return <button type="button" disabled={!node.unlocked} onClick={onClick} className={`min-h-36 w-full rounded-2xl border p-4 text-left shadow-sm transition ${tone}`}><div className="flex items-start justify-between gap-2"><span className="rounded-full bg-white/80 px-2 py-1 text-[11px] font-black uppercase">{node.frequencia}</span>{node.done ? <CheckCircle2 size={20} /> : null}</div><p className="mt-4 text-lg font-black">{node.nome}</p><p className="mt-1 text-xs font-semibold opacity-75">{node.unlocked ? `${node.count} registro(s) · toque para acessar` : "Aguardando etapa anterior"}</p></button>;
+function FlowProcessCard({ node, selected, step, onClick }) {
+  const tone = !node.unlocked ? "border-gray-200 bg-gray-50 text-gray-400" : node.done ? "border-green-300 bg-green-50 text-cicopal-green" : selected ? "border-cicopal-blue bg-blue-50 text-cicopal-blue ring-4 ring-blue-100" : "border-gray-200 bg-white text-gray-900 hover:border-cicopal-blue";
+  const state = !node.unlocked ? "Bloqueado" : node.done ? "Concluído" : node.count ? "Em andamento" : "Disponível";
+  return <button type="button" disabled={!node.unlocked} onClick={onClick} className={`flex min-h-24 w-full items-center gap-3 rounded-2xl border p-3 text-left shadow-sm transition ${tone}`}><span className={`grid size-10 shrink-0 place-items-center rounded-full text-sm font-black ${node.done ? "bg-cicopal-green text-white" : node.unlocked ? "bg-cicopal-blue text-white" : "bg-gray-200 text-gray-500"}`}>{node.done ? <CheckCircle2 size={20} /> : step}</span><span className="min-w-0"><span className="block text-base font-black">{node.nome}</span><span className="mt-1 block text-xs font-bold opacity-70">{state}</span></span></button>;
 }
 
 function Rg003ProcessFlow({ processos, lote, selectedProcessId, onSelect, onOpen }) {
@@ -233,6 +234,17 @@ function getRgPrefix(documentoId = "") {
   const numbers = documentoId.match(/\d+/g) ?? [];
   const number = numbers[numbers.length - 1] ?? "000";
   return `RG${number.padStart(3, "0")}`;
+}
+
+function ProgressiveRg003Flow({ processos, lote, selectedProcessId, onSelect, onOpen }) {
+  const ids = ["higienizacao", "produto_liberacao", "produto_avaliacao", "processo", "fotografico"];
+  const records = lote?.registros ?? [];
+  const hasSaved = (id) => records.some((record) => record.processoId === id && record.subregistros?.some((item) => item.id === id && item.status !== "Novo"));
+  const hygieneOk = hasSaved("higienizacao") && !records.some((record) => record.processoId === "higienizacao" && record.subregistros?.some((item) => (item.ncs ?? []).length));
+  const releaseOk = hasSaved("produto_liberacao");
+  const nodes = ids.map((id, index) => ({ ...processos.find((item) => item.id === id), id, unlocked: index === 0 || (index === 1 ? hygieneOk : releaseOk), count: records.filter((record) => record.processoId === id).length, done: hasSaved(id) }));
+  const open = (node) => { if (node.unlocked) { onSelect(node.id); onOpen(); } };
+  return <div className="mx-auto max-w-5xl rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-6"><p className="text-xs font-black uppercase tracking-[.18em] text-cicopal-blue">RG.QUA.BA.003</p><h3 className="mt-1 text-2xl font-black text-gray-950">Fluxo da produção</h3></div><div className="grid gap-0 lg:grid-cols-[1fr_56px_1fr_56px_1.4fr] lg:items-center"><FlowProcessCard step="1" node={nodes[0]} selected={selectedProcessId === nodes[0].id} onClick={() => open(nodes[0])} /><div className="grid h-12 place-items-center text-2xl font-black text-gray-300">→</div><FlowProcessCard step="2" node={nodes[1]} selected={selectedProcessId === nodes[1].id} onClick={() => open(nodes[1])} /><div className="grid h-12 place-items-center text-2xl font-black text-gray-300">→</div><div className="rounded-2xl border-2 border-blue-100 bg-blue-50/60 p-3"><div className="mb-3 flex items-center gap-2 text-cicopal-blue"><RefreshCw size={18} /><p className="text-sm font-black">3 · A cada hora</p></div><div className="space-y-2">{nodes.slice(2).map((node, index) => <FlowProcessCard key={node.id} step={`3.${index + 1}`} node={node} selected={selectedProcessId === node.id} onClick={() => open(node)} />)}</div></div></div><div className="mt-5 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-amber-500 text-white"><RefreshCw size={19} /></span><div><p className="font-black text-amber-950">Troca de produto</p><p className="text-xs font-semibold text-amber-800">No próximo horário, retorne para a higienização.</p></div></div><button type="button" className="min-h-11 rounded-xl bg-amber-500 px-4 font-black text-white" onClick={() => open(nodes[0])}>↩ Voltar para a etapa 1</button></div></div><div className="mt-4 text-center">{!hygieneOk ? <p className="text-sm font-bold text-amber-800">Próxima ação: concluir a higienização sem NC.</p> : !releaseOk ? <p className="text-sm font-bold text-cicopal-blue">Próxima ação: liberar o produto.</p> : <p className="text-sm font-bold text-cicopal-green">Controles do horário liberados.</p>}</div></div>;
 }
 
 export { getShortRegistroId };
@@ -875,7 +887,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             {selection.documentoId === "RG.QUA.BA.003" ? (
-              <Rg003ProcessFlow processos={processosDoDocumento} lote={selected.lote} selectedProcessId={selection.subregistroId} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
+              <ProgressiveRg003Flow processos={processosDoDocumento} lote={selected.lote} selectedProcessId={selection.subregistroId} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
