@@ -19,6 +19,7 @@ import {
   Trash2
 } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
+import { GuidedRgBuilder } from "@/components/GuidedRgBuilder";
 
 const steps = [
   { id: "rg", label: "RG", icon: FileText },
@@ -1008,6 +1009,7 @@ function IndexDialog({ draft, lines, lists, onChange, onLineRuleChange, onClose,
 }
 
 export function RgConfigurator({ lines }) {
+  const [guidedMode, setGuidedMode] = useState(false);
   const [rgs, setRgs] = useState(initialRgs);
   const [componentLibrary, setComponentLibrary] = useState(initialComponentLibrary);
   const [valueLists, setValueLists] = useState(initialValueLists);
@@ -1066,6 +1068,40 @@ export function RgConfigurator({ lines }) {
     setSelectedProcessId(newRg.processes[0]?.id ?? "");
     setSelectedFieldId(newRg.processes[0]?.fields[0]?.id ?? "");
     setActiveStep("rg");
+  }
+
+  function createGuidedRg(draft) {
+    const rgId = makeId("rg");
+    const processId = makeId("proc");
+    const fields = draft.sections.flatMap((section) =>
+      section.fields.map((field) =>
+        makeField(makeId("field"), field.name, field.type === "lista" ? "texto" : field.type, section.name, {
+          layout: "half",
+          required: field.required,
+          nc: field.nc,
+          unit: field.unit ?? "",
+          min: field.min ?? "",
+          max: field.max ?? "",
+          options: field.options ?? [],
+          defaultMode: field.type === "lista" ? "lista" : "manual"
+        })
+      )
+    );
+    const newRg = {
+      id: rgId,
+      code: draft.code,
+      title: draft.title,
+      description: draft.description,
+      revision: draft.revision,
+      linkedLines: draft.linkedLines,
+      processes: [{ id: processId, type: "processo", name: draft.processName, frequency: draft.frequency, fields }]
+    };
+    setRgs((current) => [...current, newRg]);
+    setSelectedRgId(rgId);
+    setSelectedProcessId(processId);
+    setSelectedFieldId(fields[0]?.id ?? "");
+    setActiveStep("processo");
+    setGuidedMode(false);
   }
 
   function toggleLine(lineId) {
@@ -1382,6 +1418,10 @@ export function RgConfigurator({ lines }) {
     setDraggedFieldId("");
   }
 
+  if (guidedMode) {
+    return <GuidedRgBuilder lines={lines} onCancel={() => setGuidedMode(false)} onCreate={createGuidedRg} />;
+  }
+
   return (
     <section className="rounded-md border border-gray-200 bg-[#f4f7fb] p-3 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white p-3">
@@ -1389,10 +1429,16 @@ export function RgConfigurator({ lines }) {
           <h2 className="text-2xl font-bold text-cicopal-blue">Configurador visual de RG</h2>
           <p className="text-sm font-semibold text-gray-600">Monte o formulario arrastando, selecionando e ajustando os campos.</p>
         </div>
-        <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white">
-          <LayoutTemplate size={20} />
-          Salvar modelo
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-cicopal-blue bg-blue-50 px-4 font-bold text-cicopal-blue" onClick={() => setGuidedMode(true)}>
+            <Plus size={20} />
+            Criar RG guiado
+          </button>
+          <button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white">
+            <LayoutTemplate size={20} />
+            Salvar modelo
+          </button>
+        </div>
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2 rounded-md bg-white p-1 md:grid-cols-4">
