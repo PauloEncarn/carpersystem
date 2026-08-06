@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Factory,
   FileText,
+  RefreshCw,
   X
 } from "lucide-react";
 import { checklistGroups, generateLoteId } from "@/lib/checklist";
@@ -204,6 +205,28 @@ function StageHeader({ title, meta }) {
       ) : null}
     </div>
   );
+}
+
+function FlowProcessCard({ node, selected, onClick }) {
+  const tone = !node.unlocked ? "border-gray-200 bg-gray-100 text-gray-400" : node.done ? "border-green-300 bg-green-50 text-cicopal-green" : selected ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-white text-gray-900";
+  return <button type="button" disabled={!node.unlocked} onClick={onClick} className={`min-h-36 w-full rounded-2xl border p-4 text-left shadow-sm transition ${tone}`}><div className="flex items-start justify-between gap-2"><span className="rounded-full bg-white/80 px-2 py-1 text-[11px] font-black uppercase">{node.frequencia}</span>{node.done ? <CheckCircle2 size={20} /> : null}</div><p className="mt-4 text-lg font-black">{node.nome}</p><p className="mt-1 text-xs font-semibold opacity-75">{node.unlocked ? `${node.count} registro(s) · toque para acessar` : "Aguardando etapa anterior"}</p></button>;
+}
+
+function Rg003ProcessFlow({ processos, lote, selectedProcessId, onSelect, onOpen }) {
+  const order = ["higienizacao", "produto_liberacao", "produto_avaliacao", "processo", "fotografico"];
+  const records = lote?.registros ?? [];
+  const hasSaved = (id) => records.some((record) => record.processoId === id && record.subregistros?.some((item) => item.id === id && item.status !== "Novo"));
+  const hygieneOk = hasSaved("higienizacao") && !records.some((record) => record.processoId === "higienizacao" && record.subregistros?.some((item) => (item.ncs ?? []).length > 0));
+  const releaseOk = hasSaved("produto_liberacao");
+  const nodes = order.map((id, index) => ({
+    ...processos.find((item) => item.id === id), id,
+    unlocked: index === 0 || (index === 1 ? hygieneOk : releaseOk),
+    count: records.filter((record) => record.processoId === id).length,
+    done: hasSaved(id)
+  }));
+  const openNode = (node) => { if (node.unlocked) { onSelect(node.id); onOpen(); } };
+
+  return <div className="space-y-4"><div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Ciclo operacional · RG 003</p><h3 className="mt-1 text-xl font-black text-gray-950">Siga o processo na ordem em que ele acontece</h3><p className="mt-1 text-sm font-semibold text-gray-600">Na troca de produto, inicie uma nova higienização no próximo horário.</p></div><button type="button" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-cicopal-blue bg-white px-4 font-bold text-cicopal-blue" onClick={() => openNode(nodes[0])}><RefreshCw size={18} /> Troca de produto</button></div></div><div className="grid gap-3 lg:grid-cols-[1fr_40px_1fr_40px_2fr] lg:items-center"><FlowProcessCard node={nodes[0]} selected={selectedProcessId === nodes[0].id} onClick={() => openNode(nodes[0])} /><div className="hidden text-center text-3xl font-black text-gray-300 lg:block">→</div><FlowProcessCard node={nodes[1]} selected={selectedProcessId === nodes[1].id} onClick={() => openNode(nodes[1])} /><div className="hidden text-center text-3xl font-black text-gray-300 lg:block">→</div><div className="rounded-2xl border border-gray-200 bg-gray-50 p-3"><div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-black uppercase text-cicopal-blue">Ciclo hora a hora</p><p className="text-xs font-semibold text-gray-600">Repita as três atividades a cada horário.</p></div><RefreshCw size={20} className="text-cicopal-blue" /></div><div className="grid gap-2 xl:grid-cols-3">{nodes.slice(2).map((node) => <FlowProcessCard key={node.id} node={node} selected={selectedProcessId === node.id} onClick={() => openNode(node)} />)}</div></div></div>{!hygieneOk ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">Conclua a higienização sem NC para liberar a próxima etapa.</p> : !releaseOk ? <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">Higienização conforme. Agora realize a liberação do produto.</p> : null}</div>;
 }
 
 function getRgPrefix(documentoId = "") {
@@ -851,7 +874,9 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
             <StageHeader
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {selection.documentoId === "RG.QUA.BA.003" ? (
+              <Rg003ProcessFlow processos={processosDoDocumento} lote={selected.lote} selectedProcessId={selection.subregistroId} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
+            ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
                 return (
@@ -872,7 +897,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                 />
                 );
               })}
-            </div>
+            </div>}
           </>
         ) : null}
 

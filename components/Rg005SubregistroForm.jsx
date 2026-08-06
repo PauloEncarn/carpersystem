@@ -448,12 +448,24 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function MachineHourlySections({ title, machines = [], registro, onSave }) {
+function MachineHourlySections({ title, machines = [], registro, onSave, requireMachineSetup = false, gramaturas = [] }) {
+  const [activeCount, setActiveCount] = useState(requireMachineSetup ? "" : String(machines.length));
+  const [machineGrams, setMachineGrams] = useState({});
   if (!machines.length) return null;
+  const activeMachines = machines.slice(0, Number(activeCount || 0));
 
   return (
     <div className="space-y-4">
-      {machines.map((machine) => (
+      {requireMachineSetup ? (
+        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+          <div className="grid gap-4 md:grid-cols-[250px_1fr]">
+            <label><span className="mb-2 block text-sm font-black text-gray-900">Quantas máquinas estão rodando?</span><select className="min-h-12 w-full rounded-xl border border-blue-200 bg-white px-3 font-bold" value={activeCount} onChange={(event) => setActiveCount(event.target.value)}><option value="">Selecione</option>{machines.map((_, index) => <option key={index + 1} value={index + 1}>{index + 1} máquina(s)</option>)}</select></label>
+            <div><span className="mb-2 block text-sm font-black text-gray-900">Gramatura de cada máquina</span><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{activeMachines.map((machine) => <label key={machine.label} className="rounded-xl border border-blue-100 bg-white p-2"><span className="mb-1 block text-xs font-bold text-gray-600">{machine.label}</span><select className="min-h-10 w-full rounded-lg border border-gray-200 px-2 font-bold" value={machineGrams[machine.label] ?? ""} onChange={(event) => setMachineGrams((current) => ({ ...current, [machine.label]: event.target.value }))}><option value="">Selecione</option>{gramaturas.map((value) => <option key={value}>{value}</option>)}</select></label>)}</div></div>
+          </div>
+          {!activeCount ? <p className="mt-3 text-sm font-bold text-cicopal-blue">Informe as máquinas ativas para abrir o preenchimento.</p> : null}
+        </section>
+      ) : null}
+      {activeMachines.map((machine) => (
         <HourlyTable
           key={machine.label}
           title={`${title} - ${machine.label}`}
@@ -1260,7 +1272,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
         <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />
-        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} />
+        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={documentName === "RG.QUA.BA.003"} gramaturas={config.produtoOptions.gramaturas} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
@@ -1275,6 +1287,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
           registro={effectiveRegistro}
           onSave={saveProcesso}
+          requireMachineSetup={documentName === "RG.QUA.BA.003"}
+          gramaturas={config.produtoOptions.gramaturas}
         />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
