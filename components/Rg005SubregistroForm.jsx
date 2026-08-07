@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
+import { persistCycleTransition } from "@/lib/rg003Persistence";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
 
@@ -1259,7 +1260,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     dataRegistro: registro?.dataRegistro && registro.dataRegistro !== "Novo registro" ? registro.dataRegistro : registroDataHora
   };
 
-  function saveProcesso(payload = {}) {
+  async function saveProcesso(payload = {}) {
     onSave?.({
       registro: {
         ...effectiveRegistro,
@@ -1272,6 +1273,34 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
         status: payload.ncs?.length ? "Com NC" : "Gravado"
       }
     });
+    if (isRg003 && subregistro.id === "higienizacao" && !(payload.ncs ?? []).length) {
+      try {
+        const storageKey = "carper_rg003_cycle_ROS";
+        const cycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+        if (cycle) {
+          const nextCycle = { ...cycle, status: "awaiting_release", stageStartedAt: new Date().toISOString(), events: [...(cycle.events ?? []), { id: `higiene-${Date.now()}`, label: "Higienização concluída conforme", at: new Date().toISOString(), operator: effectiveRegistro.operador }] };
+          window.localStorage.setItem(storageKey, JSON.stringify(nextCycle));
+          window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+          await persistCycleTransition({ cycle, status: "awaiting_release", description: "Higienização concluída conforme", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
+        }
+      } catch (error) {
+        console.error("Falha ao atualizar ciclo após higienização", error);
+      }
+    }
+    if (isRg003 && subregistro.id === "produto_liberacao" && !(payload.ncs ?? []).length) {
+      try {
+        const storageKey = "carper_rg003_cycle_ROS";
+        const cycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+        if (cycle) {
+          const nextCycle = { ...cycle, status: "producing", stageStartedAt: new Date().toISOString(), events: [...(cycle.events ?? []), { id: `liberacao-${Date.now()}`, label: "Produto liberado", at: new Date().toISOString(), operator: effectiveRegistro.operador }] };
+          window.localStorage.setItem(storageKey, JSON.stringify(nextCycle));
+          window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+          await persistCycleTransition({ cycle, status: "producing", description: "Produto liberado", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
+        }
+      } catch (error) {
+        console.error("Falha ao atualizar ciclo após liberação", error);
+      }
+    }
     setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
 

@@ -260,6 +260,24 @@ function formatElapsed(startedAt, now) {
   return `${hoursValue}:${minutesValue}:${secondsValue}`;
 }
 
+function TechnicalRg003StageNav({ lineId, currentProcessId, onOpenProcess }) {
+  const [status, setStatus] = useState("hygiene");
+  useEffect(() => {
+    try { setStatus(JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${lineId}`) ?? "null")?.status ?? "hygiene"); } catch { setStatus("hygiene"); }
+    const update = (event) => setStatus(event.detail?.status ?? "hygiene");
+    window.addEventListener("rg003-cycle-updated", update);
+    return () => window.removeEventListener("rg003-cycle-updated", update);
+  }, [lineId]);
+  const items = [
+    { id: "higienizacao", label: "Higienização", enabled: status === "hygiene", done: status !== "hygiene" },
+    { id: "produto_liberacao", label: "Liberar produto", enabled: status === "awaiting_release", done: ["producing", "blocked"].includes(status) },
+    { id: "produto_avaliacao", label: "Produto", enabled: status === "producing" },
+    { id: "processo", label: "Processo", enabled: status === "producing" },
+    { id: "fotografico", label: "Foto", enabled: status === "producing" }
+  ];
+  return <nav className="mb-4 rounded-lg border border-gray-300 bg-white p-3" aria-label="Etapas do RG 003"><p className="mb-2 text-xs font-bold uppercase text-gray-500">Fluxo do ciclo</p><div className="grid grid-cols-2 gap-2 md:grid-cols-5">{items.map((item, index) => <button key={item.id} type="button" disabled={!item.enabled || item.id === currentProcessId} onClick={() => onOpenProcess(item.id)} className={`min-h-14 rounded-md border px-2 text-sm font-bold ${item.id === currentProcessId ? "border-cicopal-blue bg-cicopal-blue text-white" : item.done ? "border-green-200 bg-green-50 text-cicopal-green" : item.enabled ? "border-cicopal-blue bg-white text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}><span className="mr-1">{index + 1}.</span>{item.label}<span className="mt-0.5 block text-[10px]">{item.id === currentProcessId ? "Em preenchimento" : item.done ? "Concluída" : item.enabled ? "Disponível" : status === "blocked" ? "Produção interrompida" : "Bloqueada"}</span></button>)}</div></nav>;
+}
+
 function Rg003CyclePanel({ lineId, operatorId, operatorName, processos, onSelect, onOpen, onOpenProcess }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const historyKey = `carper_rg003_cycle_history_${lineId}`;
@@ -1107,6 +1125,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
 
         {currentStep === 6 ? (
           <>
+            {hideDates && selection.documentoId === "RG.QUA.BA.003" ? <TechnicalRg003StageNav lineId={selection.linhaId} currentProcessId={selection.subregistroId} onOpenProcess={abrirRegistroTecnico} /> : null}
             <StageHeader
               title={selected.subregistro?.nome}
               meta={selected.registro ? getShortRegistroId(selected.registro.id, selected.subregistro?.id) : ""}
