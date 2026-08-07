@@ -899,6 +899,10 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
     (currentStep === 4 && Boolean(selected.subregistro));
 
   async function goBack() {
+    if (currentStep === 6 && selection.documentoId === "RG.QUA.BA.003") {
+      onStepChange(4);
+      return;
+    }
     if (currentStep === 4 && selection.documentoId === "RG.QUA.BA.003") {
       let activeCycle = null;
       try { activeCycle = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null"); } catch { activeCycle = null; }
@@ -1021,8 +1025,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
 
   useEffect(() => {
     if (currentStep !== 5 || selection.documentoId !== "RG.QUA.BA.003") return;
-    if (selection.subregistroId) abrirRegistroTecnico(selection.subregistroId);
-    else onStepChange(4);
+    onStepChange(4);
   }, [currentStep, selection.documentoId, selection.subregistroId]);
 
   return (

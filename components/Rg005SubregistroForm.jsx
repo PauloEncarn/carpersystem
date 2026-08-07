@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
@@ -1409,7 +1409,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     return () => { active = false; };
   }, [isRg003, registro?.id]);
   useEffect(() => { setEditMode(false); }, [activeHour, subregistro?.id]);
-  const allowedHours = buildAllowedCycleHours(cycleContext);
+  const allowedHours = useMemo(() => buildAllowedCycleHours(cycleContext), [cycleContext]);
   useEffect(() => {
     if (!isRg003 || !allowedHours.length || allowedHours.some((entry) => entry.value === activeHour)) return;
     const latestAvailable = [...allowedHours].reverse().find((entry) => !entry.locked) ?? allowedHours[0];
