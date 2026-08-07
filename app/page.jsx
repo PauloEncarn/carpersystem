@@ -17,6 +17,7 @@ export default function HomePage() {
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
   const [databaseStatus, setDatabaseStatus] = useState("");
+  const [databaseError, setDatabaseError] = useState("");
   const currentStepRef = useRef(currentStep);
   const selected = useMemo(() => findSelection(selection, operationTree), [selection, operationTree]);
   const canAccessConfigurator = loggedUser?.permissoes?.includes("configurador:acessar") || loggedUser?.permissoes?.includes("admin:acessar");
@@ -178,12 +179,14 @@ export default function HomePage() {
 
     if (selection.documentoId === "RG.QUA.BA.003") {
       setDatabaseStatus("saving");
+      setDatabaseError("");
       try {
         const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: activeCycle?.productionCode ?? selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: cycleRegistro, subregistro: snapshot.subregistro, cycleId: activeCycleRef, cycleStartedAt: activeCycle?.startedAt, productionCode: activeCycle?.productionCode });
         setDatabaseStatus(result.remote ? "saved" : "local");
         return true;
       } catch (error) {
         setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
+        setDatabaseError(error?.message ?? "Falha desconhecida ao gravar no Supabase.");
         return false;
       }
     }
@@ -222,7 +225,7 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        {databaseStatus ? <div className={`rounded-md border px-4 py-2 text-sm font-bold ${["error", "conflict"].includes(databaseStatus) ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}>{databaseStatus === "saving" ? "Gravando no banco..." : databaseStatus === "saved" ? "Dados sincronizados com o banco." : databaseStatus === "local" ? "Supabase não configurado: dados mantidos neste tablet." : databaseStatus === "conflict" ? "Este preenchimento foi gravado ou alterado por outro técnico. Recarregue o registro antes de editar." : "Não foi possível sincronizar. Os dados continuam neste tablet."}</div> : null}
+        {databaseStatus ? <div className={`rounded-md border px-4 py-2 text-sm font-bold ${["error", "conflict"].includes(databaseStatus) ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}>{databaseStatus === "saving" ? "Gravando no banco..." : databaseStatus === "saved" ? "Dados sincronizados com o banco." : databaseStatus === "local" ? "Supabase não configurado: dados mantidos neste tablet." : databaseStatus === "conflict" ? "Este preenchimento foi gravado ou alterado por outro técnico. Recarregue o registro antes de editar." : `Não foi possível salvar: ${databaseError}`}</div> : null}
         <HierarchyNavigator
             tree={operationTree}
             selection={selection}
