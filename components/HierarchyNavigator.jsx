@@ -1029,7 +1029,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   }, [currentStep, selection.documentoId, selection.subregistroId]);
 
   return (
-    <section className="audit-card p-4">
+    <section className={`audit-card p-4 ${currentStep === 6 && selection.documentoId === "RG.QUA.BA.003" ? "rg-tablet-app" : ""}`}>
       <div className="mb-4 grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1">
         <button
           type="button"
@@ -1266,7 +1266,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={selected.subregistro?.nome}
               meta={selected.registro ? getShortRegistroId(selected.registro.id, selected.subregistro?.id) : ""}
             />
-            {children}
+            <div className="rg-app-content">{children}</div>
           </>
         ) : null}
       </div>
