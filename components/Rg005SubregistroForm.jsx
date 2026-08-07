@@ -451,23 +451,46 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function TabletHourNavigator({ activeHour, onChange }) {
-  return <section className="sticky top-[72px] z-10 mb-4 rounded-2xl border border-cicopal-blue bg-white p-3 shadow-lg"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase text-gray-500">Horário em preenchimento</p><p className="text-3xl font-black tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{hours.map((hour) => <button key={hour} type="button" className={`min-h-12 min-w-20 rounded-xl border px-3 text-sm font-black ${hour === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-gray-50 text-gray-600"}`} onClick={() => onChange(hour)}>{hour}</button>)}</div></div></section>;
+function TabletHourNavigator({ activeHour, onChange, allowedHours = hours }) {
+  const entries = allowedHours.map((item) => typeof item === "string" ? { key: item, value: item, label: item } : item);
+  return <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">Horário em preenchimento</p><p className="text-2xl font-bold tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{entries.map((entry) => <button key={entry.key} type="button" className={`min-h-12 min-w-24 rounded-md border px-3 text-sm font-bold ${entry.value === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-gray-50 text-gray-600"}`} onClick={() => onChange(entry.value)}>{entry.label}</button>)}</div></div></section>;
 }
 
-function TabletProductMetrics({ columns, activeHour }) {
-  return <section className="rounded-2xl border border-gray-200 bg-white p-3"><div className="mb-3 flex items-center gap-2"><Clock size={22} className="text-cicopal-blue" /><h2 className="text-lg font-black">Avaliação do produto · {activeHour}</h2></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{columns.map((column) => <label key={column.label} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><span className="mb-2 block text-sm font-black text-gray-800">{column.label}</span><div className="flex min-h-14 overflow-hidden rounded-xl border border-gray-300 bg-white"><input type="number" inputMode="decimal" step="0.01" className="min-h-14 w-full min-w-0 px-3 text-lg font-bold outline-none" /><span className="grid place-items-center bg-gray-100 px-3 text-sm font-black text-gray-600">{column.unit}</span></div></label>)}</div></section>;
+function TabletProductMetrics({ columns, activeHour, onSave }) {
+  const [index, setIndex] = useState(0);
+  const [values, setValues] = useState({});
+  const column = columns[index];
+  const currentValue = values[column.label] ?? "";
+  function finish() { onSave?.({ apontamentos: columns.map((item) => ({ horario: activeHour, item: item.label, resultado: values[item.label], unidade: item.unit })), ncs: [] }); }
+  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-16 text-2xl font-bold text-gray-950">{column.label}</h2><div className="mt-4 flex min-h-16 overflow-hidden rounded-md border-2 border-gray-300 bg-white"><input key={column.label} type="number" inputMode="decimal" step="0.01" autoFocus className="min-h-16 w-full min-w-0 px-4 text-2xl font-bold outline-none" value={currentValue} onChange={(event) => setValues((current) => ({ ...current, [column.label]: event.target.value }))} /><span className="grid place-items-center bg-gray-100 px-4 font-bold text-gray-600">{column.unit}</span></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!currentValue} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={finish}>Gravar parâmetros</button> : <button type="button" disabled={!currentValue} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer></section>;
 }
 
 function TabletRelease({ columns, activeHour, registro, onSave }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
+  const [index, setIndex] = useState(0);
   function save() {
     const apontamentos = columns.filter((item) => values[item]).map((item) => ({ horario: activeHour, item, resultado: values[item] }));
     const ncs = apontamentos.filter((item) => item.resultado === "NC").map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como NC na liberacao`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
     onSave?.({ apontamentos, ncs }); setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
-  return <section className="rounded-2xl border border-gray-200 bg-white p-3"><div className="mb-3"><h2 className="text-xl font-black">Liberação do produto · {activeHour}</h2><p className="text-sm font-semibold text-gray-500">Toque uma vez para Conforme e duas vezes para NC.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{columns.map((column) => <div key={column} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><p className="mb-2 min-h-10 text-sm font-black text-gray-800">{column}</p><StatusClickButton value={values[column]} onChange={(value) => setValues((current) => ({ ...current, [column]: value }))} /></div>)}</div><div className="sticky bottom-3 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-gray-950 p-3 text-white shadow-xl"><span className="text-sm font-bold">{savedAt ? `Gravado às ${savedAt}` : `Horário ${activeHour}`}</span><button type="button" className="min-h-14 rounded-xl bg-cicopal-blue px-6 text-base font-black" onClick={save}>Gravar liberação</button></div></section>;
+  const column = columns[index];
+  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Liberação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{column}</h2><div className="mt-4"><StatusClickButton value={values[column]} onChange={(value) => setValues((current) => ({ ...current, [column]: value }))} /></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={save}>Gravar liberação</button> : <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer>{savedAt ? <p className="bg-green-50 p-2 text-center text-sm font-bold text-cicopal-green">Gravado às {savedAt}</p> : null}</section>;
+}
+
+function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
+  const items = machines.flatMap((machine) => machine.columns.map((column) => ({ machine: machine.label, column })));
+  const [index, setIndex] = useState(0);
+  const [values, setValues] = useState({});
+  const item = items[index];
+  if (!item) return null;
+  const key = `${item.machine}|${item.column}`;
+  function finish() {
+    const apontamentos = Object.entries(values).map(([itemKey, resultado]) => { const [maquina, parametro] = itemKey.split("|"); return { horario: activeHour, maquina, item: parametro, resultado }; });
+    const ncs = apontamentos.filter((entry) => entry.resultado === "NC").map((entry, ncIndex) => ({ id: `MAQ-NC-${ncIndex + 1}`, item: `${entry.maquina} - ${entry.item}`, horario: activeHour, status: "Aberta", descricao: `${entry.item} marcado como NC em ${entry.maquina}` }));
+    onSave?.({ apontamentos, ncs });
+  }
+  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">{title} · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / items.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">{item.machine} · parâmetro {index + 1} de {items.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{item.column}</h2><StatusClickButton value={values[key]} onChange={(value) => setValues((current) => ({ ...current, [key]: value }))} /></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === items.length - 1 ? <button type="button" disabled={!values[key]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={finish}>Gravar avaliação</button> : <button type="button" disabled={!values[key]} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer></section>;
 }
 
 function MachineHourlySections({ title, machines = [], registro, onSave, requireMachineSetup = false, gramaturas = [], activeHour = "" }) {
@@ -487,7 +510,7 @@ function MachineHourlySections({ title, machines = [], registro, onSave, require
           {!activeCount ? <p className="mt-3 text-sm font-bold text-cicopal-blue">Informe as máquinas ativas para abrir o preenchimento.</p> : null}
         </section>
       ) : null}
-      {activeMachines.map((machine) => (
+      {activeHour && requireMachineSetup && activeMachines.length ? <MachineEvaluationWizard title={title} machines={activeMachines} activeHour={activeHour} onSave={onSave} /> : activeMachines.map((machine) => (
         <HourlyTable
           key={machine.label}
           title={`${title} - ${machine.label}`}
@@ -1245,13 +1268,43 @@ function ProdutoContexto({ registro, options }) {
   );
 }
 
+function Rg003ProductContext({ cycle }) {
+  return <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 border-l-4 border-l-cicopal-blue bg-white p-4"><div><p className="text-xs font-bold uppercase text-gray-500">Produto deste ciclo</p><p className="mt-1 text-xl font-bold text-gray-950">{cycle?.product ?? "Produto do ciclo"}</p></div><p className="text-sm font-semibold text-gray-500">Definido no início da produção e bloqueado para edição.</p></section>;
+}
+
+function buildAllowedCycleHours(cycle) {
+  if (!cycle?.startedAt) return [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
+  const start = new Date(cycle.startedAt);
+  start.setMinutes(0, 0, 0);
+  const end = cycle.endedAt ? new Date(cycle.endedAt) : new Date();
+  end.setMinutes(0, 0, 0);
+  const result = [];
+  for (let cursor = new Date(start); cursor <= end && result.length < 72; cursor = new Date(cursor.getTime() + 3_600_000)) {
+    const value = `${String(cursor.getHours()).padStart(2, "0")}:00`;
+    result.push({ key: cursor.toISOString(), value, label: cursor.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "") + ` · ${value}` });
+  }
+  return result.length ? result : [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
+}
+
 export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, loggedUser, onSave }) {
   const [savedAt, setSavedAt] = useState("");
   const [registroDataHora] = useState(() => new Date().toLocaleString("pt-BR"));
   const [activeHour, setActiveHour] = useState(() => getCurrentHourSlot());
+  const [cycleContext, setCycleContext] = useState(null);
+  const isRg003 = documentName === "RG.QUA.BA.003";
+  useEffect(() => {
+    if (!isRg003) return;
+    function loadCycle(event) {
+      if (event?.detail) { setCycleContext(event.detail); return; }
+      try { setCycleContext(JSON.parse(window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null")); } catch { setCycleContext(null); }
+    }
+    loadCycle();
+    window.addEventListener("rg003-cycle-updated", loadCycle);
+    return () => window.removeEventListener("rg003-cycle-updated", loadCycle);
+  }, [isRg003]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
-  const isRg003 = documentName === "RG.QUA.BA.003";
+  const allowedHours = buildAllowedCycleHours(cycleContext);
   const effectiveRegistro = {
     ...registro,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
@@ -1325,8 +1378,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
-        <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
         {isRg003 ? <TabletRelease columns={config.liberacaoProdutoColumns} activeHour={activeHour} registro={effectiveRegistro} onSave={saveProcesso} /> : <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />}
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
@@ -1336,11 +1389,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
-        <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
-        {isRg003 ? <TabletProductMetrics columns={config.avaliacaoProdutoColumns} activeHour={activeHour} /> : <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
+        {isRg003 ? <TabletProductMetrics columns={config.avaliacaoProdutoColumns} activeHour={activeHour} onSave={saveProcesso} /> : <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />}
         <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={isRg003} gramaturas={config.produtoOptions.gramaturas} activeHour={isRg003 ? activeHour : ""} />
-        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
+        {!isRg003 ? <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} /> : null}
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
@@ -1349,7 +1402,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
         <MachineHourlySections
           title="RG - Processo"
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
@@ -1367,7 +1421,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "fotografico") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
         <PhotoHourlyGrid activeHour={isRg003 ? activeHour : ""} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={effectiveRegistro} />
