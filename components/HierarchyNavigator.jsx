@@ -403,13 +403,14 @@ function Rg003ProductionControl({ lineId, operatorId, operatorName, onOpenProces
   const [product, setProduct] = useState("Rosca Leite");
   const [now, setNow] = useState(() => new Date());
   const [ready, setReady] = useState(false);
+  const [syncState, setSyncState] = useState("checking");
   const [stopOpen, setStopOpen] = useState(false);
   const [stopMode, setStopMode] = useState("finish");
   const [nextProduct, setNextProduct] = useState("Rosca Chocolate");
 
   useEffect(() => {
     let active = true;
-    loadActiveRg003Cycle(lineId).then((result) => { if (!active) return; const saved = result.remote ? result.cycle : JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(saved); if (saved?.product) setProduct(saved.product); setReady(true); }).catch(() => { if (active) { try { setCycle(JSON.parse(window.localStorage.getItem(storageKey) ?? "null")); } catch { setCycle(null); } setReady(true); } });
+    loadActiveRg003Cycle(lineId).then((result) => { if (!active) return; const saved = result.remote ? result.cycle : JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(saved); if (saved?.product) setProduct(saved.product); setSyncState(result.remote ? "online" : "local"); setReady(true); }).catch(() => { if (active) { try { setCycle(JSON.parse(window.localStorage.getItem(storageKey) ?? "null")); } catch { setCycle(null); } setSyncState("error"); setReady(true); } });
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => { active = false; window.clearInterval(timer); };
   }, [lineId, storageKey]);
@@ -420,14 +421,16 @@ function Rg003ProductionControl({ lineId, operatorId, operatorName, onOpenProces
   async function prepare(reason = "Início de produção", selectedProduct = product) {
     const at = new Date().toISOString();
     let next = { id: `CICLO-${Date.now()}`, product: selectedProduct, previousProduct: cycle?.product ?? "", reason, status: "hygiene", startedAt: at, stageStartedAt: at, events: [localEvent("Preparação iniciada")] };
-    try { next = await startRg003Cycle({ lineId, product: selectedProduct, reason, operatorId }) ?? next; } catch { /* mantém fila local */ }
+    setSyncState("saving");
+    try { const remote = await startRg003Cycle({ lineId, product: selectedProduct, reason, operatorId }); if (remote) { next = remote; setSyncState("online"); } else { setSyncState("local"); } } catch { setSyncState("error"); }
     store(next);
   }
 
   async function transition(status, label, extra = {}) {
     const next = { ...cycle, ...extra, status, stageStartedAt: new Date().toISOString(), events: [...(cycle?.events ?? []), localEvent(label)] };
     store(next);
-    try { await persistCycleTransition({ cycle, status, description: label, operatorId, operatorName, activeAction: next.activeAction ?? null }); } catch { /* permanece salvo localmente */ }
+    setSyncState("saving");
+    try { const remote = await persistCycleTransition({ cycle, status, description: label, operatorId, operatorName, activeAction: next.activeAction ?? null }); setSyncState(remote ? "online" : "local"); } catch { setSyncState("error"); }
   }
 
   async function beginHourly(type, label, processId) {
@@ -452,8 +455,9 @@ function Rg003ProductionControl({ lineId, operatorId, operatorName, onOpenProces
   const releaseDone = cycle && ["ready", "producing", "blocked"].includes(cycle.status);
   const producing = cycle?.status === "producing";
   const statusText = !cycle ? "Aguardando preparação" : cycle.status === "hygiene" ? "Higienização pendente" : cycle.status === "awaiting_release" ? "Liberação pendente" : cycle.status === "ready" ? "Pronto para iniciar" : cycle.status === "blocked" ? "Produção bloqueada" : "Produção em andamento";
+  const syncText = syncState === "online" ? "Sincronizado com Supabase" : syncState === "saving" ? "Salvando no Supabase..." : syncState === "error" ? "Falha de sincronização" : syncState === "local" ? "Salvo somente neste tablet" : "Verificando conexão...";
 
-  return <div className="mx-auto max-w-6xl space-y-4"><section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase text-cicopal-blue">RG.QUA.BA.003 · Rosca</p><h2 className="mt-1 text-2xl font-bold text-gray-950">{cycle?.product ?? "Nova produção"}</h2><p className={`mt-2 text-sm font-bold ${producing ? "text-cicopal-green" : cycle?.status === "blocked" ? "text-cicopal-red" : "text-amber-700"}`}>{statusText}</p></div><div className="text-right"><p className="text-xs font-bold uppercase text-gray-400">Tempo de produção</p><p className="text-3xl font-bold tabular-nums text-gray-950">{formatElapsed(cycle?.productionStartedAt, now)}</p></div></div></section>
+  return <div className="mx-auto max-w-6xl space-y-4"><section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase text-cicopal-blue">RG.QUA.BA.003 · Rosca</p><h2 className="mt-1 text-2xl font-bold text-gray-950">{cycle?.product ?? "Nova produção"}</h2><p className={`mt-2 text-sm font-bold ${producing ? "text-cicopal-green" : cycle?.status === "blocked" ? "text-cicopal-red" : "text-amber-700"}`}>{statusText}</p><p className={`mt-2 inline-flex items-center gap-2 text-xs font-bold ${syncState === "online" ? "text-cicopal-green" : syncState === "error" ? "text-cicopal-red" : "text-gray-500"}`}><span className={`size-2 rounded-full ${syncState === "online" ? "bg-cicopal-green" : syncState === "saving" || syncState === "checking" ? "animate-pulse bg-amber-500" : syncState === "error" ? "bg-cicopal-red" : "bg-gray-400"}`} />{syncText}</p></div><div className="text-right"><p className="text-xs font-bold uppercase text-gray-400">Tempo de produção</p><p className="text-3xl font-bold tabular-nums text-gray-950">{formatElapsed(cycle?.productionStartedAt, now)}</p></div></div></section>
 
   {!cycle ? <section className="rounded-lg border border-gray-300 bg-white p-5"><p className="mb-4 text-sm font-semibold text-gray-600">Escolha o produto para criar a preparação. A produção ainda não será iniciada.</p><div className="grid gap-3 md:grid-cols-[1fr_280px]"><select className="min-h-16 rounded-md border-2 border-gray-300 bg-white px-4 text-lg font-bold" value={product} onChange={(event) => setProduct(event.target.value)}><option>Rosca Leite</option><option>Rosca Coco</option><option>Rosca Chocolate</option><option>Rosca Tradicional</option></select><button type="button" className="min-h-16 rounded-md bg-cicopal-blue px-5 text-lg font-bold text-white" onClick={() => prepare()}>Criar preparação</button></div></section> : <><section className="rounded-lg border border-gray-300 bg-white p-4"><p className="mb-3 text-xs font-bold uppercase text-gray-500">1 · Pré-requisitos</p><div className="grid gap-3 md:grid-cols-2"><button type="button" onClick={() => onOpenProcess("higienizacao")} className={`min-h-24 rounded-md border-2 p-4 text-left ${hygieneDone ? "border-green-300 bg-green-50 text-cicopal-green" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}><span className="block text-lg font-bold">{hygieneDone ? "✓ Higienização confirmada" : "Higienização"}</span><span className="mt-1 block text-sm font-semibold">{hygieneDone ? "Toque para visualizar" : "Obrigatória antes de iniciar"}</span></button><button type="button" disabled={!hygieneDone} onClick={() => onOpenProcess("produto_liberacao")} className={`min-h-24 rounded-md border-2 p-4 text-left ${releaseDone ? "border-green-300 bg-green-50 text-cicopal-green" : hygieneDone ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}><span className="block text-lg font-bold">{releaseDone ? "✓ Produto liberado" : "Liberação do produto"}</span><span className="mt-1 block text-sm font-semibold">{releaseDone ? "Toque para visualizar" : hygieneDone ? "Disponível para preenchimento" : "Aguardando higienização"}</span></button></div></section>
 
