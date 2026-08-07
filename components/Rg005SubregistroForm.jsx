@@ -1214,6 +1214,17 @@ function HigienizacaoContexto({ registro }) {
   );
 }
 
+function Rg003ProcessObjective({ registro }) {
+  const [cycle, setCycle] = useState(null);
+  useEffect(() => {
+    try { setCycle(JSON.parse(window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null")); } catch { setCycle(null); }
+  }, []);
+  const isChangeover = cycle?.reason === "Troca de produto" || Boolean(cycle?.previousProduct);
+  const currentProduct = cycle?.product ?? registro?.setupPara ?? registro?.produto ?? "Produto não informado";
+  const previousProduct = cycle?.previousProduct ?? registro?.setupDe ?? "";
+  return <section className="mb-4 rounded-md border border-gray-300 border-l-4 border-l-cicopal-blue bg-white p-4"><p className="text-xs font-bold uppercase text-gray-500">Objetivo do processo</p><h2 className="mt-1 text-xl font-bold text-gray-950">{isChangeover ? `Troca de ${previousProduct} para ${currentProduct}` : `Início de produção — ${currentProduct}`}</h2>{isChangeover ? <p className="mt-2 text-sm font-semibold text-gray-600">O produto anterior foi recuperado automaticamente do último ciclo de produção.</p> : null}</section>;
+}
+
 function ProdutoContexto({ registro, options }) {
   const produtoOptions = options ?? {};
 
@@ -1267,7 +1278,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "higienizacao") {
     return (
       <>
-        <HigienizacaoContexto registro={effectiveRegistro} />
+        {isRg003 ? <Rg003ProcessObjective registro={effectiveRegistro} /> : <HigienizacaoContexto registro={effectiveRegistro} />}
         <ChecklistTable
           documentName={`${documentName} - Higienizacao`}
           loteId={loteId}
@@ -1277,7 +1288,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           onSave={saveProcesso}
           stepByStep={documentName === "RG.QUA.BA.003"}
         />
-        <AssinaturasRegistro registro={effectiveRegistro} />
+        {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
   }
