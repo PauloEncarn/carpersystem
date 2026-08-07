@@ -1275,6 +1275,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           subregistro={subregistro}
           groups={config.checklistGroups}
           onSave={saveProcesso}
+          stepByStep={documentName === "RG.QUA.BA.003"}
         />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
