@@ -175,9 +175,9 @@ function CalendarDateButton({ day, tone, filledDate, hasNc, today, onClick, onDo
 }
 
 function Stepper({ currentStep, hideDates = false }) {
-  const visibleSteps = hideDates ? steps.filter((step) => step.id !== 2) : steps;
+  const visibleSteps = hideDates ? steps.filter((step) => ![2, 5].includes(step.id)) : steps;
   return (
-    <div className={`grid grid-cols-3 gap-2 ${hideDates ? "md:grid-cols-5" : "md:grid-cols-6"}`}>
+    <div className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-6"}`}>
       {visibleSteps.map((step) => {
         const active = step.id === currentStep;
         const done = step.id < currentStep;
@@ -259,7 +259,7 @@ function formatElapsed(startedAt, now) {
   return `${hoursValue}:${minutesValue}:${secondsValue}`;
 }
 
-function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen }) {
+function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen, onOpenProcess }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const historyKey = `carper_rg003_cycle_history_${lineId}`;
   const [now, setNow] = useState(() => new Date());
@@ -288,6 +288,10 @@ function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen }) 
   }
 
   function openProcess(processId) {
+    if (onOpenProcess) {
+      onOpenProcess(processId);
+      return;
+    }
     onSelect(processId);
     onOpen();
   }
@@ -731,7 +735,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
     (currentStep === 4 && Boolean(selected.subregistro));
 
   function goBack() {
-    onStepChange(hideDates && currentStep === 3 ? 1 : Math.max(1, currentStep - 1));
+    onStepChange(hideDates && currentStep === 3 ? 1 : hideDates && currentStep === 6 ? 4 : Math.max(1, currentStep - 1));
   }
 
   function goForward() {
@@ -806,6 +810,15 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
       ...selection,
       registroId: `${rgPrefix}-${selection.loteId}-${prefix}${nextNumber}`
     });
+    onStepChange(6);
+  }
+
+  function abrirRegistroTecnico(processoId) {
+    const processRecords = selected.lote?.registros.filter((registro) => registro.processoId === processoId) ?? [];
+    const prefix = processDisplayPrefixes[processoId] ?? "REG";
+    const nextNumber = String(processRecords.length + 1).padStart(2, "0");
+    const rgPrefix = getRgPrefix(selection.documentoId);
+    onSelectionChange({ ...selection, subregistroId: processoId, registroId: `${rgPrefix}-${selection.loteId}-${prefix}${nextNumber}` });
     onStepChange(6);
   }
 
@@ -972,7 +985,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             {selection.documentoId === "RG.QUA.BA.003" ? (
-              <Rg003CyclePanel lineId={selection.linhaId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
+              <Rg003CyclePanel lineId={selection.linhaId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} onOpenProcess={hideDates ? abrirRegistroTecnico : undefined} />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
@@ -1067,8 +1080,8 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
         >
           <ArrowLeft size={20} /> Voltar
         </button>
-        {currentStep === 5 ? (
-          <span className="text-sm font-bold text-gray-500">Abra um card ou crie um novo registro.</span>
+        {currentStep === 5 || (hideDates && currentStep === 4) ? (
+          <span className="text-sm font-bold text-gray-500">{hideDates ? "Use os botões do ciclo para iniciar o preenchimento." : "Abra um card ou crie um novo registro."}</span>
         ) : (
           <button
             type="button"
