@@ -611,6 +611,43 @@ function ProductEvaluationTabletFlow({ columns, machines, gramaturas, registro, 
   return <section className="rounded-lg border border-gray-300 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto · {activeHour}</p><h3 className="mt-1 text-2xl font-bold text-gray-950">Selecione o grupo</h3></div><button type="button" className="min-h-11 rounded-md border border-gray-300 bg-white px-4 font-bold" onClick={() => setConfigured(false)}>Alterar máquinas</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><button type="button" className={`min-h-24 rounded-md border-2 p-3 text-left ${generalResult ? "border-green-200 bg-green-50" : "border-cicopal-blue bg-blue-50"}`} onClick={() => setView("general")}><span className="block text-lg font-bold">Parâmetros gerais</span><span className="mt-1 block text-sm font-semibold">{generalResult ? "✓ Preenchido" : "Umidade, pH e temperatura"}</span></button>{activeMachines.map((machine, index) => <button key={machine.label} type="button" className={`min-h-24 rounded-md border-2 p-3 text-left ${machineResults[machine.label] ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"}`} onClick={() => setView(machine.label)}><span className="block text-lg font-bold">Máquina {index + 1}</span><span className="mt-1 block text-sm font-semibold">{machineGrams[machine.label]} · {machineResults[machine.label] ? "✓ Preenchida" : "Pendente"}</span></button>)}</div><button type="button" disabled={!generalResult || !allMachinesDone} className="mt-4 min-h-16 w-full rounded-md bg-cicopal-green text-lg font-bold text-white disabled:bg-gray-300" onClick={finishHour}>Confirmar avaliação completa de {activeHour}</button></section>;
 }
 
+function ProcessEvaluationTabletFlow({ machines, gramaturas, registro, activeHour, onSave }) {
+  const storageKey = `rg003-process-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
+  const [activeCount, setActiveCount] = useState("");
+  const [machineGrams, setMachineGrams] = useState({});
+  const [configured, setConfigured] = useState(false);
+  const [selectedMachine, setSelectedMachine] = useState("");
+  const [machineResults, setMachineResults] = useState({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+      if (saved?.quantidade) { setActiveCount(String(saved.quantidade)); setMachineGrams(saved.gramaturas ?? {}); setConfigured(true); }
+    } catch { /* configuração será solicitada novamente */ }
+  }, [storageKey]);
+  const activeMachines = machines.slice(0, Number(activeCount || 0));
+  const currentMachine = activeMachines.find((machine) => machine.label === selectedMachine);
+  const allGramsDefined = activeMachines.length > 0 && activeMachines.every((machine) => machineGrams[machine.label]);
+  const completedCount = activeMachines.filter((machine) => machineResults[machine.label]).length;
+  const allMachinesDone = activeMachines.length > 0 && completedCount === activeMachines.length;
+
+  function confirmSetup() {
+    if (!allGramsDefined) return;
+    window.localStorage.setItem(storageKey, JSON.stringify({ quantidade: Number(activeCount), gramaturas: machineGrams }));
+    setConfigured(true);
+  }
+  async function finishHour() {
+    const payloads = activeMachines.map((machine) => machineResults[machine.label]).filter(Boolean);
+    return onSave?.({
+      apontamentos: payloads.flatMap((payload) => payload.apontamentos ?? []),
+      ncs: payloads.flatMap((payload) => payload.ncs ?? []),
+      configuracaoMaquinas: { quantidade: Number(activeCount), gramaturas: machineGrams }
+    });
+  }
+  if (!configured) return <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm"><header className="bg-blue-50 p-5"><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Configuração inicial</p><h3 className="mt-1 text-2xl font-black text-gray-950">Máquinas deste processo</h3><p className="mt-1 text-sm font-semibold text-gray-600">Defina as máquinas uma única vez. A configuração será mantida nos próximos horários.</p></header><div className="p-5"><label className="block"><span className="mb-2 block font-black text-gray-800">Quantidade de máquinas em operação</span><select className="min-h-16 w-full rounded-xl border-2 border-blue-200 bg-white px-4 text-xl font-black" value={activeCount} onChange={(event) => { setActiveCount(event.target.value); setMachineGrams({}); }}><option value="">Selecionar quantidade</option>{machines.map((_, index) => <option key={index + 1} value={index + 1}>{index + 1} máquina(s)</option>)}</select></label>{activeMachines.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{activeMachines.map((machine, index) => <label key={machine.label} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><span className="mb-2 block font-black text-gray-900">Máquina {index + 1}</span><select className="min-h-14 w-full rounded-lg border border-gray-300 bg-white px-3 font-bold" value={machineGrams[machine.label] ?? ""} onChange={(event) => setMachineGrams((current) => ({ ...current, [machine.label]: event.target.value }))}><option value="">Selecionar gramatura</option>{gramaturas.map((item) => <option key={item}>{item}</option>)}</select></label>)}</div> : null}<button type="button" disabled={!allGramsDefined} className="mt-5 min-h-16 w-full rounded-xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300" onClick={confirmSetup}>Continuar para avaliação</button></div></section>;
+  if (currentMachine) return <div className="space-y-3"><button type="button" className="inline-flex min-h-12 items-center rounded-xl border border-gray-300 bg-white px-4 font-bold text-gray-700" onClick={() => setSelectedMachine("")}><ArrowLeft size={18} className="mr-2" />Voltar às máquinas</button><MachineEvaluationWizard title={`Avaliação do processo · Máquina ${activeMachines.indexOf(currentMachine) + 1} · ${machineGrams[currentMachine.label]}`} machines={[currentMachine]} activeHour={activeHour} onSave={(payload) => { setMachineResults((current) => ({ ...current, [currentMachine.label]: { ...payload, apontamentos: (payload.apontamentos ?? []).map((item) => ({ ...item, gramatura: machineGrams[currentMachine.label] })) } })); setSelectedMachine(""); }} /></div>;
+  return <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-5"><div><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Avaliação do processo · {activeHour}</p><h3 className="mt-1 text-2xl font-black text-gray-950">Máquinas em operação</h3><p className="mt-1 font-semibold text-gray-600">{completedCount} de {activeMachines.length} máquinas avaliadas</p></div><button type="button" className="min-h-11 rounded-xl border border-gray-300 bg-white px-4 font-bold" onClick={() => setConfigured(false)}>Alterar configuração</button></header><div className="grid gap-3 p-5 sm:grid-cols-2">{activeMachines.map((machine, index) => { const done = Boolean(machineResults[machine.label]); return <button key={machine.label} type="button" className={`min-h-28 rounded-xl border-2 p-4 text-left transition ${done ? "border-green-300 bg-green-50" : "border-gray-200 bg-gray-50 active:border-cicopal-blue"}`} onClick={() => setSelectedMachine(machine.label)}><span className="flex items-center justify-between"><strong className="text-xl text-gray-950">Máquina {index + 1}</strong><span className={`rounded-full px-3 py-1 text-xs font-black ${done ? "bg-green-100 text-cicopal-green" : "bg-amber-100 text-amber-800"}`}>{done ? "Concluída" : "Pendente"}</span></span><span className="mt-2 block font-bold text-cicopal-blue">{machineGrams[machine.label]}</span></button>; })}</div><footer className="border-t border-gray-200 p-5"><button type="button" disabled={!allMachinesDone} className="min-h-16 w-full rounded-xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300" onClick={finishHour}>Confirmar avaliação completa de {activeHour}</button><p className="mt-2 text-center text-xs font-semibold text-gray-500">O horário será gravado uma única vez com todas as máquinas.</p></footer></section>;
+}
+
 function NumericUnitInput({ unit }) {
   return (
     <div className="flex min-h-12 items-center overflow-hidden rounded-md border border-gray-300 bg-white">
@@ -1236,15 +1273,45 @@ function AssinaturasRegistro({ registro }) {
   );
 }
 
-function PhotoHourlyGrid({ activeHour = "" }) {
-  const [photos, setPhotos] = useState({});
+function PhotoHourlyGrid({ activeHour = "", onSave }) {
+  const [photo, setPhoto] = useState(null);
+  const [observation, setObservation] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  function updatePhoto(hour, file) {
+  async function updatePhoto(file) {
     if (!file) return;
-    setPhotos((current) => ({
-      ...current,
-      [hour]: file.name
-    }));
+    setProcessing(true);
+    try {
+      const imageUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+          const image = new Image();
+          image.onerror = reject;
+          image.onload = () => {
+            const maxSide = 1280;
+            const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.72));
+          };
+          image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      setPhoto({ name: file.name, type: "image/jpeg", data: imageUrl });
+    } finally { setProcessing(false); }
+  }
+
+  async function savePhoto() {
+    if (!photo || saving) return;
+    setSaving(true);
+    try {
+      await onSave?.({ apontamentos: [{ horario: activeHour, item: "Registro fotográfico", resultado: "Anexado", observacao: observation }], fotografias: [{ horario: activeHour, nome: photo.name, tipo: photo.type, imagem: photo.data, observacao: observation }] });
+    } finally { setSaving(false); }
   }
 
   return (
@@ -1256,20 +1323,19 @@ function PhotoHourlyGrid({ activeHour = "" }) {
           <p className="text-sm font-semibold text-gray-600">Registro visual do produto de hora em hora</p>
         </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        {(activeHour ? [activeHour] : hours).map((hour) => (
-          <article key={hour} className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <article className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-lg font-bold text-gray-950">{hour}</span>
+              <span className="p-3 text-lg font-bold text-gray-950">{activeHour}</span>
               <span
-                className={`rounded-md px-2 py-1 text-xs font-bold ${
-                  photos[hour] ? "bg-green-100 text-cicopal-green" : "bg-gray-100 text-gray-600"
+                className={`mr-3 rounded-full px-3 py-1 text-xs font-bold ${
+                  photo ? "bg-green-100 text-cicopal-green" : "bg-gray-100 text-gray-600"
                 }`}
               >
-                {photos[hour] ? "Foto anexada" : "Pendente"}
+                {photo ? "Foto pronta" : processing ? "Processando..." : "Pendente"}
               </span>
             </div>
-            <label className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 bg-gray-50 font-bold text-gray-600">
+            {photo ? <img src={photo.data} alt="Pré-visualização do registro" className="max-h-[420px] w-full bg-gray-100 object-contain" /> : <label className="m-3 flex min-h-52 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 font-black text-cicopal-blue">
               <Camera size={24} />
               Tirar foto
               <input
@@ -1277,26 +1343,29 @@ function PhotoHourlyGrid({ activeHour = "" }) {
                 accept="image/*"
                 capture="environment"
                 className="hidden"
-                onChange={(event) => updatePhoto(hour, event.target.files?.[0])}
+                onChange={(event) => updatePhoto(event.target.files?.[0])}
               />
-            </label>
-            <label className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-gray-300 bg-white font-bold text-gray-700">
+            </label>}
+            <label className="m-3 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-bold text-gray-700">
               <Upload size={20} />
-              Anexar arquivo
+              {photo ? "Trocar imagem" : "Anexar da galeria"}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(event) => updatePhoto(hour, event.target.files?.[0])}
+                onChange={(event) => updatePhoto(event.target.files?.[0])}
               />
             </label>
-            {photos[hour] ? <p className="mt-2 truncate text-xs font-semibold text-gray-500">{photos[hour]}</p> : null}
-            <label className="mt-3 block">
-              <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao</span>
-              <input className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold" />
-            </label>
           </article>
-        ))}
+          <aside className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-black uppercase tracking-wider text-gray-500">Detalhes do registro</p>
+            {photo ? <p className="mt-2 truncate text-sm font-bold text-gray-700">{photo.name}</p> : <p className="mt-2 text-sm font-semibold text-gray-500">Capture ou selecione uma imagem para continuar.</p>}
+            <label className="mt-4 block">
+              <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Observacao</span>
+              <textarea rows={4} value={observation} onChange={(event) => setObservation(event.target.value)} className="w-full rounded-xl border border-gray-300 p-3 font-semibold" placeholder="Opcional" />
+            </label>
+            <button type="button" disabled={!photo || processing || saving} onClick={savePhoto} className="mt-4 min-h-16 w-full rounded-xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300">{saving ? "Salvando imagem..." : `Salvar foto de ${activeHour}`}</button>
+          </aside>
       </div>
     </section>
   );
@@ -1530,7 +1599,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
-        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : isRg003 ? <ProductEvaluationTabletFlow key={activeHour} columns={config.avaliacaoProdutoColumns} machines={config.produtoMaquinas} gramaturas={config.produtoOptions.gramaturas} registro={effectiveRegistro} activeHour={activeHourLabel} onSave={saveProcesso} /> : <><ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} /><MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} /></>}
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : isRg003 ? <div className="space-y-4"><section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Controle hora a hora</p><div className="mt-1 flex flex-wrap items-end justify-between gap-2"><div><h2 className="text-2xl font-black text-gray-950">Avaliação do produto</h2><p className="mt-1 font-semibold text-gray-600">Preencha os parâmetros gerais e depois cada máquina ativa.</p></div><span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-cicopal-blue">Horário {activeHourLabel}</span></div></section><ProductEvaluationTabletFlow key={activeHour} columns={config.avaliacaoProdutoColumns} machines={config.produtoMaquinas} gramaturas={config.produtoOptions.gramaturas} registro={effectiveRegistro} activeHour={activeHourLabel} onSave={saveProcesso} /></div> : <><ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} /><MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} /></>}
         {!isRg003 ? <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} /> : null}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
@@ -1542,12 +1611,19 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
-        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <MachineHourlySections
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : isRg003 ? <ProcessEvaluationTabletFlow
+          key={activeHour}
+          machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
+          gramaturas={config.produtoOptions.gramaturas}
+          registro={effectiveRegistro}
+          activeHour={activeHourLabel}
+          onSave={saveProcesso}
+        /> : <MachineHourlySections
           title="RG - Processo"
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
           registro={effectiveRegistro}
           onSave={saveProcesso}
-          requireMachineSetup={isRg003}
+          requireMachineSetup={false}
           gramaturas={config.produtoOptions.gramaturas}
           activeHour={isRg003 ? activeHourLabel : ""}
         />}
@@ -1561,7 +1637,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
-        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <><PhotoHourlyGrid activeHour={isRg003 ? activeHourLabel : ""} /><SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso({ apontamentos: [{ horario: activeHourLabel, item: "Registro fotográfico", resultado: "Anexado" }] })} /></>}
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <PhotoHourlyGrid activeHour={isRg003 ? activeHourLabel : ""} onSave={saveProcesso} />}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
