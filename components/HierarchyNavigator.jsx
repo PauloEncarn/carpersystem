@@ -411,7 +411,7 @@ function Rg003ProductionControl({ lineId, dateId, operatorId, operatorName, onOp
 
   useEffect(() => {
     let active = true;
-    loadActiveRg003Cycle(lineId).then((result) => { if (!active) return; const saved = result.remote ? result.cycle : JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(saved); if (saved?.product) setProduct(saved.product); setSyncState(result.remote ? "online" : "local"); setReady(true); }).catch(() => { if (active) { try { setCycle(JSON.parse(window.localStorage.getItem(storageKey) ?? "null")); } catch { setCycle(null); } setSyncState("error"); setReady(true); } });
+    loadActiveRg003Cycle(lineId).then((result) => { if (!active) return; const saved = result.remote ? result.cycle : JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); store(saved); if (saved?.product) setProduct(saved.product); setSyncState(result.remote ? "online" : "local"); setReady(true); }).catch(() => { if (active) { try { setCycle(JSON.parse(window.localStorage.getItem(storageKey) ?? "null")); } catch { setCycle(null); } setSyncState("error"); setReady(true); } });
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => { active = false; window.clearInterval(timer); };
   }, [lineId, storageKey]);
@@ -848,6 +848,17 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   const [activeTab, setActiveTab] = useState("liberacoes");
   const [previewRegistro, setPreviewRegistro] = useState(null);
   const [selectedNc, setSelectedNc] = useState(null);
+  const [rg003CycleStatus, setRg003CycleStatus] = useState("");
+
+  useEffect(() => {
+    function syncCycleStatus(event) {
+      if (event?.detail !== undefined) { setRg003CycleStatus(event.detail?.status ?? ""); return; }
+      try { setRg003CycleStatus(JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.status ?? ""); } catch { setRg003CycleStatus(""); }
+    }
+    syncCycleStatus();
+    window.addEventListener("rg003-cycle-updated", syncCycleStatus);
+    return () => window.removeEventListener("rg003-cycle-updated", syncCycleStatus);
+  }, [selection.linhaId]);
 
   const datesById = useMemo(() => {
     return new Map(selected.linha?.datas.map((data) => [data.id, data]) ?? []);
@@ -887,7 +898,23 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
     (currentStep === 3 && Boolean(selected.documento)) ||
     (currentStep === 4 && Boolean(selected.subregistro));
 
-  function goBack() {
+  async function goBack() {
+    if (currentStep === 4 && selection.documentoId === "RG.QUA.BA.003") {
+      let activeCycle = null;
+      try { activeCycle = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null"); } catch { activeCycle = null; }
+      if (activeCycle?.status === "producing") return;
+      if (activeCycle) {
+        try {
+          await persistCycleTransition({ cycle: activeCycle, status: "ended", description: "Preparação cancelada ao voltar para os produtos", operatorId, operatorName, activeAction: null });
+          window.localStorage.removeItem(`carper_rg003_cycle_${selection.linhaId}`);
+          window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: null }));
+          return;
+        } catch {
+          setRg003CycleStatus("sync_error");
+          return;
+        }
+      }
+    }
     onStepChange(hideDates && currentStep === 3 ? 1 : hideDates && currentStep === 6 ? 4 : Math.max(1, currentStep - 1));
   }
 
@@ -991,6 +1018,12 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
       onStepChange(6);
     }
   }
+
+  useEffect(() => {
+    if (currentStep !== 5 || selection.documentoId !== "RG.QUA.BA.003") return;
+    if (selection.subregistroId) abrirRegistroTecnico(selection.subregistroId);
+    else onStepChange(4);
+  }, [currentStep, selection.documentoId, selection.subregistroId]);
 
   return (
     <section className="audit-card p-4">
@@ -1174,7 +1207,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
           </>
         ) : null}
 
-        {currentStep === 5 ? (
+        {currentStep === 5 && selection.documentoId !== "RG.QUA.BA.003" ? (
           <>
             <StageHeader
               title={`Registros de ${selected.subregistro?.nome ?? "processo"}`}
@@ -1240,9 +1273,9 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
           type="button"
           className="inline-flex min-h-16 min-w-40 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-lg font-bold text-gray-700 disabled:opacity-40"
           onClick={goBack}
-          disabled={currentStep === 1}
+          disabled={currentStep === 1 || (currentStep === 4 && selection.documentoId === "RG.QUA.BA.003" && rg003CycleStatus === "producing")}
         >
-          <ArrowLeft size={20} /> Voltar
+          <ArrowLeft size={20} /> {currentStep === 4 && selection.documentoId === "RG.QUA.BA.003" && rg003CycleStatus === "producing" ? "Produção em andamento" : "Voltar"}
         </button>
         {currentStep === 5 || (hideDates && currentStep === 4) ? (
           <span className="text-sm font-bold text-gray-500">{hideDates ? "Use os botões do ciclo para iniciar o preenchimento." : "Abra um card ou crie um novo registro."}</span>
