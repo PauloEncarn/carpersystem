@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
 import { loadRg003Record, persistCycleTransition } from "@/lib/rg003Persistence";
