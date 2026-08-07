@@ -1147,15 +1147,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                 dateId={selection.dataId}
                 operatorId={operatorId}
                 operatorName={operatorName}
-                onOpenProcess={(processId) => {
-                  if (hideDates) {
-                    abrirRegistroTecnico(processId);
-                    return;
-                  }
-
-                  selectProcesso(processId);
-                  onStepChange(5);
-                }}
+                onOpenProcess={abrirRegistroTecnico}
               />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {

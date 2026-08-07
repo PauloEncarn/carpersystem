@@ -181,10 +181,13 @@ export default function HomePage() {
       try {
         const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: activeCycle?.productionCode ?? selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: cycleRegistro, subregistro: snapshot.subregistro, cycleId: activeCycleRef, cycleStartedAt: activeCycle?.startedAt, productionCode: activeCycle?.productionCode });
         setDatabaseStatus(result.remote ? "saved" : "local");
+        return true;
       } catch (error) {
         setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
+        return false;
       }
     }
+    return true;
   }
 
   if (!sessionReady) {

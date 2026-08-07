@@ -456,10 +456,11 @@ function TabletHourNavigator({ activeHour, onChange, allowedHours = hours, compl
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30_000); return () => window.clearInterval(timer); }, []);
   const activeIndex = Math.max(0, entries.findIndex((entry) => entry.value === activeHour));
-  const missing = entries.filter((entry) => !completedHours.includes(entry.value)).length;
+  const activeEntry = entries[activeIndex];
+  const missing = entries.filter((entry) => !entry.locked && !completedHours.includes(entry.value)).length;
   const nextHour = new Date(now); nextHour.setHours(now.getHours() + 1, 0, 0, 0);
   const minutesToNext = Math.max(0, Math.ceil((nextHour.getTime() - now.getTime()) / 60_000));
-  return <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">Horário em preenchimento</p><p className="text-2xl font-bold tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex gap-2"><button type="button" disabled={activeIndex === 0} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex - 1].value)}>Anterior</button><button type="button" disabled={activeIndex >= entries.length - 1} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex + 1].value)}>Próximo</button></div></div><div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1">{entries.map((entry) => <button key={entry.key} type="button" className={`min-h-12 min-w-24 rounded-md border px-3 text-sm font-bold ${entry.value === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : completedHours.includes(entry.value) ? "border-green-200 bg-green-50 text-cicopal-green" : "border-amber-200 bg-amber-50 text-amber-800"}`} onClick={() => onChange(entry.value)}>{entry.label}</button>)}</div><div className={`mt-3 flex flex-wrap justify-between gap-2 border-t pt-3 text-sm font-bold ${missing ? "text-amber-800" : "text-cicopal-green"}`}><span>{missing ? `${missing} horário(s) pendente(s)` : "Todos os horários preenchidos"}</span><span>Próximo controle em {minutesToNext} min</span></div></section>;
+  return <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">Horário selecionado</p><p className="text-2xl font-bold tabular-nums text-cicopal-blue">{activeEntry?.hour ?? activeHour}</p><p className="text-xs font-semibold text-gray-500">{activeEntry?.label}</p></div><div className="flex gap-2"><button type="button" disabled={activeIndex === 0} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex - 1].value)}>← Anterior</button><button type="button" disabled={activeIndex >= entries.length - 1 || entries[activeIndex + 1]?.locked} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex + 1].value)}>Próximo →</button></div></div><div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-2">{entries.map((entry, index) => { const completed = completedHours.includes(entry.value); const relation = index < activeIndex ? "Anterior" : index === activeIndex ? "Atual" : "Próximo"; return <button key={entry.key} type="button" disabled={entry.locked} className={`min-h-16 min-w-32 rounded-md border px-3 py-2 text-left text-sm font-bold ${entry.value === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : completed ? "border-green-200 bg-green-50 text-cicopal-green" : entry.locked ? "border-gray-200 bg-gray-100 text-gray-400" : "border-amber-200 bg-amber-50 text-amber-800"}`} onClick={() => onChange(entry.value)}><span className="block text-[10px] uppercase opacity-70">{relation}</span><span className="block">{entry.label}</span><span className="mt-1 block text-[10px] uppercase">{completed ? "Preenchido" : entry.locked ? "Ainda não liberado" : "Pendente"}</span></button>; })}</div><div className={`mt-2 flex flex-wrap justify-between gap-2 border-t pt-3 text-sm font-bold ${missing ? "text-amber-800" : "text-cicopal-green"}`}><span>{missing ? `${missing} horário(s) pendente(s)` : "Todos os horários preenchidos"}</span><span>Próximo controle em {minutesToNext} min</span></div></section>;
 }
 
 function TabletProductMetrics({ columns, activeHour, onSave }) {
@@ -504,21 +505,55 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
 function MachineHourlySections({ title, machines = [], registro, onSave, requireMachineSetup = false, gramaturas = [], activeHour = "" }) {
   const [activeCount, setActiveCount] = useState(requireMachineSetup ? "" : String(machines.length));
   const [machineGrams, setMachineGrams] = useState({});
+  const [setupComplete, setSetupComplete] = useState(!requireMachineSetup);
+  const [selectedMachine, setSelectedMachine] = useState("");
+  const setupStorageKey = `rg003-machine-setup-${registro?.id ?? title}`;
+  useEffect(() => {
+    if (!requireMachineSetup) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(setupStorageKey) ?? "null");
+      if (saved?.quantidade) { setActiveCount(String(saved.quantidade)); setMachineGrams(saved.gramaturas ?? {}); setSetupComplete(true); }
+    } catch { /* solicita configuração novamente */ }
+  }, [requireMachineSetup, setupStorageKey]);
+  useEffect(() => {
+    if (!requireMachineSetup || !setupComplete || !activeCount) return;
+    window.localStorage.setItem(setupStorageKey, JSON.stringify({ quantidade: Number(activeCount), gramaturas: machineGrams }));
+  }, [activeCount, machineGrams, requireMachineSetup, setupComplete, setupStorageKey]);
   if (!machines.length) return null;
   const activeMachines = machines.slice(0, Number(activeCount || 0));
+  const allGramsDefined = activeMachines.length > 0 && activeMachines.every((machine) => machineGrams[machine.label]);
+  const currentMachine = activeMachines.find((machine) => machine.label === selectedMachine);
+
+  function changeCount(value) {
+    setActiveCount(value);
+    setMachineGrams((current) => Object.fromEntries(Object.entries(current).filter(([label]) => machines.slice(0, Number(value || 0)).some((machine) => machine.label === label))));
+    setSetupComplete(false);
+    setSelectedMachine("");
+  }
+
+  function saveMachine(payload) {
+    return onSave?.({
+      ...payload,
+      apontamentos: (payload.apontamentos ?? []).map((item) => ({ ...item, gramatura: machineGrams[item.maquina] ?? "" })),
+      configuracaoMaquinas: { quantidade: Number(activeCount), gramaturas: machineGrams }
+    });
+  }
 
   return (
     <div className="space-y-4">
-      {requireMachineSetup ? (
+      {requireMachineSetup && !setupComplete ? (
         <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+          <div className="mb-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Configuração da produção</p><h3 className="mt-1 text-xl font-bold text-gray-950">Máquinas em operação</h3><p className="mt-1 text-sm font-semibold text-gray-600">Esta etapa deve ser concluída antes de abrir os horários de cada máquina.</p></div>
           <div className="grid gap-4 md:grid-cols-[250px_1fr]">
-            <label><span className="mb-2 block text-sm font-black text-gray-900">Quantas máquinas estão rodando?</span><select className="min-h-12 w-full rounded-xl border border-blue-200 bg-white px-3 font-bold" value={activeCount} onChange={(event) => setActiveCount(event.target.value)}><option value="">Selecione</option>{machines.map((_, index) => <option key={index + 1} value={index + 1}>{index + 1} máquina(s)</option>)}</select></label>
+            <label><span className="mb-2 block text-sm font-black text-gray-900">Quantas máquinas estão rodando?</span><select className="min-h-14 w-full rounded-xl border border-blue-200 bg-white px-3 text-lg font-bold" value={activeCount} onChange={(event) => changeCount(event.target.value)}><option value="">Selecione</option>{machines.map((_, index) => <option key={index + 1} value={index + 1}>{index + 1} máquina(s)</option>)}</select></label>
             <div><span className="mb-2 block text-sm font-black text-gray-900">Gramatura de cada máquina</span><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{activeMachines.map((machine) => <label key={machine.label} className="rounded-xl border border-blue-100 bg-white p-2"><span className="mb-1 block text-xs font-bold text-gray-600">{machine.label}</span><select className="min-h-10 w-full rounded-lg border border-gray-200 px-2 font-bold" value={machineGrams[machine.label] ?? ""} onChange={(event) => setMachineGrams((current) => ({ ...current, [machine.label]: event.target.value }))}><option value="">Selecione</option>{gramaturas.map((value) => <option key={value}>{value}</option>)}</select></label>)}</div></div>
           </div>
           {!activeCount ? <p className="mt-3 text-sm font-bold text-cicopal-blue">Informe as máquinas ativas para abrir o preenchimento.</p> : null}
+          <button type="button" disabled={!allGramsDefined} className="mt-4 min-h-14 w-full rounded-md bg-cicopal-blue px-5 text-lg font-bold text-white disabled:bg-gray-300" onClick={() => setSetupComplete(true)}>Confirmar máquinas e gramaturas</button>
         </section>
       ) : null}
-      {activeHour && requireMachineSetup && activeMachines.length ? <MachineEvaluationWizard title={title} machines={activeMachines} activeHour={activeHour} onSave={onSave} /> : activeMachines.map((machine) => (
+      {requireMachineSetup && setupComplete && !currentMachine ? <section className="rounded-lg border border-gray-300 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">{title}</p><h3 className="mt-1 text-xl font-bold text-gray-950">Escolha a máquina</h3></div><button type="button" className="min-h-11 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700" onClick={() => setSetupComplete(false)}>Alterar configuração</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{activeMachines.map((machine, index) => <button key={machine.label} type="button" className="min-h-24 rounded-md border-2 border-gray-200 bg-gray-50 p-3 text-left hover:border-cicopal-blue hover:bg-blue-50" onClick={() => setSelectedMachine(machine.label)}><span className="block text-lg font-bold text-gray-950">Máquina {index + 1}</span><span className="mt-1 block text-sm font-semibold text-cicopal-blue">{machineGrams[machine.label]}</span><span className="mt-2 block text-xs font-bold text-gray-500">Abrir horários →</span></button>)}</div></section> : null}
+      {activeHour && requireMachineSetup && currentMachine ? <><button type="button" className="min-h-12 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700" onClick={() => setSelectedMachine("")}><ArrowLeft size={18} className="mr-2 inline" />Voltar às máquinas</button><MachineEvaluationWizard title={`${title} · ${currentMachine.label} · ${machineGrams[currentMachine.label]}`} machines={[currentMachine]} activeHour={activeHour} onSave={saveMachine} /></> : !requireMachineSetup ? activeMachines.map((machine) => (
         <HourlyTable
           key={machine.label}
           title={`${title} - ${machine.label}`}
@@ -528,9 +563,52 @@ function MachineHourlySections({ title, machines = [], registro, onSave, require
           onSave={onSave}
           activeHour={activeHour}
         />
-      ))}
+      )) : null}
     </div>
   );
+}
+
+function ProductEvaluationTabletFlow({ columns, machines, gramaturas, registro, activeHour, onSave }) {
+  const storageKey = `rg003-product-machines-${registro?.id ?? "current"}`;
+  const [activeCount, setActiveCount] = useState("");
+  const [machineGrams, setMachineGrams] = useState({});
+  const [configured, setConfigured] = useState(false);
+  const [view, setView] = useState("menu");
+  const [generalResult, setGeneralResult] = useState(null);
+  const [machineResults, setMachineResults] = useState({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+      if (saved?.quantidade) { setActiveCount(String(saved.quantidade)); setMachineGrams(saved.gramaturas ?? {}); setConfigured(true); }
+    } catch { /* inicia uma configuração limpa */ }
+  }, [storageKey]);
+  const activeMachines = machines.slice(0, Number(activeCount || 0));
+  const allGramsDefined = activeMachines.length > 0 && activeMachines.every((machine) => machineGrams[machine.label]);
+  const selectedMachine = activeMachines.find((machine) => machine.label === view);
+  const allMachinesDone = activeMachines.length > 0 && activeMachines.every((machine) => machineResults[machine.label]);
+
+  function confirmSetup() {
+    if (!allGramsDefined) return;
+    window.localStorage.setItem(storageKey, JSON.stringify({ quantidade: Number(activeCount), gramaturas: machineGrams }));
+    setConfigured(true);
+    setView("menu");
+  }
+
+  function finishHour() {
+    const machinePayloads = Object.values(machineResults);
+    return onSave?.({
+      apontamentos: [...(generalResult?.apontamentos ?? []), ...machinePayloads.flatMap((item) => item.apontamentos ?? [])],
+      ncs: [...(generalResult?.ncs ?? []), ...machinePayloads.flatMap((item) => item.ncs ?? [])],
+      configuracaoMaquinas: { quantidade: Number(activeCount), gramaturas: machineGrams }
+    });
+  }
+
+  if (!configured) return <section className="rounded-lg border border-blue-200 bg-blue-50 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Etapa 1 de 2</p><h3 className="mt-1 text-2xl font-bold text-gray-950">Configurar máquinas</h3><p className="mt-1 text-sm font-semibold text-gray-600">Informe primeiro quantas máquinas estão produzindo e a gramatura de cada uma.</p><label className="mt-4 block"><span className="mb-2 block font-bold text-gray-800">Quantidade de máquinas</span><select className="min-h-16 w-full rounded-md border-2 border-blue-200 bg-white px-4 text-xl font-bold" value={activeCount} onChange={(event) => { setActiveCount(event.target.value); setMachineGrams({}); }}><option value="">Selecionar</option>{machines.map((_, index) => <option key={index + 1} value={index + 1}>{index + 1} máquina(s)</option>)}</select></label>{activeMachines.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{activeMachines.map((machine, index) => <label key={machine.label} className="rounded-md border border-gray-200 bg-white p-3"><span className="mb-2 block font-bold text-gray-800">Máquina {index + 1}</span><select className="min-h-14 w-full rounded-md border border-gray-300 bg-white px-3 font-bold" value={machineGrams[machine.label] ?? ""} onChange={(event) => setMachineGrams((current) => ({ ...current, [machine.label]: event.target.value }))}><option value="">Gramatura</option>{gramaturas.map((item) => <option key={item}>{item}</option>)}</select></label>)}</div> : null}<button type="button" disabled={!allGramsDefined} className="mt-4 min-h-16 w-full rounded-md bg-cicopal-blue text-lg font-bold text-white disabled:bg-gray-300" onClick={confirmSetup}>Confirmar configuração</button></section>;
+
+  if (view === "general") return <div className="space-y-3"><button type="button" className="min-h-12 rounded-md border border-gray-300 bg-white px-4 font-bold" onClick={() => setView("menu")}><ArrowLeft size={18} className="mr-2 inline" />Voltar ao menu</button><TabletProductMetrics columns={columns} activeHour={activeHour} onSave={(payload) => { setGeneralResult(payload); setView("menu"); }} /></div>;
+  if (selectedMachine) return <div className="space-y-3"><button type="button" className="min-h-12 rounded-md border border-gray-300 bg-white px-4 font-bold" onClick={() => setView("menu")}><ArrowLeft size={18} className="mr-2 inline" />Voltar às máquinas</button><MachineEvaluationWizard title={`Avaliação do produto · ${selectedMachine.label} · ${machineGrams[selectedMachine.label]}`} machines={[selectedMachine]} activeHour={activeHour} onSave={(payload) => { setMachineResults((current) => ({ ...current, [selectedMachine.label]: { ...payload, apontamentos: (payload.apontamentos ?? []).map((item) => ({ ...item, gramatura: machineGrams[selectedMachine.label] })) } })); setView("menu"); }} /></div>;
+
+  return <section className="rounded-lg border border-gray-300 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto · {activeHour}</p><h3 className="mt-1 text-2xl font-bold text-gray-950">Selecione o grupo</h3></div><button type="button" className="min-h-11 rounded-md border border-gray-300 bg-white px-4 font-bold" onClick={() => setConfigured(false)}>Alterar máquinas</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><button type="button" className={`min-h-24 rounded-md border-2 p-3 text-left ${generalResult ? "border-green-200 bg-green-50" : "border-cicopal-blue bg-blue-50"}`} onClick={() => setView("general")}><span className="block text-lg font-bold">Parâmetros gerais</span><span className="mt-1 block text-sm font-semibold">{generalResult ? "✓ Preenchido" : "Umidade, pH e temperatura"}</span></button>{activeMachines.map((machine, index) => <button key={machine.label} type="button" className={`min-h-24 rounded-md border-2 p-3 text-left ${machineResults[machine.label] ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"}`} onClick={() => setView(machine.label)}><span className="block text-lg font-bold">Máquina {index + 1}</span><span className="mt-1 block text-sm font-semibold">{machineGrams[machine.label]} · {machineResults[machine.label] ? "✓ Preenchida" : "Pendente"}</span></button>)}</div><button type="button" disabled={!generalResult || !allMachinesDone} className="mt-4 min-h-16 w-full rounded-md bg-cicopal-green text-lg font-bold text-white disabled:bg-gray-300" onClick={finishHour}>Confirmar avaliação completa de {activeHour}</button></section>;
 }
 
 function NumericUnitInput({ unit }) {
@@ -1288,21 +1366,22 @@ function PersistedRg003Summary({ data, onEdit }) {
 }
 
 function buildAllowedCycleHours(cycle) {
-  if (!cycle?.startedAt) return [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
+  if (!cycle?.startedAt) return [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), hour: getCurrentHourSlot(), label: getCurrentHourSlot() }];
   const eventTimes = (cycle.events ?? []).map((item) => new Date(item.at).getTime()).filter(Number.isFinite);
   const latestReference = eventTimes.length ? Math.max(...eventTimes) : new Date(cycle.startedAt).getTime();
   const cycleStart = new Date(cycle.startedAt).getTime();
-  const cycleEnd = cycle.endedAt ? new Date(cycle.endedAt).getTime() : Date.now();
+  const cycleEnd = cycle.endedAt ? new Date(cycle.endedAt).getTime() : Date.now() + 3_600_000;
   const start = new Date(Math.max(cycleStart, latestReference - 72 * 3_600_000));
   start.setMinutes(0, 0, 0);
-  const end = new Date(Math.min(cycleEnd, latestReference + 72 * 3_600_000, Date.now()));
+  const end = new Date(Math.min(cycleEnd, latestReference + 72 * 3_600_000, Date.now() + 3_600_000));
   end.setMinutes(0, 0, 0);
   const result = [];
   for (let cursor = new Date(start); cursor <= end && result.length < 145; cursor = new Date(cursor.getTime() + 3_600_000)) {
     const value = `${String(cursor.getHours()).padStart(2, "0")}:00`;
-    result.push({ key: cursor.toISOString(), value, label: cursor.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "") + ` · ${value}` });
+    const slot = cursor.toISOString();
+    result.push({ key: slot, value: slot, hour: value, label: cursor.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "") + ` · ${value}`, locked: cursor.getTime() > Date.now() });
   }
-  return result.length ? result : [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
+  return result.length ? result : [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), hour: getCurrentHourSlot(), label: getCurrentHourSlot() }];
 }
 
 export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, loggedUser, onSave }) {
@@ -1329,11 +1408,23 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     loadRg003Record(registro.id).then((data) => { if (active) { setPersistedRecord(data); setEditMode(false); } }).catch(() => { if (active) setPersistedRecord(null); });
     return () => { active = false; };
   }, [isRg003, registro?.id]);
+  useEffect(() => { setEditMode(false); }, [activeHour, subregistro?.id]);
+  const allowedHours = buildAllowedCycleHours(cycleContext);
+  useEffect(() => {
+    if (!isRg003 || !allowedHours.length || allowedHours.some((entry) => entry.value === activeHour)) return;
+    const latestAvailable = [...allowedHours].reverse().find((entry) => !entry.locked) ?? allowedHours[0];
+    setActiveHour(latestAvailable.value);
+  }, [activeHour, allowedHours, isRg003]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
-  const allowedHours = buildAllowedCycleHours(cycleContext);
-  const completedHours = [...(subregistro?.apontamentos ?? []), ...(subregistro?.avaliacoes ?? [])].map((item) => item.horario).filter(Boolean);
-  if (isRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => setEditMode(true)} />;
+  const isHourlyRg003 = isRg003 && ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
+  const persistedFillings = persistedRecord?.fillings ?? [];
+  const fillingHour = (item) => item.subregistro?.apontamentos?.[0]?.horario ?? item.subregistro?.avaliacoes?.[0]?.horario ?? "";
+  const activeHourLabel = allowedHours.find((entry) => entry.value === activeHour)?.hour ?? activeHour;
+  const fillingSlot = (item) => item.subregistro?._slotKey ?? fillingHour(item);
+  const completedHours = [...new Set([...persistedFillings.map(fillingSlot), ...[...(subregistro?.apontamentos ?? []), ...(subregistro?.avaliacoes ?? [])].map((item) => item._slotKey ?? item.horario)].filter(Boolean))];
+  const activePersisted = isHourlyRg003 ? [...persistedFillings].reverse().find((item) => fillingSlot(item) === activeHour || (!item.subregistro?._slotKey && fillingHour(item) === activeHourLabel)) : persistedRecord;
+  if (isRg003 && !isHourlyRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => setEditMode(true)} />;
   const effectiveRegistro = {
     ...registro,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
@@ -1345,7 +1436,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   async function saveProcesso(payload = {}) {
     if (isRg003 && subregistro.id === "higienizacao" && !window.confirm("Deseja confirmar a higienização?")) return false;
     if (isRg003 && subregistro.id === "produto_liberacao" && !window.confirm("Deseja liberar o produto?")) return false;
-    onSave?.({
+    const saveResult = await onSave?.({
       registro: {
         ...effectiveRegistro,
         status: "Gravado",
@@ -1354,10 +1445,12 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       subregistro: {
         ...subregistro,
         ...payload,
-        ...(persistedRecord && editMode ? { _persistence: { id: persistedRecord.fillingId, version: persistedRecord.version } } : {}),
+        ...(isHourlyRg003 ? { _slotKey: activeHour } : {}),
+        ...(activePersisted && editMode ? { _persistence: { id: activePersisted.fillingId, version: activePersisted.version } } : {}),
         status: payload.ncs?.length ? "Com NC" : "Gravado"
       }
     });
+    if (saveResult === false) return false;
     if (isRg003 && subregistro.id === "higienizacao" && !(payload.ncs ?? []).length) {
       try {
         const storageKey = "carper_rg003_cycle_ROS";
@@ -1425,9 +1518,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
-        {isRg003 ? <TabletRelease columns={config.liberacaoProdutoColumns} activeHour={activeHour} registro={effectiveRegistro} onSave={saveProcesso} /> : <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />}
+        {isRg003 ? <TabletRelease columns={config.liberacaoProdutoColumns} activeHour="Pré-produção" registro={effectiveRegistro} onSave={saveProcesso} /> : <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
@@ -1438,8 +1530,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
-        {isRg003 ? <TabletProductMetrics columns={config.avaliacaoProdutoColumns} activeHour={activeHour} onSave={saveProcesso} /> : <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />}
-        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={isRg003} gramaturas={config.produtoOptions.gramaturas} activeHour={isRg003 ? activeHour : ""} />
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : isRg003 ? <ProductEvaluationTabletFlow key={activeHour} columns={config.avaliacaoProdutoColumns} machines={config.produtoMaquinas} gramaturas={config.produtoOptions.gramaturas} registro={effectiveRegistro} activeHour={activeHourLabel} onSave={saveProcesso} /> : <><ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} /><MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} /></>}
         {!isRg003 ? <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} /> : null}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
@@ -1451,15 +1542,15 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
-        <MachineHourlySections
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <MachineHourlySections
           title="RG - Processo"
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
           registro={effectiveRegistro}
           onSave={saveProcesso}
           requireMachineSetup={isRg003}
           gramaturas={config.produtoOptions.gramaturas}
-          activeHour={isRg003 ? activeHour : ""}
-        />
+          activeHour={isRg003 ? activeHourLabel : ""}
+        />}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
@@ -1470,8 +1561,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
-        <PhotoHourlyGrid activeHour={isRg003 ? activeHour : ""} />
-        <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <><PhotoHourlyGrid activeHour={isRg003 ? activeHourLabel : ""} /><SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso({ apontamentos: [{ horario: activeHourLabel, item: "Registro fotográfico", resultado: "Anexado" }] })} /></>}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
