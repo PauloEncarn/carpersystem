@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { checklistGroups, generateLoteId } from "@/lib/checklist";
 import { formatDateLabel, rgCatalog } from "@/lib/rastreabilidade";
+import { loadActiveRg003Cycle, persistCycleNc, persistCycleTransition, startRg003Cycle } from "@/lib/rg003Persistence";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -259,7 +260,7 @@ function formatElapsed(startedAt, now) {
   return `${hoursValue}:${minutesValue}:${secondsValue}`;
 }
 
-function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen, onOpenProcess }) {
+function Rg003CyclePanel({ lineId, operatorId, operatorName, processos, onSelect, onOpen, onOpenProcess }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const historyKey = `carper_rg003_cycle_history_${lineId}`;
   const [now, setNow] = useState(() => new Date());
@@ -269,13 +270,34 @@ function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen, on
   const [ready, setReady] = useState(false);
   const [ncOpen, setNcOpen] = useState(false);
   const [ncData, setNcData] = useState({ quantidade: "", descricao: "", causa: "", acao: "" });
+  const [syncState, setSyncState] = useState("loading");
 
   useEffect(() => {
-    try { const savedCycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(savedCycle); if (savedCycle?.product) setProduct(savedCycle.product); setCycleHistory(JSON.parse(window.localStorage.getItem(historyKey) ?? "[]")); } catch { setCycle(null); setCycleHistory([]); }
-    setReady(true);
+    let active = true;
+    async function loadCycle() {
+      try {
+        const result = await loadActiveRg003Cycle(lineId);
+        if (!active) return;
+        if (result.remote) {
+          setCycle(result.cycle);
+          if (result.cycle?.product) setProduct(result.cycle.product);
+          setSyncState("online");
+        } else {
+          const savedCycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+          setCycle(savedCycle);
+          if (savedCycle?.product) setProduct(savedCycle.product);
+          setSyncState("local");
+        }
+        setCycleHistory(JSON.parse(window.localStorage.getItem(historyKey) ?? "[]"));
+      } catch {
+        const savedCycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+        if (active) { setCycle(savedCycle); setSyncState("error"); }
+      } finally { if (active) setReady(true); }
+    }
+    loadCycle();
     const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, [storageKey]);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [historyKey, lineId, storageKey]);
 
   useEffect(() => {
     if (!ready) return;
@@ -298,18 +320,20 @@ function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen, on
     onOpen();
   }
 
-  function startCycle(reason = "Início de produção") {
+  async function startCycle(reason = "Início de produção") {
     const at = new Date().toISOString();
     const previousProduct = cycle?.product ?? "";
     if (cycle) setCycleHistory((current) => [...current, { ...cycle, endedAt: at, events: [...(cycle.events ?? []), event("Ciclo encerrado por troca de produto", { nextProduct: product })] }]);
-    const next = { id: `CICLO-${Date.now()}`, product, previousProduct, reason, startedAt: at, stageStartedAt: at, status: "hygiene", activeAction: null, events: [event("Higienização iniciada", { reason, previousProduct, product })] };
+    let next = { id: `CICLO-${Date.now()}`, product, previousProduct, reason, startedAt: at, stageStartedAt: at, status: "hygiene", activeAction: null, events: [event("Higienização iniciada", { reason, previousProduct, product })] };
+    try { const remoteCycle = await startRg003Cycle({ lineId, product, reason, operatorId }); if (remoteCycle) { next = remoteCycle; setSyncState("online"); } } catch { setSyncState("error"); }
     setCycle(next);
     openProcess("higienizacao");
   }
 
-  function updateCycle(patchValue, eventLabel, processId) {
+  async function updateCycle(patchValue, eventLabel, processId) {
     const loggedEvent = event(eventLabel);
     setCycle((current) => ({ ...current, ...patchValue, events: [...(current?.events ?? []), loggedEvent] }));
+    try { await persistCycleTransition({ cycle, status: patchValue.status ?? cycle?.status, description: eventLabel, operatorId, operatorName, activeAction: Object.hasOwn(patchValue, "activeAction") ? patchValue.activeAction : cycle?.activeAction }); if (cycle?.id?.length === 36) setSyncState("online"); } catch { setSyncState("error"); }
     if (processId) openProcess(processId);
   }
 
@@ -324,16 +348,18 @@ function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen, on
     updateCycle({ activeAction: null }, `${cycle.activeAction.label} concluída`);
   }
 
-  function registerNc() {
+  async function registerNc() {
     const stopProduction = ncData.acao === "Parar produção";
     const ncEvent = event("Não conformidade registrada", { product: cycle?.product, quantidade: ncData.quantidade, descricao: ncData.descricao, causa: ncData.causa, acao: ncData.acao, interruptedProduction: stopProduction });
     setCycle((current) => ({ ...current, status: stopProduction ? "blocked" : current.status, activeAction: stopProduction ? null : current.activeAction, events: [...(current.events ?? []), ncEvent] }));
+    try { await persistCycleNc({ cycle, operatorId, operatorName, data: ncData }); await persistCycleTransition({ cycle, status: stopProduction ? "blocked" : cycle.status, description: "Não conformidade registrada", operatorId, operatorName, activeAction: stopProduction ? null : cycle.activeAction }); if (cycle?.id?.length === 36) setSyncState("online"); } catch { setSyncState("error"); }
     setNcOpen(false);
     setNcData({ quantidade: "", descricao: "", causa: "", acao: "" });
   }
 
   if (!ready) return <div className="min-h-64 animate-pulse rounded-3xl bg-gray-100" />;
-  const statusLabel = !cycle ? "Sem ciclo ativo" : cycle.status === "hygiene" ? "Em higienização" : cycle.status === "awaiting_release" ? "Aguardando liberação" : cycle.status === "blocked" ? "Produto bloqueado" : "Produto liberado";
+  const processStatus = !cycle ? "Sem ciclo ativo" : cycle.status === "hygiene" ? "Em higienização" : cycle.status === "awaiting_release" ? "Aguardando liberação" : cycle.status === "blocked" ? "Produto bloqueado" : "Produto liberado";
+  const statusLabel = `${processStatus} · ${syncState === "online" ? "Banco conectado" : syncState === "error" ? "Falha de sincronização" : syncState === "local" ? "Modo local" : "Conectando"}`;
   const hourlyEnabled = cycle?.status === "producing";
   const stages = cycle ? [
     { id: "higienizacao", label: "Higienização", state: cycle.status === "hygiene" ? "current" : "done", action: () => openProcess("higienizacao") },
@@ -709,7 +735,7 @@ function CentralNc({ ncs, onDetail }) {
   );
 }
 
-export function HierarchyNavigator({ tree, selection, selected, onSelectionChange, currentStep, onStepChange, children, hideDates = false, operatorName = "" }) {
+export function HierarchyNavigator({ tree, selection, selected, onSelectionChange, currentStep, onStepChange, children, hideDates = false, operatorName = "", operatorId = "" }) {
   const [monthDate, setMonthDate] = useState(() => getBaseMonth(selection, selected.linha));
   const [activeTab, setActiveTab] = useState("liberacoes");
   const [previewRegistro, setPreviewRegistro] = useState(null);
@@ -1004,7 +1030,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             {selection.documentoId === "RG.QUA.BA.003" ? (
-              <Rg003CyclePanel lineId={selection.linhaId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} onOpenProcess={hideDates ? abrirRegistroTecnico : undefined} />
+              <Rg003CyclePanel lineId={selection.linhaId} operatorId={operatorId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} onOpenProcess={hideDates ? abrirRegistroTecnico : undefined} />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];

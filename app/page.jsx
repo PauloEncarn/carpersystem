@@ -8,6 +8,7 @@ import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
 import { Factory, FileCog, ShieldCheck } from "lucide-react";
 import { findSelection, getInitialSelection, rastreabilidadeTree } from "@/lib/rastreabilidade";
 import { clearUserSession, loadUserSession, saveUserSession } from "@/lib/userSession";
+import { persistRg003Record } from "@/lib/rg003Persistence";
 
 export default function HomePage() {
   const [loggedUser, setLoggedUser] = useState(null);
@@ -15,6 +16,7 @@ export default function HomePage() {
   const [operationTree, setOperationTree] = useState(rastreabilidadeTree);
   const [selection, setSelection] = useState(() => getInitialSelection());
   const [currentStep, setCurrentStep] = useState(1);
+  const [databaseStatus, setDatabaseStatus] = useState("");
   const currentStepRef = useRef(currentStep);
   const selected = useMemo(() => findSelection(selection, operationTree), [selection, operationTree]);
   const canAccessConfigurator = loggedUser?.permissoes?.includes("configurador:acessar") || loggedUser?.permissoes?.includes("admin:acessar");
@@ -56,7 +58,7 @@ export default function HomePage() {
     setSelection(getInitialSelection(operationTree));
   }
 
-  function saveRegistroSnapshot(snapshot) {
+  async function saveRegistroSnapshot(snapshot) {
     if (!selection.linhaId || !selection.dataId || !selection.documentoId || !selection.loteId || !selection.registroId) return;
 
     setOperationTree((currentTree) =>
@@ -169,6 +171,19 @@ export default function HomePage() {
         return { ...linha, datas: nextDatas };
       })
     );
+
+    if (selection.documentoId === "RG.QUA.BA.003") {
+      setDatabaseStatus("saving");
+      try {
+        let cycleId = null;
+        try { cycleId = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.id ?? null; } catch { cycleId = null; }
+        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId });
+        setDatabaseStatus(result.remote ? "saved" : "local");
+      } catch (error) {
+        console.error("Falha ao persistir RG 003", error);
+        setDatabaseStatus("error");
+      }
+    }
   }
 
   if (!sessionReady) {
@@ -203,6 +218,7 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
+        {databaseStatus ? <div className={`rounded-md border px-4 py-2 text-sm font-bold ${databaseStatus === "error" ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}>{databaseStatus === "saving" ? "Gravando no banco..." : databaseStatus === "saved" ? "Dados sincronizados com o banco." : databaseStatus === "local" ? "Supabase não configurado: dados mantidos neste tablet." : "Não foi possível sincronizar. Os dados continuam neste tablet."}</div> : null}
         <HierarchyNavigator
             tree={operationTree}
             selection={selection}
@@ -212,6 +228,7 @@ export default function HomePage() {
             onStepChange={setCurrentStep}
             hideDates={isTechnicalProfile}
             operatorName={loggedUser.nome}
+            operatorId={loggedUser.id}
           >
             {selected.registro ? (
               <Rg005SubregistroForm
