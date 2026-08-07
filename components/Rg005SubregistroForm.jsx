@@ -149,9 +149,10 @@ function StatusClickButton({ value: controlledValue, onChange }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-3 gap-3">
       <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white shadow-lg" : "border-green-200 bg-green-50 text-cicopal-green"}`} onClick={() => setValue("C")}><span className="block text-2xl">C</span><span className="text-sm">Conforme</span></button>
-      <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "NC" ? "border-cicopal-red bg-cicopal-red text-white shadow-lg" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => setValue("NC")}><span className="block text-2xl">NC</span><span className="text-sm">Não conforme</span></button>
+      <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white shadow-lg" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => setValue("N")}><span className="block text-2xl">N</span><span className="text-sm">Não conforme</span></button>
+      <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "NA" ? "border-gray-500 bg-gray-600 text-white shadow-lg" : "border-gray-300 bg-gray-100 text-gray-600"}`} onClick={() => setValue("NA")}><span className="block text-2xl">NA</span><span className="text-sm">Não se aplica</span></button>
     </div>
   );
 }
@@ -186,14 +187,14 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onS
       return { horario, item, resultado };
     });
     const ncs = apontamentos
-      .filter((apontamento) => apontamento.resultado === "NC")
+      .filter((apontamento) => ["N", "NC"].includes(apontamento.resultado))
       .map((apontamento, index) => ({
         id: `${makeNcId(title)}-NC-${String(index + 1).padStart(2, "0")}`,
         item: apontamento.item,
         status: "Aberta",
         horario: apontamento.horario,
         quantidade: "-",
-        descricao: `${apontamento.item} marcado como NC em ${apontamento.horario}`,
+        descricao: `${apontamento.item} marcado como N em ${apontamento.horario}`,
         causa: "Nao informada",
         acao: "Nao informada",
         disposicaoImediata: "Nao informada",
@@ -286,14 +287,14 @@ function LiberacaoProdutoTable({ columns = liberacaoProdutoColumns, registro, on
       return acc.concat(rowApontamentos);
     }, []);
     const ncs = apontamentos
-      .filter((apontamento) => apontamento.resultado === "NC")
+      .filter((apontamento) => ["N", "NC"].includes(apontamento.resultado))
       .map((apontamento, index) => ({
         id: `LIBP-NC-${String(index + 1).padStart(2, "0")}`,
         item: apontamento.item,
         status: "Aberta",
         horario: apontamento.horario,
         quantidade: "-",
-        descricao: `${apontamento.item} marcado como NC na liberacao`,
+        descricao: `${apontamento.item} marcado como N na liberação`,
         causa: "Nao informada",
         acao: "Nao informada",
         disposicaoImediata: "Nao informada",
@@ -448,7 +449,8 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
   const column = columns[index];
   const currentValue = values[column.label] ?? "";
   function finish() { onSave?.({ apontamentos: columns.map((item) => ({ horario: activeHour, item: item.label, resultado: values[item.label], unidade: item.unit })), ncs: [] }); }
-  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-16 text-2xl font-bold text-gray-950">{column.label}</h2><div className="mt-4 flex min-h-16 overflow-hidden rounded-md border-2 border-gray-300 bg-white"><input key={column.label} type="number" inputMode="decimal" step="0.01" autoFocus className="min-h-16 w-full min-w-0 px-4 text-2xl font-bold outline-none" value={currentValue} onChange={(event) => setValues((current) => ({ ...current, [column.label]: event.target.value }))} /><span className="grid place-items-center bg-gray-100 px-4 font-bold text-gray-600">{column.unit}</span></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!currentValue} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={finish}>Gravar parâmetros</button> : <button type="button" disabled={!currentValue} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer></section>;
+  const isNa = currentValue === "NA";
+  return <section className="inspection-focus"><aside className="inspection-progress"><p>{activeHour}</p><strong>{index + 1}</strong><span>de {columns.length}</span><div><i style={{ height: `${((index + 1) / columns.length) * 100}%` }} /></div></aside><div className="inspection-question"><p className="inspection-eyebrow">Parâmetro do produto</p><h2>{column.label}</h2><div className={`inspection-number ${isNa ? "is-na" : ""}`}><input key={column.label} type="number" inputMode="decimal" step="0.01" disabled={isNa} autoFocus value={isNa ? "" : currentValue} onChange={(event) => setValues((current) => ({ ...current, [column.label]: event.target.value }))} placeholder="0,00" /><span>{column.unit}</span></div><button type="button" className={`inspection-na ${isNa ? "is-selected" : ""}`} onClick={() => setValues((current) => ({ ...current, [column.label]: isNa ? "" : "NA" }))}>NA · Não se aplica</button><footer><button type="button" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!currentValue} className="primary" onClick={finish}>Gravar parâmetros</button> : <button type="button" disabled={!currentValue} className="primary" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer></div></section>;
 }
 
 function TabletRelease({ columns, activeHour, registro, onSave }) {
@@ -458,12 +460,12 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
   const tapRef = useRef({ value: "", at: 0 });
   async function save() {
     const apontamentos = columns.filter((item) => values[item]).map((item) => ({ horario: activeHour, item, resultado: values[item] }));
-    const ncs = apontamentos.filter((item) => item.resultado === "NC").map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como NC na liberacao`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
+    const ncs = apontamentos.filter((item) => ["N", "NC"].includes(item.resultado)).map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como N na liberação`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
     const confirmed = await onSave?.({ apontamentos, ncs }); if (confirmed === false) return; setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
   const column = columns[index];
   function choose(value) { const now = Date.now(); const secondTap = tapRef.current.value === value && now - tapRef.current.at < 650; setValues((current) => ({ ...current, [column]: value })); tapRef.current = { value, at: now }; if (secondTap && index < columns.length - 1) setIndex((current) => current + 1); }
-  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Liberação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{column}</h2><p className="mb-3 text-sm font-semibold text-gray-500">Toque duas vezes para confirmar e seguir.</p><div className="grid grid-cols-2 gap-3"><button type="button" className={`min-h-24 rounded-md border-2 text-lg font-bold ${values[column] === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-white text-cicopal-green"}`} onPointerUp={() => choose("C")}>Conforme</button><button type="button" className={`min-h-24 rounded-md border-2 text-lg font-bold ${values[column] === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`} onPointerUp={() => choose("NC")}>Não conforme</button></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={save}>Gravar liberação</button> : <button type="button" className="min-h-14 rounded-md border border-cicopal-blue bg-white font-bold text-cicopal-blue" onClick={() => setIndex((value) => value + 1)}>Pular por agora</button>}</footer>{savedAt ? <p className="bg-green-50 p-2 text-center text-sm font-bold text-cicopal-green">Gravado às {savedAt}</p> : null}</section>;
+  return <section className="inspection-focus"><aside className="inspection-progress"><p>{activeHour}</p><strong>{index + 1}</strong><span>de {columns.length}</span><div><i style={{ height: `${((index + 1) / columns.length) * 100}%` }} /></div></aside><div className="inspection-question"><p className="inspection-eyebrow">Liberação do produto</p><h2>{column}</h2><p className="mb-4 font-semibold text-gray-500">Escolha a condição encontrada.</p><StatusClickButton value={values[column]} onChange={(value) => choose(value)} /><footer><button type="button" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="primary" onClick={save}>Gravar liberação</button> : <button type="button" disabled={!values[column]} className="primary" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer>{savedAt ? <p className="mt-3 text-center font-black text-cicopal-green">Gravado às {savedAt}</p> : null}</div></section>;
 }
 
 function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
@@ -475,7 +477,7 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
   const key = `${item.machine}|${item.column}`;
   function finish() {
     const apontamentos = Object.entries(values).map(([itemKey, resultado]) => { const [maquina, parametro] = itemKey.split("|"); return { horario: activeHour, maquina, item: parametro, resultado }; });
-    const ncs = apontamentos.filter((entry) => entry.resultado === "NC").map((entry, ncIndex) => ({ id: `MAQ-NC-${ncIndex + 1}`, item: `${entry.maquina} - ${entry.item}`, horario: activeHour, status: "Aberta", descricao: `${entry.item} marcado como NC em ${entry.maquina}` }));
+    const ncs = apontamentos.filter((entry) => ["N", "NC"].includes(entry.resultado)).map((entry, ncIndex) => ({ id: `MAQ-NC-${ncIndex + 1}`, item: `${entry.maquina} - ${entry.item}`, horario: activeHour, status: "Aberta", descricao: `${entry.item} marcado como N em ${entry.maquina}` }));
     onSave?.({ apontamentos, ncs });
   }
   return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">{title} · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / items.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">{item.machine} · parâmetro {index + 1} de {items.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{item.column}</h2><StatusClickButton value={values[key]} onChange={(value) => setValues((current) => ({ ...current, [key]: value }))} /></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === items.length - 1 ? <button type="button" disabled={!values[key]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={finish}>Gravar avaliação</button> : <button type="button" disabled={!values[key]} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer></section>;
@@ -1461,10 +1463,12 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   }, [isRg003]);
   useEffect(() => {
     let active = true;
-    if (!isRg003 || !registro?.id) return;
+    setPersistedRecord(null);
+    setEditMode(false);
+    if (!isRg003 || !registro?.id || !cycleContext?.id) return;
     loadRg003Record(registro.id).then((data) => { if (active) { setPersistedRecord(data); setEditMode(false); } }).catch(() => { if (active) setPersistedRecord(null); });
     return () => { active = false; };
-  }, [isRg003, registro?.id]);
+  }, [cycleContext?.id, isRg003, registro?.id, subregistro?.id]);
   useEffect(() => { setEditMode(false); }, [activeHour, subregistro?.id]);
   const allowedHours = useMemo(() => buildAllowedCycleHours(cycleContext), [cycleContext]);
   useEffect(() => {

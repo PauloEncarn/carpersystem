@@ -39,7 +39,7 @@ function buildInitialRows(subregistro, groups) {
       ...row,
       av1: avaliacao.av1 ?? "",
       av2: avaliacao.av2 ?? "",
-      ncOpen: avaliacao.av1 === "NC" || Boolean(nc),
+      ncOpen: ["N", "NC"].includes(avaliacao.av1) || Boolean(nc),
       nc: {
         horario: nc?.horario ?? "",
         quantidade: nc?.quantidade ?? "",
@@ -54,9 +54,10 @@ function buildInitialRows(subregistro, groups) {
 
 function StatusClickButton({ value, onChange }) {
   return (
-    <div className="grid min-w-48 grid-cols-2 gap-2">
+    <div className="grid min-w-64 grid-cols-3 gap-2">
       <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-green-50 text-cicopal-green"}`} onClick={() => onChange("C")}>C</button>
-      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => onChange("NC")}>NC</button>
+      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => onChange("N")}>N</button>
+      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "NA" ? "border-gray-500 bg-gray-600 text-white" : "border-gray-300 bg-gray-100 text-gray-600"}`} onClick={() => onChange("NA")}>NA</button>
     </div>
   );
 }
@@ -84,13 +85,13 @@ function ChecklistGroupTable({ title, rows, onChange }) {
           <tbody>
             {rows.map(({ row, index }) => (
               <Fragment key={`${row.group}-${row.item}`}>
-                <tr key={`${row.group}-${row.item}`} className={row.av1 === "NC" ? "bg-red-50" : "bg-white"}>
+                <tr key={`${row.group}-${row.item}`} className={["N", "NC"].includes(row.av1) ? "bg-red-50" : "bg-white"}>
                   <td className="px-4 py-3 text-base font-semibold text-gray-950">{row.item}</td>
                   <td className="px-4 py-3">
                     <StatusClickButton value={row.av1} onChange={(value) => onChange(index, { av1: value })} />
                   </td>
                   <td className="px-4 py-3">
-                    {row.av1 === "NC" ? (
+                    {["N", "NC"].includes(row.av1) ? (
                       <StatusClickButton value={row.av2} onChange={(value) => onChange(index, { av2: value })} />
                     ) : (
                       <span className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-gray-100 px-3 text-sm font-bold text-gray-500">
@@ -99,7 +100,7 @@ function ChecklistGroupTable({ title, rows, onChange }) {
                     )}
                   </td>
                 </tr>
-                {row.av1 === "NC" ? (
+                {["N", "NC"].includes(row.av1) ? (
                   <tr key={`${row.group}-${row.item}-nc`} className="bg-red-50">
                     <td colSpan={3} className="px-4 pb-4">
                       <div className="rounded-md border border-red-200 bg-white p-3">
@@ -187,7 +188,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
     return rows.reduce(
       (acc, row) => {
         if (row.av1 === "C") acc.conformes += 1;
-        if (row.av1 === "NC") acc.naoConformes += 1;
+        if (["N", "NC"].includes(row.av1)) acc.naoConformes += 1;
         return acc;
       },
       { conformes: 0, naoConformes: 0 }
@@ -199,7 +200,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
       current.map((row, rowIndex) => {
         if (rowIndex !== index) return row;
         const next = { ...row, ...patch };
-        if (patch.av1 === "C") {
+        if (["C", "NA"].includes(patch.av1)) {
           next.av2 = "";
           next.ncOpen = false;
           next.nc = {
@@ -211,7 +212,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
             disposicaoFinal: ""
           };
         }
-        if (patch.av1 === "NC") {
+        if (["N", "NC"].includes(patch.av1)) {
           next.ncOpen = true;
         }
         return next;
@@ -229,7 +230,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         av2: row.av2
       }));
     const ncs = rows
-      .filter((row) => row.av1 === "NC")
+      .filter((row) => ["N", "NC"].includes(row.av1))
       .map((row, index) => ({
         id: `${registro?.id ?? loteId}-NC-${String(index + 1).padStart(2, "0")}`,
         item: row.item,
@@ -237,7 +238,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         status: row.av2 === "C" ? "Tratada" : "Aberta",
         horario: row.nc.horario || new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
         quantidade: row.nc.quantidade || "-",
-        descricao: `${row.item} marcado como NC na 1 AV`,
+        descricao: `${row.item} marcado como N na 1 AV`,
         causa: row.nc.causa || "Nao informada",
         acao: row.nc.acao || "Nao informada",
         disposicaoImediata: row.nc.disposicaoImediata || "Nao informada",
