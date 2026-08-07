@@ -24,6 +24,13 @@ const fallbackUsers = [
         permissoes: ["operacao:acessar", "configurador:acessar"]
       }
     ]
+  },
+  {
+    id: "demo-tecnico",
+    nome: "Técnico Demo",
+    turno: "A",
+    codigo_pin: "4444",
+    perfis: [{ codigo: "tecnico", nome: "Técnico", permissoes: ["operacao:acessar", "operacao:dia_atual"] }]
   }
 ];
 
@@ -160,7 +167,7 @@ export function LoginScreen({ onLogin }) {
             </button>
 
             <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-semibold text-gray-500">
-              Ambiente de demonstração: operador 1111 • configurador 3333
+              Ambiente de demonstração: operador 1111 • técnico 4444 • configurador 3333
             </div>
           </form>
         </div>

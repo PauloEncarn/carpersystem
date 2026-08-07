@@ -18,6 +18,7 @@ export default function HomePage() {
   const currentStepRef = useRef(currentStep);
   const selected = useMemo(() => findSelection(selection, operationTree), [selection, operationTree]);
   const canAccessConfigurator = loggedUser?.permissoes?.includes("configurador:acessar") || loggedUser?.permissoes?.includes("admin:acessar");
+  const isTechnicalProfile = loggedUser?.perfil?.codigo === "tecnico" || loggedUser?.permissoes?.includes("operacao:dia_atual");
 
   useEffect(() => {
     currentStepRef.current = currentStep;
@@ -95,6 +96,11 @@ export default function HomePage() {
               };
 
         const registroIndex = loteAtual.registros.findIndex((registro) => registro.id === selection.registroId);
+        const existingRegistro = registroIndex >= 0 ? loteAtual.registros[registroIndex] : null;
+        const hygieneCycles = loteAtual.registros.filter((registro) => registro.processoId === "higienizacao");
+        const latestCycleId = [...hygieneCycles].reverse().find((registro) => registro.cicloId)?.cicloId;
+        const cycleNumber = String(hygieneCycles.length + 1).padStart(2, "0");
+        const cycleId = existingRegistro?.cicloId ?? (selection.subregistroId === "higienizacao" ? `CICLO-${cycleNumber}` : latestCycleId ?? "CICLO-01");
         const registroBase =
           registroIndex >= 0
             ? loteAtual.registros[registroIndex]
@@ -102,6 +108,8 @@ export default function HomePage() {
                 ...selected.registro,
                 id: selection.registroId,
                 processoId: selection.subregistroId,
+                cicloId,
+                cicloIniciadoEm: selection.subregistroId === "higienizacao" ? new Date().toISOString() : undefined,
                 subregistros: []
               };
 
@@ -125,6 +133,8 @@ export default function HomePage() {
           ...snapshot.registro,
           id: selection.registroId,
           processoId: selection.subregistroId,
+          cicloId,
+          eventoRegistradoEm: new Date().toISOString(),
           subregistros: nextSubregistros
         };
 
@@ -200,6 +210,8 @@ export default function HomePage() {
             onSelectionChange={setSelection}
             currentStep={currentStep}
             onStepChange={setCurrentStep}
+            hideDates={isTechnicalProfile}
+            operatorName={loggedUser.nome}
           >
             {selected.registro ? (
               <Rg005SubregistroForm

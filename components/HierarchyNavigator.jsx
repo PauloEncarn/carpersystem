@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -11,7 +11,9 @@ import {
   ClipboardList,
   Factory,
   FileText,
+  Play,
   RefreshCw,
+  Square,
   X
 } from "lucide-react";
 import { checklistGroups, generateLoteId } from "@/lib/checklist";
@@ -172,10 +174,11 @@ function CalendarDateButton({ day, tone, filledDate, hasNc, today, onClick, onDo
   );
 }
 
-function Stepper({ currentStep }) {
+function Stepper({ currentStep, hideDates = false }) {
+  const visibleSteps = hideDates ? steps.filter((step) => step.id !== 2) : steps;
   return (
-    <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
-      {steps.map((step) => {
+    <div className={`grid grid-cols-3 gap-2 ${hideDates ? "md:grid-cols-5" : "md:grid-cols-6"}`}>
+      {visibleSteps.map((step) => {
         const active = step.id === currentStep;
         const done = step.id < currentStep;
         const tone = active
@@ -245,6 +248,84 @@ function ProgressiveRg003Flow({ processos, lote, selectedProcessId, onSelect, on
   const nodes = ids.map((id, index) => ({ ...processos.find((item) => item.id === id), id, unlocked: index === 0 || (index === 1 ? hygieneOk : releaseOk), count: records.filter((record) => record.processoId === id).length, done: hasSaved(id) }));
   const open = (node) => { if (node.unlocked) { onSelect(node.id); onOpen(); } };
   return <div className="mx-auto max-w-5xl rounded-3xl border border-gray-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-6"><p className="text-xs font-black uppercase tracking-[.18em] text-cicopal-blue">RG.QUA.BA.003</p><h3 className="mt-1 text-2xl font-black text-gray-950">Fluxo da produção</h3></div><div className="grid gap-0 lg:grid-cols-[1fr_56px_1fr_56px_1.4fr] lg:items-center"><FlowProcessCard step="1" node={nodes[0]} selected={selectedProcessId === nodes[0].id} onClick={() => open(nodes[0])} /><div className="grid h-12 place-items-center text-2xl font-black text-gray-300">→</div><FlowProcessCard step="2" node={nodes[1]} selected={selectedProcessId === nodes[1].id} onClick={() => open(nodes[1])} /><div className="grid h-12 place-items-center text-2xl font-black text-gray-300">→</div><div className="rounded-2xl border-2 border-blue-100 bg-blue-50/60 p-3"><div className="mb-3 flex items-center gap-2 text-cicopal-blue"><RefreshCw size={18} /><p className="text-sm font-black">3 · A cada hora</p></div><div className="space-y-2">{nodes.slice(2).map((node, index) => <FlowProcessCard key={node.id} step={`3.${index + 1}`} node={node} selected={selectedProcessId === node.id} onClick={() => open(node)} />)}</div></div></div><div className="mt-5 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-amber-500 text-white"><RefreshCw size={19} /></span><div><p className="font-black text-amber-950">Troca de produto</p><p className="text-xs font-semibold text-amber-800">No próximo horário, retorne para a higienização.</p></div></div><button type="button" className="min-h-11 rounded-xl bg-amber-500 px-4 font-black text-white" onClick={() => open(nodes[0])}>↩ Voltar para a etapa 1</button></div></div><div className="mt-4 text-center">{!hygieneOk ? <p className="text-sm font-bold text-amber-800">Próxima ação: concluir a higienização sem NC.</p> : !releaseOk ? <p className="text-sm font-bold text-cicopal-blue">Próxima ação: liberar o produto.</p> : <p className="text-sm font-bold text-cicopal-green">Controles do horário liberados.</p>}</div></div>;
+}
+
+function formatElapsed(startedAt, now) {
+  if (!startedAt) return "00:00:00";
+  const seconds = Math.max(0, Math.floor((now.getTime() - new Date(startedAt).getTime()) / 1000));
+  const hoursValue = String(Math.floor(seconds / 3600)).padStart(2, "0");
+  const minutesValue = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const secondsValue = String(seconds % 60).padStart(2, "0");
+  return `${hoursValue}:${minutesValue}:${secondsValue}`;
+}
+
+function Rg003CyclePanel({ lineId, operatorName, processos, onSelect, onOpen }) {
+  const storageKey = `carper_rg003_cycle_${lineId}`;
+  const historyKey = `carper_rg003_cycle_history_${lineId}`;
+  const [now, setNow] = useState(() => new Date());
+  const [product, setProduct] = useState("Rosca Leite");
+  const [cycle, setCycle] = useState(null);
+  const [cycleHistory, setCycleHistory] = useState([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try { const savedCycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(savedCycle); if (savedCycle?.product) setProduct(savedCycle.product); setCycleHistory(JSON.parse(window.localStorage.getItem(historyKey) ?? "[]")); } catch { setCycle(null); setCycleHistory([]); }
+    setReady(true);
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (cycle) window.localStorage.setItem(storageKey, JSON.stringify(cycle));
+    else window.localStorage.removeItem(storageKey);
+  }, [cycle, ready, storageKey]);
+
+  useEffect(() => { if (ready) window.localStorage.setItem(historyKey, JSON.stringify(cycleHistory)); }, [cycleHistory, historyKey, ready]);
+
+  function event(label, extra = {}) {
+    return { id: `${Date.now()}-${label}`, label, at: new Date().toISOString(), operator: operatorName, ...extra };
+  }
+
+  function openProcess(processId) {
+    onSelect(processId);
+    onOpen();
+  }
+
+  function startCycle(reason = "Início de produção") {
+    const at = new Date().toISOString();
+    const previousProduct = cycle?.product ?? "";
+    if (cycle) setCycleHistory((current) => [...current, { ...cycle, endedAt: at, events: [...(cycle.events ?? []), event("Ciclo encerrado por troca de produto", { nextProduct: product })] }]);
+    const next = { id: `CICLO-${Date.now()}`, product, previousProduct, reason, startedAt: at, stageStartedAt: at, status: "hygiene", activeAction: null, events: [event("Higienização iniciada", { reason, previousProduct, product })] };
+    setCycle(next);
+    openProcess("higienizacao");
+  }
+
+  function updateCycle(patchValue, eventLabel, processId) {
+    const loggedEvent = event(eventLabel);
+    setCycle((current) => ({ ...current, ...patchValue, events: [...(current?.events ?? []), loggedEvent] }));
+    if (processId) openProcess(processId);
+  }
+
+  function startHourlyAction(type, label, processId) {
+    const at = new Date().toISOString();
+    updateCycle({ activeAction: { type, label, startedAt: at }, stageStartedAt: at }, `${label} iniciada`, processId);
+  }
+
+  function finishAction() {
+    if (!cycle?.activeAction) return;
+    updateCycle({ activeAction: null }, `${cycle.activeAction.label} concluída`);
+  }
+
+  if (!ready) return <div className="min-h-64 animate-pulse rounded-3xl bg-gray-100" />;
+  const statusLabel = !cycle ? "Sem ciclo ativo" : cycle.status === "hygiene" ? "Em higienização" : cycle.status === "awaiting_release" ? "Aguardando liberação" : cycle.status === "blocked" ? "Produto bloqueado" : "Produto liberado";
+
+  return <div className="mx-auto max-w-5xl space-y-4"><section className="rounded-3xl bg-gray-950 p-4 text-white shadow-xl md:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.18em] text-blue-300">RG.QUA.BA.003 · ciclo contínuo</p><h2 className="mt-1 text-2xl font-black">{cycle?.product ?? "Iniciar produção"}</h2><p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black ${cycle?.status === "blocked" ? "bg-red-500" : "bg-white/10"}`}>{statusLabel}</p></div><div className="grid grid-cols-2 gap-3 text-center"><div className="rounded-2xl bg-white/10 p-3"><p className="text-[10px] font-bold uppercase text-white/60">Tempo do ciclo</p><p className="mt-1 text-xl font-black tabular-nums">{formatElapsed(cycle?.startedAt, now)}</p></div><div className="rounded-2xl bg-white/10 p-3"><p className="text-[10px] font-bold uppercase text-white/60">Atividade atual</p><p className="mt-1 text-xl font-black tabular-nums">{formatElapsed(cycle?.activeAction?.startedAt ?? cycle?.stageStartedAt, now)}</p></div></div></div></section>
+
+  {!cycle ? <section className="rounded-3xl border border-gray-200 bg-white p-5"><label className="block"><span className="mb-2 block text-sm font-black">Produto que será produzido</span><select className="min-h-14 w-full rounded-xl border border-gray-300 bg-white px-4 text-lg font-bold" value={product} onChange={(e) => setProduct(e.target.value)}><option>Rosca Leite</option><option>Rosca Coco</option><option>Rosca Chocolate</option><option>Rosca Tradicional</option></select></label><button type="button" className="mt-4 inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-cicopal-blue text-lg font-black text-white" onClick={() => startCycle()}><Play size={22} /> Iniciar higienização</button></section> : <section className="rounded-3xl border border-gray-200 bg-white p-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cycle.status === "hygiene" ? <><button type="button" className="min-h-16 rounded-2xl border border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue" onClick={() => openProcess("higienizacao")}>Abrir higienização</button><button type="button" className="min-h-16 rounded-2xl bg-cicopal-green px-4 font-black text-white" onClick={() => updateCycle({ status: "awaiting_release", stageStartedAt: new Date().toISOString() }, "Higienização concluída conforme")}>Concluir higienização</button></> : null}{cycle.status === "awaiting_release" ? <button type="button" className="min-h-16 rounded-2xl bg-cicopal-green px-4 font-black text-white" onClick={() => updateCycle({ status: "producing", stageStartedAt: new Date().toISOString() }, "Produto liberado", "produto_liberacao")}>Liberar produto</button> : null}{["producing", "blocked"].includes(cycle.status) ? <><button type="button" disabled={Boolean(cycle.activeAction)} className="min-h-16 rounded-2xl bg-cicopal-blue px-4 font-black text-white disabled:bg-gray-300" onClick={() => startHourlyAction("product", "Avaliação do produto", "produto_avaliacao")}>Iniciar avaliação do produto</button><button type="button" disabled={Boolean(cycle.activeAction)} className="min-h-16 rounded-2xl bg-cicopal-blue px-4 font-black text-white disabled:bg-gray-300" onClick={() => startHourlyAction("process", "Avaliação do processo", "processo")}>Iniciar avaliação do processo</button><button type="button" disabled={Boolean(cycle.activeAction)} className="min-h-16 rounded-2xl border border-cicopal-blue bg-white px-4 font-black text-cicopal-blue disabled:text-gray-300" onClick={() => startHourlyAction("photo", "Registro fotográfico", "fotografico")}>Iniciar registro fotográfico</button>{cycle.activeAction ? <button type="button" className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-green px-4 font-black text-white" onClick={finishAction}><Square size={19} /> Concluir {cycle.activeAction.label}</button> : null}<button type="button" className={`min-h-16 rounded-2xl px-4 font-black text-white ${cycle.status === "blocked" ? "bg-cicopal-green" : "bg-cicopal-red"}`} onClick={() => updateCycle({ status: cycle.status === "blocked" ? "producing" : "blocked", activeAction: null }, cycle.status === "blocked" ? "Produto desbloqueado" : "Produto bloqueado")}>{cycle.status === "blocked" ? "Desbloquear produto" : "Bloquear produto"}</button></> : null}</div>
+  <div className="mt-5 border-t border-gray-200 pt-4"><p className="mb-2 text-xs font-black uppercase text-gray-500">Troca de produto</p><div className="flex flex-col gap-2 sm:flex-row"><select className="min-h-14 flex-1 rounded-xl border border-gray-300 bg-white px-4 font-bold" value={product} onChange={(e) => setProduct(e.target.value)}><option>Rosca Leite</option><option>Rosca Coco</option><option>Rosca Chocolate</option><option>Rosca Tradicional</option></select><button type="button" disabled={product === cycle.product} className="min-h-14 rounded-xl bg-amber-500 px-5 font-black text-white disabled:bg-gray-300" onClick={() => startCycle("Troca de produto")}><RefreshCw size={18} className="mr-2 inline" />Trocar e iniciar higienização</button></div></div></section>}
+
+  {cycle?.events?.length ? <section className="rounded-2xl border border-gray-200 bg-white p-4"><p className="mb-3 text-xs font-black uppercase text-gray-500">Linha do tempo do ciclo</p><div className="space-y-2">{[...cycle.events].reverse().slice(0, 8).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-gray-50 px-3 py-2"><div><p className="text-sm font-black text-gray-900">{item.label}</p><p className="text-xs font-semibold text-gray-500">{item.operator || "Operador"}</p></div><time className="text-xs font-black text-gray-600">{new Date(item.at).toLocaleString("pt-BR")}</time></div>)}</div>{cycleHistory.length ? <p className="mt-3 text-xs font-bold text-gray-500">{cycleHistory.length} ciclo(s) anterior(es) preservado(s) no histórico.</p> : null}</section> : null}</div>;
 }
 
 export { getShortRegistroId };
@@ -498,6 +579,7 @@ function RegistroCard({ registro, danger, onPreview }) {
           <span className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 text-xs font-bold text-white md:text-sm">
             {processId}
           </span>
+          {registro.cicloId ? <span className="mt-1 block text-xs font-black text-cicopal-blue">{registro.cicloId}</span> : null}
         </div>
         <div>
           <p className="text-lg font-bold text-gray-950">{registro.tipo}</p>
@@ -604,7 +686,7 @@ function CentralNc({ ncs, onDetail }) {
   );
 }
 
-export function HierarchyNavigator({ tree, selection, selected, onSelectionChange, currentStep, onStepChange, children }) {
+export function HierarchyNavigator({ tree, selection, selected, onSelectionChange, currentStep, onStepChange, children, hideDates = false, operatorName = "" }) {
   const [monthDate, setMonthDate] = useState(() => getBaseMonth(selection, selected.linha));
   const [activeTab, setActiveTab] = useState("liberacoes");
   const [previewRegistro, setPreviewRegistro] = useState(null);
@@ -624,6 +706,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   const generatedLoteId = selected.linha && selection.dataId ? generateLoteId(selected.linha.id, selection.dataId) : "";
   const documentosDoDia = rgCatalog
     .filter((documento) => !documento.linkedLines?.length || documento.linkedLines.includes(selection.linhaId))
+    .filter((documento) => selection.linhaId !== "ROS" || documento.id === "RG.QUA.BA.003")
     .map((documento) => {
       const preenchido = selected.data?.documentos.find((item) => item.id === documento.id);
       const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
@@ -648,21 +731,23 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
     (currentStep === 4 && Boolean(selected.subregistro));
 
   function goBack() {
-    onStepChange(Math.max(1, currentStep - 1));
+    onStepChange(hideDates && currentStep === 3 ? 1 : Math.max(1, currentStep - 1));
   }
 
   function goForward() {
     if (canAdvance) {
-      onStepChange(Math.min(6, currentStep + 1));
+      onStepChange(hideDates && currentStep === 1 ? 3 : Math.min(6, currentStep + 1));
     }
   }
 
   function selectLinha(linha) {
     const baseMonth = getBaseMonth({ dataId: linha.datas[0]?.id }, linha);
     setMonthDate(baseMonth);
+    const today = new Date();
+    const operationalDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     onSelectionChange({
       linhaId: linha.id,
-      dataId: "",
+      dataId: hideDates ? operationalDate : "",
       documentoId: "",
       loteId: "",
       registroId: "",
@@ -760,7 +845,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
         <CentralNc ncs={ncsDoLote} onDetail={setSelectedNc} />
       ) : (
         <>
-      <Stepper currentStep={currentStep} />
+      <Stepper currentStep={currentStep} hideDates={hideDates} />
 
       <div className="mt-4 min-h-[430px]">
         {currentStep === 1 ? (
@@ -779,7 +864,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
                   onClick={() => selectLinha(linha)}
                   onDoubleTap={() => {
                     selectLinha(linha);
-                    onStepChange(2);
+                    onStepChange(hideDates ? 3 : 2);
                   }}
                 />
               ))}
@@ -887,7 +972,7 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             {selection.documentoId === "RG.QUA.BA.003" ? (
-              <ProgressiveRg003Flow processos={processosDoDocumento} lote={selected.lote} selectedProcessId={selection.subregistroId} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
+              <Rg003CyclePanel lineId={selection.linhaId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
