@@ -475,13 +475,15 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
   const [index, setIndex] = useState(0);
+  const tapRef = useRef({ value: "", at: 0 });
   async function save() {
     const apontamentos = columns.filter((item) => values[item]).map((item) => ({ horario: activeHour, item, resultado: values[item] }));
     const ncs = apontamentos.filter((item) => item.resultado === "NC").map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como NC na liberacao`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
     const confirmed = await onSave?.({ apontamentos, ncs }); if (confirmed === false) return; setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
   const column = columns[index];
-  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Liberação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{column}</h2><div className="mt-4"><StatusClickButton value={values[column]} onChange={(value) => setValues((current) => ({ ...current, [column]: value }))} /></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={save}>Gravar liberação</button> : <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer>{savedAt ? <p className="bg-green-50 p-2 text-center text-sm font-bold text-cicopal-green">Gravado às {savedAt}</p> : null}</section>;
+  function choose(value) { const now = Date.now(); const secondTap = tapRef.current.value === value && now - tapRef.current.at < 650; setValues((current) => ({ ...current, [column]: value })); tapRef.current = { value, at: now }; if (secondTap && index < columns.length - 1) setIndex((current) => current + 1); }
+  return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Liberação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{column}</h2><p className="mb-3 text-sm font-semibold text-gray-500">Toque duas vezes para confirmar e seguir.</p><div className="grid grid-cols-2 gap-3"><button type="button" className={`min-h-24 rounded-md border-2 text-lg font-bold ${values[column] === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-white text-cicopal-green"}`} onPointerUp={() => choose("C")}>Conforme</button><button type="button" className={`min-h-24 rounded-md border-2 text-lg font-bold ${values[column] === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`} onPointerUp={() => choose("NC")}>Não conforme</button></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={save}>Gravar liberação</button> : <button type="button" className="min-h-14 rounded-md border border-cicopal-blue bg-white font-bold text-cicopal-blue" onClick={() => setIndex((value) => value + 1)}>Pular por agora</button>}</footer>{savedAt ? <p className="bg-green-50 p-2 text-center text-sm font-bold text-cicopal-green">Gravado às {savedAt}</p> : null}</section>;
 }
 
 function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
@@ -1286,12 +1288,16 @@ function PersistedRg003Summary({ data, onEdit }) {
 
 function buildAllowedCycleHours(cycle) {
   if (!cycle?.startedAt) return [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
-  const start = new Date(cycle.startedAt);
+  const eventTimes = (cycle.events ?? []).map((item) => new Date(item.at).getTime()).filter(Number.isFinite);
+  const latestReference = eventTimes.length ? Math.max(...eventTimes) : new Date(cycle.startedAt).getTime();
+  const cycleStart = new Date(cycle.startedAt).getTime();
+  const cycleEnd = cycle.endedAt ? new Date(cycle.endedAt).getTime() : Date.now();
+  const start = new Date(Math.max(cycleStart, latestReference - 72 * 3_600_000));
   start.setMinutes(0, 0, 0);
-  const end = cycle.endedAt ? new Date(cycle.endedAt) : new Date();
+  const end = new Date(Math.min(cycleEnd, latestReference + 72 * 3_600_000, Date.now()));
   end.setMinutes(0, 0, 0);
   const result = [];
-  for (let cursor = new Date(start); cursor <= end && result.length < 72; cursor = new Date(cursor.getTime() + 3_600_000)) {
+  for (let cursor = new Date(start); cursor <= end && result.length < 145; cursor = new Date(cursor.getTime() + 3_600_000)) {
     const value = `${String(cursor.getHours()).padStart(2, "0")}:00`;
     result.push({ key: cursor.toISOString(), value, label: cursor.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "") + ` · ${value}` });
   }
