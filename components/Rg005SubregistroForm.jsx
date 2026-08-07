@@ -1283,7 +1283,8 @@ function Rg003ProductContext({ cycle }) {
 function PersistedRg003Summary({ data, onEdit }) {
   const values = data.subregistro ?? {};
   const entries = [...(values.avaliacoes ?? []), ...(values.apontamentos ?? [])];
-  return <section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-green bg-white"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4"><div><p className="text-xs font-bold uppercase text-cicopal-green">Preenchimento gravado</p><h2 className="text-xl font-bold text-gray-950">Visualização do registro</h2><p className="text-sm font-semibold text-gray-500">{new Date(data.filledAt).toLocaleString("pt-BR")} · versão {data.version}</p></div><button type="button" className="min-h-12 rounded-md border border-amber-300 bg-amber-50 px-4 font-bold text-amber-800" onClick={onEdit}>Alterar registro</button></header><div className="grid gap-2 p-4 sm:grid-cols-2">{entries.length ? entries.map((item, index) => <div key={`${item.item}-${index}`} className="flex items-center justify-between gap-3 border border-gray-200 bg-gray-50 p-3"><span className="text-sm font-semibold text-gray-700">{item.maquina ? `${item.maquina} · ` : ""}{item.item}</span><strong className={item.resultado === "NC" || item.av1 === "NC" ? "text-cicopal-red" : "text-cicopal-green"}>{item.resultado ?? item.av1 ?? "Preenchido"}</strong></div>) : <p className="text-sm font-semibold text-gray-500">Registro concluído sem itens detalhados.</p>}</div>{values.ncs?.length ? <div className="border-t border-red-100 bg-red-50 p-4 text-sm font-bold text-cicopal-red">{values.ncs.length} não conformidade(s) vinculada(s).</div> : null}</section>;
+  const [confirmEdit, setConfirmEdit] = useState(false);
+  return <section className="min-h-[calc(100vh-250px)] overflow-hidden rounded-lg border border-gray-300 bg-white"><header className="brand-header flex flex-wrap items-center justify-between gap-4 p-5 text-white"><div><p className="text-xs font-bold uppercase tracking-wider text-white/70">CICOPAL · RG.QUA.BA.003</p><h2 className="mt-1 text-2xl font-bold">Registro confirmado</h2><p className="mt-1 text-sm font-semibold text-white/75">Somente visualização</p></div><div className="text-right"><p className="text-sm font-bold">{new Date(data.filledAt).toLocaleString("pt-BR")}</p><p className="text-xs text-white/70">Versão {data.version}</p></div></header><div className="border-b border-gray-200 bg-green-50 px-5 py-3 text-sm font-bold text-cicopal-green">✓ Preenchimento gravado e protegido contra alterações acidentais.</div><div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">{entries.length ? entries.map((item, index) => <article key={`${item.item}-${index}`} className="border border-gray-200 bg-white p-4"><p className="text-xs font-bold uppercase text-gray-400">{item.maquina ?? item.grupo ?? "Parâmetro"}</p><p className="mt-1 font-semibold text-gray-800">{item.item}</p><strong className={`mt-3 inline-flex min-h-8 items-center px-3 text-sm ${item.resultado === "NC" || item.av1 === "NC" ? "bg-red-50 text-cicopal-red" : "bg-green-50 text-cicopal-green"}`}>{item.resultado ?? item.av1 ?? "Preenchido"}</strong></article>) : <p className="text-sm font-semibold text-gray-500">Registro concluído sem itens detalhados.</p>}</div>{values.ncs?.length ? <div className="border-y border-red-100 bg-red-50 p-4 text-sm font-bold text-cicopal-red">{values.ncs.length} não conformidade(s) vinculada(s).</div> : null}<footer className="flex justify-end border-t border-gray-200 p-5"><button type="button" className="min-h-14 rounded-md border border-amber-300 bg-amber-50 px-5 font-bold text-amber-900" onClick={() => setConfirmEdit(true)}>Solicitar alteração</button></footer>{confirmEdit ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"><section className="w-full max-w-lg overflow-hidden rounded-lg border border-gray-300 bg-white shadow-2xl"><header className="brand-header p-4 text-white"><p className="text-xs font-bold uppercase text-white/70">CICOPAL · RG 003</p><h3 className="mt-1 text-xl font-bold">Confirmar alteração</h3></header><div className="p-5"><p className="font-semibold text-gray-800">Este registro já foi confirmado. Deseja abrir para alteração?</p><p className="mt-2 text-sm text-gray-500">A nova versão registrará o Técnico, data e hora da modificação.</p></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" className="min-h-14 border border-gray-300 bg-white font-bold" onClick={() => setConfirmEdit(false)}>Manter visualização</button><button type="button" className="min-h-14 bg-amber-500 font-bold text-white" onClick={onEdit}>Confirmar alteração</button></footer></section></div> : null}</section>;
 }
 
 function buildAllowedCycleHours(cycle) {
@@ -1332,7 +1333,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   const config = getRgDocumentConfig(documentName);
   const allowedHours = buildAllowedCycleHours(cycleContext);
   const completedHours = [...(subregistro?.apontamentos ?? []), ...(subregistro?.avaliacoes ?? [])].map((item) => item.horario).filter(Boolean);
-  if (isRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => { if (window.confirm("Este registro já foi gravado. Deseja realmente alterar? A alteração será auditada.")) setEditMode(true); }} />;
+  if (isRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => setEditMode(true)} />;
   const effectiveRegistro = {
     ...registro,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
@@ -1368,7 +1369,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           await persistCycleTransition({ cycle, status: "awaiting_release", description: "Higienização concluída conforme", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
         }
       } catch (error) {
-        console.error("Falha ao atualizar ciclo após higienização", error);
+        setSavedAt("");
       }
     }
     if (isRg003 && subregistro.id === "produto_liberacao" && !(payload.ncs ?? []).length) {
@@ -1382,7 +1383,21 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           await persistCycleTransition({ cycle, status: "producing", description: "Produto liberado", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
         }
       } catch (error) {
-        console.error("Falha ao atualizar ciclo após liberação", error);
+        setSavedAt("");
+      }
+    }
+    if (isRg003 && ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)) {
+      try {
+        const storageKey = "carper_rg003_cycle_ROS";
+        const cycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+        if (cycle?.activeAction) {
+          const nextCycle = { ...cycle, activeAction: null, events: [...(cycle.events ?? []), { id: `atividade-${Date.now()}`, label: `${cycle.activeAction.label} gravada`, at: new Date().toISOString(), operator: effectiveRegistro.operador }] };
+          window.localStorage.setItem(storageKey, JSON.stringify(nextCycle));
+          window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+          await persistCycleTransition({ cycle, status: cycle.status, description: `${cycle.activeAction.label} gravada`, operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
+        }
+      } catch {
+        setSavedAt("");
       }
     }
     setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));

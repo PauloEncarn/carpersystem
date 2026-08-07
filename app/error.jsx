@@ -1,12 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-
-export default function Error({ error, reset }) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
+export default function Error({ reset }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-cicopal-surface px-4">
       <section className="w-full max-w-xl rounded-md border border-red-200 bg-white p-5 shadow-soft">
@@ -15,9 +9,7 @@ export default function Error({ error, reset }) {
         <p className="mt-2 text-sm font-semibold text-gray-600">
           Atualize a pagina. Se repetir, envie uma foto desta mensagem para identificarmos o ponto exato.
         </p>
-        <pre className="mt-4 max-h-40 overflow-auto rounded-md bg-gray-950 p-3 text-xs font-semibold text-white">
-          {error?.message ?? "Erro sem detalhe informado pelo navegador."}
-        </pre>
+        <div className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3"><p className="text-xs font-bold uppercase text-cicopal-blue">CICOPAL · Sistema RG Qualidade</p><p className="mt-1 text-sm font-semibold text-gray-700">Nenhuma informação técnica será exibida nesta tela operacional.</p></div>
         <button
           type="button"
           className="mt-4 min-h-12 rounded-md bg-cicopal-blue px-4 font-bold text-white"
@@ -29,4 +21,3 @@ export default function Error({ error, reset }) {
     </main>
   );
 }
-

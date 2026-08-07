@@ -180,7 +180,6 @@ export default function HomePage() {
         const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId: activeCycleRef });
         setDatabaseStatus(result.remote ? "saved" : "local");
       } catch (error) {
-        console.error("Falha ao persistir RG 003", error);
         setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
       }
     }

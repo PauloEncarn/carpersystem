@@ -327,6 +327,11 @@ button {
   box-shadow: none;
 }
 
+/* O estado da etapa fica nos quadros; a gravação do formulário encerra a atividade. */
+.modern-ui section.rounded-3xl:has(> div.mt-5) > div.grid:first-child {
+  display: none;
+}
+
 @media (min-width: 768px) {
   .modern-ui section.rounded-3xl:has(> label.block + button) {
     display: grid;
