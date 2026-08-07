@@ -241,7 +241,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
     );
   }
 
-  function saveChecklist() {
+  async function saveChecklist() {
     const avaliacoes = rows
       .filter((row) => row.av1 || row.av2)
       .map((row) => ({
@@ -269,10 +269,11 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         assinaturaSupervisorAt: null
       }));
 
-    onSave?.({
+    const confirmed = await onSave?.({
       avaliacoes,
       ncs
     });
+    if (confirmed === false) return;
     setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
 

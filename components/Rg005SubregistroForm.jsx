@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
-import { persistCycleTransition } from "@/lib/rg003Persistence";
+import { loadRg003Record, persistCycleTransition } from "@/lib/rg003Persistence";
 
 const hours = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, "0")}:00`);
 
@@ -451,9 +451,15 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function TabletHourNavigator({ activeHour, onChange, allowedHours = hours }) {
+function TabletHourNavigator({ activeHour, onChange, allowedHours = hours, completedHours = [] }) {
   const entries = allowedHours.map((item) => typeof item === "string" ? { key: item, value: item, label: item } : item);
-  return <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">Horário em preenchimento</p><p className="text-2xl font-bold tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{entries.map((entry) => <button key={entry.key} type="button" className={`min-h-12 min-w-24 rounded-md border px-3 text-sm font-bold ${entry.value === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-gray-50 text-gray-600"}`} onClick={() => onChange(entry.value)}>{entry.label}</button>)}</div></div></section>;
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30_000); return () => window.clearInterval(timer); }, []);
+  const activeIndex = Math.max(0, entries.findIndex((entry) => entry.value === activeHour));
+  const missing = entries.filter((entry) => !completedHours.includes(entry.value)).length;
+  const nextHour = new Date(now); nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+  const minutesToNext = Math.max(0, Math.ceil((nextHour.getTime() - now.getTime()) / 60_000));
+  return <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-gray-500">Horário em preenchimento</p><p className="text-2xl font-bold tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex gap-2"><button type="button" disabled={activeIndex === 0} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex - 1].value)}>Anterior</button><button type="button" disabled={activeIndex >= entries.length - 1} className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30" onClick={() => onChange(entries[activeIndex + 1].value)}>Próximo</button></div></div><div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1">{entries.map((entry) => <button key={entry.key} type="button" className={`min-h-12 min-w-24 rounded-md border px-3 text-sm font-bold ${entry.value === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : completedHours.includes(entry.value) ? "border-green-200 bg-green-50 text-cicopal-green" : "border-amber-200 bg-amber-50 text-amber-800"}`} onClick={() => onChange(entry.value)}>{entry.label}</button>)}</div><div className={`mt-3 flex flex-wrap justify-between gap-2 border-t pt-3 text-sm font-bold ${missing ? "text-amber-800" : "text-cicopal-green"}`}><span>{missing ? `${missing} horário(s) pendente(s)` : "Todos os horários preenchidos"}</span><span>Próximo controle em {minutesToNext} min</span></div></section>;
 }
 
 function TabletProductMetrics({ columns, activeHour, onSave }) {
@@ -469,10 +475,10 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
   const [index, setIndex] = useState(0);
-  function save() {
+  async function save() {
     const apontamentos = columns.filter((item) => values[item]).map((item) => ({ horario: activeHour, item, resultado: values[item] }));
     const ncs = apontamentos.filter((item) => item.resultado === "NC").map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como NC na liberacao`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
-    onSave?.({ apontamentos, ncs }); setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    const confirmed = await onSave?.({ apontamentos, ncs }); if (confirmed === false) return; setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   }
   const column = columns[index];
   return <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 p-4"><p className="text-xs font-bold uppercase text-cicopal-blue">Liberação do produto · {activeHour}</p><div className="mt-2 h-2 bg-gray-200"><div className="h-full bg-cicopal-blue" style={{ width: `${((index + 1) / columns.length) * 100}%` }} /></div></header><div className="p-5"><p className="text-sm font-bold text-gray-500">Parâmetro {index + 1} de {columns.length}</p><h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">{column}</h2><div className="mt-4"><StatusClickButton value={values[column]} onChange={(value) => setValues((current) => ({ ...current, [column]: value }))} /></div></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" disabled={index === 0} className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30" onClick={() => setIndex((value) => value - 1)}>Voltar</button>{index === columns.length - 1 ? <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300" onClick={save}>Gravar liberação</button> : <button type="button" disabled={!values[column]} className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300" onClick={() => setIndex((value) => value + 1)}>Continuar</button>}</footer>{savedAt ? <p className="bg-green-50 p-2 text-center text-sm font-bold text-cicopal-green">Gravado às {savedAt}</p> : null}</section>;
@@ -1272,6 +1278,12 @@ function Rg003ProductContext({ cycle }) {
   return <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 border-l-4 border-l-cicopal-blue bg-white p-4"><div><p className="text-xs font-bold uppercase text-gray-500">Produto deste ciclo</p><p className="mt-1 text-xl font-bold text-gray-950">{cycle?.product ?? "Produto do ciclo"}</p></div><p className="text-sm font-semibold text-gray-500">Definido no início da produção e bloqueado para edição.</p></section>;
 }
 
+function PersistedRg003Summary({ data, onEdit }) {
+  const values = data.subregistro ?? {};
+  const entries = [...(values.avaliacoes ?? []), ...(values.apontamentos ?? [])];
+  return <section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-green bg-white"><header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4"><div><p className="text-xs font-bold uppercase text-cicopal-green">Preenchimento gravado</p><h2 className="text-xl font-bold text-gray-950">Visualização do registro</h2><p className="text-sm font-semibold text-gray-500">{new Date(data.filledAt).toLocaleString("pt-BR")} · versão {data.version}</p></div><button type="button" className="min-h-12 rounded-md border border-amber-300 bg-amber-50 px-4 font-bold text-amber-800" onClick={onEdit}>Alterar registro</button></header><div className="grid gap-2 p-4 sm:grid-cols-2">{entries.length ? entries.map((item, index) => <div key={`${item.item}-${index}`} className="flex items-center justify-between gap-3 border border-gray-200 bg-gray-50 p-3"><span className="text-sm font-semibold text-gray-700">{item.maquina ? `${item.maquina} · ` : ""}{item.item}</span><strong className={item.resultado === "NC" || item.av1 === "NC" ? "text-cicopal-red" : "text-cicopal-green"}>{item.resultado ?? item.av1 ?? "Preenchido"}</strong></div>) : <p className="text-sm font-semibold text-gray-500">Registro concluído sem itens detalhados.</p>}</div>{values.ncs?.length ? <div className="border-t border-red-100 bg-red-50 p-4 text-sm font-bold text-cicopal-red">{values.ncs.length} não conformidade(s) vinculada(s).</div> : null}</section>;
+}
+
 function buildAllowedCycleHours(cycle) {
   if (!cycle?.startedAt) return [{ key: getCurrentHourSlot(), value: getCurrentHourSlot(), label: getCurrentHourSlot() }];
   const start = new Date(cycle.startedAt);
@@ -1291,6 +1303,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   const [registroDataHora] = useState(() => new Date().toLocaleString("pt-BR"));
   const [activeHour, setActiveHour] = useState(() => getCurrentHourSlot());
   const [cycleContext, setCycleContext] = useState(null);
+  const [persistedRecord, setPersistedRecord] = useState(null);
+  const [editMode, setEditMode] = useState(false);
   const isRg003 = documentName === "RG.QUA.BA.003";
   useEffect(() => {
     if (!isRg003) return;
@@ -1302,9 +1316,17 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
     window.addEventListener("rg003-cycle-updated", loadCycle);
     return () => window.removeEventListener("rg003-cycle-updated", loadCycle);
   }, [isRg003]);
+  useEffect(() => {
+    let active = true;
+    if (!isRg003 || !registro?.id) return;
+    loadRg003Record(registro.id).then((data) => { if (active) { setPersistedRecord(data); setEditMode(false); } }).catch(() => { if (active) setPersistedRecord(null); });
+    return () => { active = false; };
+  }, [isRg003, registro?.id]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
   const allowedHours = buildAllowedCycleHours(cycleContext);
+  const completedHours = [...(subregistro?.apontamentos ?? []), ...(subregistro?.avaliacoes ?? [])].map((item) => item.horario).filter(Boolean);
+  if (isRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => { if (window.confirm("Este registro já foi gravado. Deseja realmente alterar? A alteração será auditada.")) setEditMode(true); }} />;
   const effectiveRegistro = {
     ...registro,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
@@ -1314,6 +1336,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   };
 
   async function saveProcesso(payload = {}) {
+    if (isRg003 && subregistro.id === "higienizacao" && !window.confirm("Deseja confirmar a higienização?")) return false;
+    if (isRg003 && subregistro.id === "produto_liberacao" && !window.confirm("Deseja liberar o produto?")) return false;
     onSave?.({
       registro: {
         ...effectiveRegistro,
@@ -1323,6 +1347,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       subregistro: {
         ...subregistro,
         ...payload,
+        ...(persistedRecord && editMode ? { _persistence: { id: persistedRecord.fillingId, version: persistedRecord.version } } : {}),
         status: payload.ncs?.length ? "Com NC" : "Gravado"
       }
     });
@@ -1355,6 +1380,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       }
     }
     setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    return true;
   }
 
   if (subregistro.id === "higienizacao") {
@@ -1378,10 +1404,10 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
         {isRg003 ? <TabletRelease columns={config.liberacaoProdutoColumns} activeHour={activeHour} registro={effectiveRegistro} onSave={saveProcesso} /> : <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />}
-        <AssinaturasRegistro registro={effectiveRegistro} />
+        {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
   }
@@ -1389,12 +1415,12 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />}
         {isRg003 ? <TabletProductMetrics columns={config.avaliacaoProdutoColumns} activeHour={activeHour} onSave={saveProcesso} /> : <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />}
         <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={isRg003} gramaturas={config.produtoOptions.gramaturas} activeHour={isRg003 ? activeHour : ""} />
         {!isRg003 ? <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} /> : null}
-        <AssinaturasRegistro registro={effectiveRegistro} />
+        {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
   }
@@ -1402,7 +1428,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
         <MachineHourlySections
           title="RG - Processo"
@@ -1413,7 +1439,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
           gramaturas={config.produtoOptions.gramaturas}
           activeHour={isRg003 ? activeHour : ""}
         />
-        <AssinaturasRegistro registro={effectiveRegistro} />
+        {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
   }
@@ -1421,11 +1447,11 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "fotografico") {
     return (
       <>
-        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} /> : null}
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
         <PhotoHourlyGrid activeHour={isRg003 ? activeHour : ""} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
-        <AssinaturasRegistro registro={effectiveRegistro} />
+        {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );
   }

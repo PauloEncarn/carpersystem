@@ -51,6 +51,16 @@ create index if not exists idx_ciclo_ncs_ciclo on public.ciclo_nao_conformidades
 
 alter table public.nao_conformidades add column if not exists codigo_origem text unique;
 
+alter table public.preenchimentos
+  add column if not exists ciclo_id uuid references public.ciclos_producao(id) on delete restrict,
+  add column if not exists chave_slot text,
+  add column if not exists versao integer not null default 1,
+  add column if not exists atualizado_por uuid references public.operadores(id) on delete set null;
+
+create unique index if not exists uq_preenchimento_ciclo_processo_slot
+  on public.preenchimentos (ciclo_id, processo_id, chave_slot)
+  where ciclo_id is not null and chave_slot is not null;
+
 drop trigger if exists set_updated_at_ciclos_producao on public.ciclos_producao;
 create trigger set_updated_at_ciclos_producao before update on public.ciclos_producao
 for each row execute function public.set_updated_at();
@@ -103,3 +113,24 @@ end;
 $$;
 
 grant execute on function public.iniciar_ciclo_rg003(text, text, text, uuid) to anon, authenticated;
+
+create or replace function public.atualizar_preenchimento_rg003(p_preenchimento_id uuid, p_versao_esperada integer, p_valores jsonb, p_status text, p_operador_id uuid)
+returns public.preenchimentos
+language plpgsql
+security invoker
+as $$
+declare atualizado public.preenchimentos;
+begin
+  update public.preenchimentos
+     set valores = p_valores, status = p_status, versao = versao + 1,
+         atualizado_por = p_operador_id, preenchido_em = now()
+   where id = p_preenchimento_id and versao = p_versao_esperada
+   returning * into atualizado;
+  if atualizado.id is null then
+    raise exception 'CONFLICT: o registro foi alterado por outro técnico. Recarregue antes de editar.' using errcode = '40001';
+  end if;
+  return atualizado;
+end;
+$$;
+
+grant execute on function public.atualizar_preenchimento_rg003(uuid, integer, jsonb, text, uuid) to anon, authenticated;

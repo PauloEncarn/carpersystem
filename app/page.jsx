@@ -60,6 +60,8 @@ export default function HomePage() {
 
   async function saveRegistroSnapshot(snapshot) {
     if (!selection.linhaId || !selection.dataId || !selection.documentoId || !selection.loteId || !selection.registroId) return;
+    let activeCycleRef = null;
+    try { activeCycleRef = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.id ?? null; } catch { activeCycleRef = null; }
 
     setOperationTree((currentTree) =>
       currentTree.map((linha) => {
@@ -102,7 +104,7 @@ export default function HomePage() {
         const hygieneCycles = loteAtual.registros.filter((registro) => registro.processoId === "higienizacao");
         const latestCycleId = [...hygieneCycles].reverse().find((registro) => registro.cicloId)?.cicloId;
         const cycleNumber = String(hygieneCycles.length + 1).padStart(2, "0");
-        const recordCycleId = existingRegistro?.cicloId ?? (selection.subregistroId === "higienizacao" ? `CICLO-${cycleNumber}` : latestCycleId ?? "CICLO-01");
+        const recordCycleId = existingRegistro?.cicloId ?? activeCycleRef ?? (selection.subregistroId === "higienizacao" ? `CICLO-${cycleNumber}` : latestCycleId ?? "CICLO-01");
         const registroBase =
           registroIndex >= 0
             ? loteAtual.registros[registroIndex]
@@ -175,13 +177,11 @@ export default function HomePage() {
     if (selection.documentoId === "RG.QUA.BA.003") {
       setDatabaseStatus("saving");
       try {
-        let cycleId = null;
-        try { cycleId = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.id ?? null; } catch { cycleId = null; }
-        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId });
+        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId: activeCycleRef });
         setDatabaseStatus(result.remote ? "saved" : "local");
       } catch (error) {
         console.error("Falha ao persistir RG 003", error);
-        setDatabaseStatus("error");
+        setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
       }
     }
   }
@@ -218,7 +218,7 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
-        {databaseStatus ? <div className={`rounded-md border px-4 py-2 text-sm font-bold ${databaseStatus === "error" ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}>{databaseStatus === "saving" ? "Gravando no banco..." : databaseStatus === "saved" ? "Dados sincronizados com o banco." : databaseStatus === "local" ? "Supabase não configurado: dados mantidos neste tablet." : "Não foi possível sincronizar. Os dados continuam neste tablet."}</div> : null}
+        {databaseStatus ? <div className={`rounded-md border px-4 py-2 text-sm font-bold ${["error", "conflict"].includes(databaseStatus) ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}>{databaseStatus === "saving" ? "Gravando no banco..." : databaseStatus === "saved" ? "Dados sincronizados com o banco." : databaseStatus === "local" ? "Supabase não configurado: dados mantidos neste tablet." : databaseStatus === "conflict" ? "Este preenchimento foi gravado ou alterado por outro técnico. Recarregue o registro antes de editar." : "Não foi possível sincronizar. Os dados continuam neste tablet."}</div> : null}
         <HierarchyNavigator
             tree={operationTree}
             selection={selection}

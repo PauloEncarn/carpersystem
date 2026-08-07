@@ -880,9 +880,12 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
   function abrirRegistroTecnico(processoId) {
     const processRecords = selected.lote?.registros.filter((registro) => registro.processoId === processoId) ?? [];
     const prefix = processDisplayPrefixes[processoId] ?? "REG";
-    const nextNumber = String(processRecords.length + 1).padStart(2, "0");
     const rgPrefix = getRgPrefix(selection.documentoId);
-    onSelectionChange({ ...selection, subregistroId: processoId, registroId: `${rgPrefix}-${selection.loteId}-${prefix}${nextNumber}` });
+    let activeCycleId = "CICLO-ATUAL";
+    try { activeCycleId = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.id ?? activeCycleId; } catch { /* usa identificador local */ }
+    const existing = processRecords.find((registro) => registro.cicloId === activeCycleId) ?? processRecords[0];
+    const cycleSuffix = activeCycleId.replace(/[^a-zA-Z0-9]/g, "").slice(-8);
+    onSelectionChange({ ...selection, subregistroId: processoId, registroId: existing?.id ?? `${rgPrefix}-${selection.loteId}-${cycleSuffix}-${prefix}` });
     onStepChange(6);
   }
 
