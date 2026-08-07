@@ -185,7 +185,7 @@ function makeNcId(base = "NC") {
     .toUpperCase();
 }
 
-function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onSave }) {
+function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onSave, activeHour = "" }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
 
@@ -236,7 +236,9 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onS
           <p className="text-sm font-semibold text-gray-600">Hora em hora</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      {activeHour ? <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
+        {columns.map((column) => <div key={column} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><p className="mb-2 min-h-10 text-sm font-black text-gray-800">{column}</p><StatusClickButton value={values[valueKey(activeHour, column)]} onChange={(value) => updateValue(activeHour, column, value)} /></div>)}
+      </div> : <div className="overflow-x-auto">
         <table className={`audit-table ${minWidth} text-left`}>
           <thead>
             <tr>
@@ -261,7 +263,7 @@ function HourlyTable({ title, columns, minWidth = "min-w-[980px]", registro, onS
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 p-3">
         <span className="text-sm font-bold text-gray-500">
           {savedAt ? `Bloco gravado as ${savedAt}` : "Dois toques em um item geram NC ao gravar."}
@@ -448,7 +450,26 @@ function ProductEvaluationHourlyTable({ columns = avaliacaoProdutoColumns }) {
   );
 }
 
-function MachineHourlySections({ title, machines = [], registro, onSave, requireMachineSetup = false, gramaturas = [] }) {
+function TabletHourNavigator({ activeHour, onChange }) {
+  return <section className="sticky top-[72px] z-10 mb-4 rounded-2xl border border-cicopal-blue bg-white p-3 shadow-lg"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase text-gray-500">Horário em preenchimento</p><p className="text-3xl font-black tabular-nums text-cicopal-blue">{activeHour}</p></div><div className="flex max-w-full gap-2 overflow-x-auto pb-1">{hours.map((hour) => <button key={hour} type="button" className={`min-h-12 min-w-20 rounded-xl border px-3 text-sm font-black ${hour === activeHour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-gray-50 text-gray-600"}`} onClick={() => onChange(hour)}>{hour}</button>)}</div></div></section>;
+}
+
+function TabletProductMetrics({ columns, activeHour }) {
+  return <section className="rounded-2xl border border-gray-200 bg-white p-3"><div className="mb-3 flex items-center gap-2"><Clock size={22} className="text-cicopal-blue" /><h2 className="text-lg font-black">Avaliação do produto · {activeHour}</h2></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{columns.map((column) => <label key={column.label} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><span className="mb-2 block text-sm font-black text-gray-800">{column.label}</span><div className="flex min-h-14 overflow-hidden rounded-xl border border-gray-300 bg-white"><input type="number" inputMode="decimal" step="0.01" className="min-h-14 w-full min-w-0 px-3 text-lg font-bold outline-none" /><span className="grid place-items-center bg-gray-100 px-3 text-sm font-black text-gray-600">{column.unit}</span></div></label>)}</div></section>;
+}
+
+function TabletRelease({ columns, activeHour, registro, onSave }) {
+  const [values, setValues] = useState({});
+  const [savedAt, setSavedAt] = useState("");
+  function save() {
+    const apontamentos = columns.filter((item) => values[item]).map((item) => ({ horario: activeHour, item, resultado: values[item] }));
+    const ncs = apontamentos.filter((item) => item.resultado === "NC").map((item, index) => ({ id: `LIBP-NC-${index + 1}`, item: item.item, horario: activeHour, status: "Aberta", descricao: `${item.item} marcado como NC na liberacao`, operador: registro?.operador ?? "", produto: registro?.produto ?? "-" }));
+    onSave?.({ apontamentos, ncs }); setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }
+  return <section className="rounded-2xl border border-gray-200 bg-white p-3"><div className="mb-3"><h2 className="text-xl font-black">Liberação do produto · {activeHour}</h2><p className="text-sm font-semibold text-gray-500">Toque uma vez para Conforme e duas vezes para NC.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{columns.map((column) => <div key={column} className="rounded-xl border border-gray-200 bg-gray-50 p-3"><p className="mb-2 min-h-10 text-sm font-black text-gray-800">{column}</p><StatusClickButton value={values[column]} onChange={(value) => setValues((current) => ({ ...current, [column]: value }))} /></div>)}</div><div className="sticky bottom-3 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-gray-950 p-3 text-white shadow-xl"><span className="text-sm font-bold">{savedAt ? `Gravado às ${savedAt}` : `Horário ${activeHour}`}</span><button type="button" className="min-h-14 rounded-xl bg-cicopal-blue px-6 text-base font-black" onClick={save}>Gravar liberação</button></div></section>;
+}
+
+function MachineHourlySections({ title, machines = [], registro, onSave, requireMachineSetup = false, gramaturas = [], activeHour = "" }) {
   const [activeCount, setActiveCount] = useState(requireMachineSetup ? "" : String(machines.length));
   const [machineGrams, setMachineGrams] = useState({});
   if (!machines.length) return null;
@@ -473,6 +494,7 @@ function MachineHourlySections({ title, machines = [], registro, onSave, require
           minWidth="min-w-[860px]"
           registro={registro}
           onSave={onSave}
+          activeHour={activeHour}
         />
       ))}
     </div>
@@ -1104,7 +1126,7 @@ function AssinaturasRegistro({ registro }) {
   );
 }
 
-function PhotoHourlyGrid() {
+function PhotoHourlyGrid({ activeHour = "" }) {
   const [photos, setPhotos] = useState({});
 
   function updatePhoto(hour, file) {
@@ -1125,7 +1147,7 @@ function PhotoHourlyGrid() {
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        {hours.map((hour) => (
+        {(activeHour ? [activeHour] : hours).map((hour) => (
           <article key={hour} className="rounded-md border border-gray-200 bg-white p-3 shadow-soft">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-lg font-bold text-gray-950">{hour}</span>
@@ -1214,8 +1236,10 @@ function ProdutoContexto({ registro, options }) {
 export function Rg005SubregistroForm({ documentName, loteId, registro, subregistro, loggedUser, onSave }) {
   const [savedAt, setSavedAt] = useState("");
   const [registroDataHora] = useState(() => new Date().toLocaleString("pt-BR"));
+  const [activeHour, setActiveHour] = useState(() => getCurrentHourSlot());
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
+  const isRg003 = documentName === "RG.QUA.BA.003";
   const effectiveRegistro = {
     ...registro,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
@@ -1260,8 +1284,9 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
         <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
-        <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />
+        {isRg003 ? <TabletRelease columns={config.liberacaoProdutoColumns} activeHour={activeHour} registro={effectiveRegistro} onSave={saveProcesso} /> : <LiberacaoProdutoTable columns={config.liberacaoProdutoColumns} registro={effectiveRegistro} onSave={saveProcesso} />}
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
     );
@@ -1270,9 +1295,10 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
         <ProdutoContexto registro={effectiveRegistro} options={config.produtoOptions} />
-        <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />
-        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={documentName === "RG.QUA.BA.003"} gramaturas={config.produtoOptions.gramaturas} />
+        {isRg003 ? <TabletProductMetrics columns={config.avaliacaoProdutoColumns} activeHour={activeHour} /> : <ProductEvaluationHourlyTable columns={config.avaliacaoProdutoColumns} />}
+        <MachineHourlySections title="Avaliacao por maquina" machines={config.produtoMaquinas} registro={effectiveRegistro} onSave={saveProcesso} requireMachineSetup={isRg003} gramaturas={config.produtoOptions.gramaturas} activeHour={isRg003 ? activeHour : ""} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
@@ -1282,13 +1308,15 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "processo") {
     return (
       <>
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
         <MachineHourlySections
           title="RG - Processo"
           machines={config.processoMaquinas?.length ? config.processoMaquinas : [{ label: "Linha", columns: processoColumns }]}
           registro={effectiveRegistro}
           onSave={saveProcesso}
-          requireMachineSetup={documentName === "RG.QUA.BA.003"}
+          requireMachineSetup={isRg003}
           gramaturas={config.produtoOptions.gramaturas}
+          activeHour={isRg003 ? activeHour : ""}
         />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
@@ -1298,7 +1326,8 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   if (subregistro.id === "fotografico") {
     return (
       <>
-        <PhotoHourlyGrid />
+        {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} /> : null}
+        <PhotoHourlyGrid activeHour={isRg003 ? activeHour : ""} />
         <SaveProcessBar savedAt={savedAt} onSave={() => saveProcesso()} />
         <AssinaturasRegistro registro={effectiveRegistro} />
       </>
