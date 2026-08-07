@@ -63,6 +63,7 @@ export default function HomePage() {
     let activeCycle = null;
     try { activeCycle = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null"); } catch { activeCycle = null; }
     const activeCycleRef = activeCycle?.id ?? null;
+    const cycleRegistro = activeCycle?.product ? { ...snapshot.registro, produto: activeCycle.product, sabor: activeCycle.product.replace(/^Rosca\s+/i, "") } : snapshot.registro;
 
     setOperationTree((currentTree) =>
       currentTree.map((linha) => {
@@ -96,7 +97,7 @@ export default function HomePage() {
             ? nextLotes[loteIndex]
             : {
                 id: selection.loteId,
-                produto: snapshot.registro.produto ?? "Lote do dia",
+                produto: cycleRegistro.produto ?? "Lote do dia",
                 registros: []
               };
 
@@ -135,7 +136,7 @@ export default function HomePage() {
 
         const nextRegistro = {
           ...registroBase,
-          ...snapshot.registro,
+          ...cycleRegistro,
           id: selection.registroId,
           processoId: selection.subregistroId,
           cicloId: recordCycleId,
@@ -178,7 +179,7 @@ export default function HomePage() {
     if (selection.documentoId === "RG.QUA.BA.003") {
       setDatabaseStatus("saving");
       try {
-        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: activeCycle?.productionCode ?? selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId: activeCycleRef, cycleStartedAt: activeCycle?.startedAt, productionCode: activeCycle?.productionCode });
+        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: activeCycle?.productionCode ?? selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: cycleRegistro, subregistro: snapshot.subregistro, cycleId: activeCycleRef, cycleStartedAt: activeCycle?.startedAt, productionCode: activeCycle?.productionCode });
         setDatabaseStatus(result.remote ? "saved" : "local");
       } catch (error) {
         setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
