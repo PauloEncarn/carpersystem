@@ -1,7 +1,14 @@
 "use client";
 
 import { Fragment, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  XCircle,
+} from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
 
 function makeInitialState(groups = checklistGroups) {
@@ -18,8 +25,8 @@ function makeInitialState(groups = checklistGroups) {
         causa: "",
         acao: "",
         disposicaoImediata: "",
-        disposicaoFinal: ""
-      }
+        disposicaoFinal: "",
+      },
     }));
 
     return acc.concat(rows);
@@ -46,8 +53,8 @@ function buildInitialRows(subregistro, groups) {
         causa: nc?.causa ?? "",
         acao: nc?.acao ?? "",
         disposicaoImediata: nc?.disposicaoImediata ?? "",
-        disposicaoFinal: nc?.disposicaoFinal ?? ""
-      }
+        disposicaoFinal: nc?.disposicaoFinal ?? "",
+      },
     };
   });
 }
@@ -55,9 +62,27 @@ function buildInitialRows(subregistro, groups) {
 function StatusClickButton({ value, onChange }) {
   return (
     <div className="grid min-w-64 grid-cols-3 gap-2">
-      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-green-50 text-cicopal-green"}`} onClick={() => onChange("C")}>C</button>
-      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => onChange("N")}>N</button>
-      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "NA" ? "border-gray-500 bg-gray-600 text-white" : "border-gray-300 bg-gray-100 text-gray-600"}`} onClick={() => onChange("NA")}>NA</button>
+      <button
+        type="button"
+        className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-green-50 text-cicopal-green"}`}
+        onClick={() => onChange("C")}
+      >
+        C
+      </button>
+      <button
+        type="button"
+        className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-red-50 text-cicopal-red"}`}
+        onClick={() => onChange("N")}
+      >
+        N
+      </button>
+      <button
+        type="button"
+        className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "NA" ? "border-gray-500 bg-gray-600 text-white" : "border-gray-300 bg-gray-100 text-gray-600"}`}
+        onClick={() => onChange("NA")}
+      >
+        NA
+      </button>
     </div>
   );
 }
@@ -85,14 +110,27 @@ function ChecklistGroupTable({ title, rows, onChange }) {
           <tbody>
             {rows.map(({ row, index }) => (
               <Fragment key={`${row.group}-${row.item}`}>
-                <tr key={`${row.group}-${row.item}`} className={["N", "NC"].includes(row.av1) ? "bg-red-50" : "bg-white"}>
-                  <td className="px-4 py-3 text-base font-semibold text-gray-950">{row.item}</td>
+                <tr
+                  key={`${row.group}-${row.item}`}
+                  className={
+                    ["N", "NC"].includes(row.av1) ? "bg-red-50" : "bg-white"
+                  }
+                >
+                  <td className="px-4 py-3 text-base font-semibold text-gray-950">
+                    {row.item}
+                  </td>
                   <td className="px-4 py-3">
-                    <StatusClickButton value={row.av1} onChange={(value) => onChange(index, { av1: value })} />
+                    <StatusClickButton
+                      value={row.av1}
+                      onChange={(value) => onChange(index, { av1: value })}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     {["N", "NC"].includes(row.av1) ? (
-                      <StatusClickButton value={row.av2} onChange={(value) => onChange(index, { av2: value })} />
+                      <StatusClickButton
+                        value={row.av2}
+                        onChange={(value) => onChange(index, { av2: value })}
+                      />
                     ) : (
                       <span className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-gray-100 px-3 text-sm font-bold text-gray-500">
                         Bloqueada
@@ -110,28 +148,48 @@ function ChecklistGroupTable({ title, rows, onChange }) {
                         </div>
                         <div className="grid gap-3 md:grid-cols-3">
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Horario</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Horario
+                            </span>
                             <input
                               type="time"
                               className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold"
                               value={row.nc.horario}
-                              onChange={(event) => updateNc(index, "horario", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(index, "horario", event.target.value)
+                              }
                             />
                           </label>
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Quantidade</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Quantidade
+                            </span>
                             <input
                               className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold"
                               value={row.nc.quantidade}
-                              onChange={(event) => updateNc(index, "quantidade", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(
+                                  index,
+                                  "quantidade",
+                                  event.target.value,
+                                )
+                              }
                             />
                           </label>
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Disposicao imediata</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Disposicao imediata
+                            </span>
                             <select
                               className="min-h-12 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold"
                               value={row.nc.disposicaoImediata}
-                              onChange={(event) => updateNc(index, "disposicaoImediata", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(
+                                  index,
+                                  "disposicaoImediata",
+                                  event.target.value,
+                                )
+                              }
                             >
                               <option value="">Selecionar</option>
                               <option>Bloqueado</option>
@@ -141,27 +199,43 @@ function ChecklistGroupTable({ title, rows, onChange }) {
                         </div>
                         <div className="mt-3 grid gap-3 md:grid-cols-3">
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Causa</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Causa
+                            </span>
                             <textarea
                               className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
                               value={row.nc.causa}
-                              onChange={(event) => updateNc(index, "causa", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(index, "causa", event.target.value)
+                              }
                             />
                           </label>
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Acao</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Acao
+                            </span>
                             <textarea
                               className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
                               value={row.nc.acao}
-                              onChange={(event) => updateNc(index, "acao", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(index, "acao", event.target.value)
+                              }
                             />
                           </label>
                           <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Disposicao final</span>
+                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                              Disposicao final
+                            </span>
                             <textarea
                               className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 font-semibold"
                               value={row.nc.disposicaoFinal}
-                              onChange={(event) => updateNc(index, "disposicaoFinal", event.target.value)}
+                              onChange={(event) =>
+                                updateNc(
+                                  index,
+                                  "disposicaoFinal",
+                                  event.target.value,
+                                )
+                              }
                             />
                           </label>
                         </div>
@@ -178,10 +252,23 @@ function ChecklistGroupTable({ title, rows, onChange }) {
   );
 }
 
-export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", registro, subregistro, groups = checklistGroups, onSave, stepByStep = false }) {
+export function ChecklistTable({
+  documentName = "RG.QUA.005",
+  loteId = "",
+  registro,
+  subregistro,
+  groups = checklistGroups,
+  onSave,
+  stepByStep = false,
+}) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
   const [savedAt, setSavedAt] = useState("");
-  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, buildInitialRows(subregistro, groups).findIndex((row) => !row.av1)));
+  const [activeIndex, setActiveIndex] = useState(() =>
+    Math.max(
+      0,
+      buildInitialRows(subregistro, groups).findIndex((row) => !row.av1),
+    ),
+  );
   const choiceTapRef = useRef({ value: "", at: 0 });
 
   const totals = useMemo(() => {
@@ -191,7 +278,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         if (["N", "NC"].includes(row.av1)) acc.naoConformes += 1;
         return acc;
       },
-      { conformes: 0, naoConformes: 0 }
+      { conformes: 0, naoConformes: 0 },
     );
   }, [rows]);
 
@@ -209,14 +296,14 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
             causa: "",
             acao: "",
             disposicaoImediata: "",
-            disposicaoFinal: ""
+            disposicaoFinal: "",
           };
         }
         if (["N", "NC"].includes(patch.av1)) {
           next.ncOpen = true;
         }
         return next;
-      })
+      }),
     );
   }
 
@@ -227,7 +314,7 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         item: row.item,
         grupo: row.group,
         av1: row.av1,
-        av2: row.av2
+        av2: row.av2,
       }));
     const ncs = rows
       .filter((row) => ["N", "NC"].includes(row.av1))
@@ -236,7 +323,12 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         item: row.item,
         grupo: row.group,
         status: row.av2 === "C" ? "Tratada" : "Aberta",
-        horario: row.nc.horario || new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        horario:
+          row.nc.horario ||
+          new Date().toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         quantidade: row.nc.quantidade || "-",
         descricao: `${row.item} marcado como N na 1 AV`,
         causa: row.nc.causa || "Nao informada",
@@ -245,43 +337,218 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
         disposicaoFinal: row.nc.disposicaoFinal || "Nao informada",
         operador: registro?.operador ?? "",
         produto: registro?.produto ?? "-",
-        assinaturaSupervisorAt: null
+        assinaturaSupervisorAt: null,
       }));
 
     const confirmed = await onSave?.({
       avaliacoes,
-      ncs
+      ncs,
     });
     if (confirmed === false) return;
-    setSavedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    setSavedAt(
+      new Date().toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
   }
 
   if (stepByStep) {
     const row = rows[activeIndex];
-    const progress = rows.length ? Math.round(((activeIndex + 1) / rows.length) * 100) : 0;
+    const progress = rows.length
+      ? Math.round(((activeIndex + 1) / rows.length) * 100)
+      : 0;
     const groupRows = rows.filter((item) => item.group === row?.group);
-    const groupPosition = groupRows.findIndex((item) => item.item === row?.item) + 1;
-    const updateNc = (field, value) => updateRow(activeIndex, { nc: { ...(row?.nc ?? {}), [field]: value } });
+    const groupPosition =
+      groupRows.findIndex((item) => item.item === row?.item) + 1;
+    const updateNc = (field, value) =>
+      updateRow(activeIndex, { nc: { ...(row?.nc ?? {}), [field]: value } });
     function choose(value) {
       const now = Date.now();
-      const isSecondTap = choiceTapRef.current.value === value && now - choiceTapRef.current.at < 650;
+      const isSecondTap =
+        choiceTapRef.current.value === value &&
+        now - choiceTapRef.current.at < 650;
       updateRow(activeIndex, { av1: value });
       choiceTapRef.current = { value, at: now };
-      if (isSecondTap && value === "C" && activeIndex < rows.length - 1) setActiveIndex((index) => index + 1);
+      if (isSecondTap && value === "C" && activeIndex < rows.length - 1)
+        setActiveIndex((index) => index + 1);
     }
-    return <section className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white"><header className="border-b border-gray-200 bg-white p-4 md:p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase text-cicopal-blue">{row?.group}</p><h2 className="mt-1 text-xl font-bold text-gray-950">Higienização · RG 003</h2></div><span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold text-gray-600">{activeIndex + 1}/{rows.length}</span></div><div className="mt-4 h-2 overflow-hidden bg-gray-200"><div className="h-full bg-cicopal-blue transition-all" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs font-semibold text-gray-500">Item {groupPosition} de {groupRows.length} nesta seção</p></header>
-    <div className="p-4 md:p-6"><p className="text-sm font-bold uppercase text-gray-400">Verifique o item</p><h3 className="mt-2 min-h-20 text-2xl font-bold leading-tight text-gray-950 md:text-3xl">{row?.item}</h3><p className="mb-3 text-sm font-semibold text-gray-500">Toque duas vezes para confirmar. Conforme avança automaticamente.</p><div className="grid grid-cols-2 gap-3"><button type="button" className={`min-h-24 rounded-md border-2 p-3 text-lg font-bold ${row?.av1 === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-white text-cicopal-green"}`} onPointerUp={() => choose("C")}><CheckCircle2 size={28} className="mx-auto mb-2" />Conforme</button><button type="button" className={`min-h-24 rounded-md border-2 p-3 text-lg font-bold ${row?.av1 === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`} onPointerUp={() => choose("NC")}><XCircle size={28} className="mx-auto mb-2" />Não conforme</button></div>
-    {row?.av1 === "NC" ? <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4"><div className="mb-3 flex items-center gap-2 font-black text-cicopal-red"><AlertTriangle size={20} />Detalhes da não conformidade</div><div className="grid gap-3 sm:grid-cols-2"><label><span className="mb-1 block text-xs font-black uppercase text-gray-600">Horário</span><input type="time" className="min-h-14 w-full rounded-xl border border-red-200 bg-white px-3 font-bold" value={row.nc.horario} onChange={(e) => updateNc("horario", e.target.value)} /></label><label><span className="mb-1 block text-xs font-black uppercase text-gray-600">Disposição imediata</span><select className="min-h-14 w-full rounded-xl border border-red-200 bg-white px-3 font-bold" value={row.nc.disposicaoImediata} onChange={(e) => updateNc("disposicaoImediata", e.target.value)}><option value="">Selecionar</option><option>Bloqueado</option><option>Descarte</option><option>Corrigido no local</option></select></label><label className="sm:col-span-2"><span className="mb-1 block text-xs font-black uppercase text-gray-600">O que foi encontrado?</span><textarea className="min-h-24 w-full rounded-xl border border-red-200 bg-white p-3 font-semibold" value={row.nc.causa} onChange={(e) => updateNc("causa", e.target.value)} /></label><label className="sm:col-span-2"><span className="mb-1 block text-xs font-black uppercase text-gray-600">Ação realizada</span><textarea className="min-h-24 w-full rounded-xl border border-red-200 bg-white p-3 font-semibold" value={row.nc.acao} onChange={(e) => updateNc("acao", e.target.value)} /></label></div></div> : null}</div>
-    <footer className="sticky bottom-0 grid grid-cols-2 gap-3 border-t border-gray-200 bg-white p-4"><button type="button" disabled={activeIndex === 0} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white text-lg font-black text-gray-700 disabled:opacity-30" onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={22} />Voltar</button>{activeIndex === rows.length - 1 ? <button type="button" disabled={!row?.av1} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300" onClick={saveChecklist}><CheckCircle2 size={22} />Concluir checklist</button> : <button type="button" disabled={!row?.av1} className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300" onClick={() => setActiveIndex((index) => Math.min(rows.length - 1, index + 1))}>Continuar<ArrowRight size={22} /></button>}</footer>{savedAt ? <p className="bg-green-50 p-3 text-center text-sm font-black text-cicopal-green">Checklist gravado às {savedAt}</p> : null}</section>;
+    return (
+      <section className="checklist-focus mx-auto max-w-5xl overflow-hidden border border-gray-300 bg-white">
+        <header className="border-b border-gray-200 bg-white p-4 md:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase text-cicopal-blue">
+                {row?.group}
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-gray-950">
+                Higienização · RG 003
+              </h2>
+            </div>
+            <span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold text-gray-600">
+              {activeIndex + 1}/{rows.length}
+            </span>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden bg-gray-200">
+            <div
+              className="h-full bg-cicopal-blue transition-all"
+              style={{ height: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs font-semibold text-gray-500">
+            Item {groupPosition} de {groupRows.length} nesta seção
+          </p>
+        </header>
+        <div className="p-4 md:p-6">
+          <p className="text-sm font-bold uppercase text-gray-400">
+            Verifique o item
+          </p>
+          <h3 className="mt-2 min-h-20 text-2xl font-bold leading-tight text-gray-950 md:text-3xl">
+            {row?.item}
+          </h3>
+          <p className="mb-3 text-sm font-semibold text-gray-500">
+            Toque duas vezes para confirmar. Conforme avança automaticamente.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              className={`min-h-24 rounded-md border-2 p-3 text-lg font-bold ${row?.av1 === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-white text-cicopal-green"}`}
+              onPointerUp={() => choose("C")}
+            >
+              <CheckCircle2 size={28} className="mx-auto mb-2" />
+              Conforme
+            </button>
+            <button
+              type="button"
+              className={`min-h-24 border-2 p-3 text-lg font-bold ${["N", "NC"].includes(row?.av1) ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`}
+              onPointerUp={() => choose("N")}
+            >
+              <XCircle size={28} className="mx-auto mb-2" />
+              N · Não conforme
+            </button>
+            <button
+              type="button"
+              className={`min-h-24 border-2 p-3 text-lg font-bold ${row?.av1 === "NA" ? "border-gray-600 bg-gray-600 text-white" : "border-gray-300 bg-gray-100 text-gray-600"}`}
+              onPointerUp={() => choose("NA")}
+            >
+              <Circle size={28} className="mx-auto mb-2" />
+              NA · Não se aplica
+            </button>
+          </div>
+          {["N", "NC"].includes(row?.av1) ? (
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="mb-3 flex items-center gap-2 font-black text-cicopal-red">
+                <AlertTriangle size={20} />
+                Detalhes da não conformidade
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label>
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">
+                    Horário
+                  </span>
+                  <input
+                    type="time"
+                    className="min-h-14 w-full rounded-xl border border-red-200 bg-white px-3 font-bold"
+                    value={row.nc.horario}
+                    onChange={(e) => updateNc("horario", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">
+                    Disposição imediata
+                  </span>
+                  <select
+                    className="min-h-14 w-full rounded-xl border border-red-200 bg-white px-3 font-bold"
+                    value={row.nc.disposicaoImediata}
+                    onChange={(e) =>
+                      updateNc("disposicaoImediata", e.target.value)
+                    }
+                  >
+                    <option value="">Selecionar</option>
+                    <option>Bloqueado</option>
+                    <option>Descarte</option>
+                    <option>Corrigido no local</option>
+                  </select>
+                </label>
+                <label className="sm:col-span-2">
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">
+                    O que foi encontrado?
+                  </span>
+                  <textarea
+                    className="min-h-24 w-full rounded-xl border border-red-200 bg-white p-3 font-semibold"
+                    value={row.nc.causa}
+                    onChange={(e) => updateNc("causa", e.target.value)}
+                  />
+                </label>
+                <label className="sm:col-span-2">
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">
+                    Ação realizada
+                  </span>
+                  <textarea
+                    className="min-h-24 w-full rounded-xl border border-red-200 bg-white p-3 font-semibold"
+                    value={row.nc.acao}
+                    onChange={(e) => updateNc("acao", e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <footer className="sticky bottom-0 grid grid-cols-2 gap-3 border-t border-gray-200 bg-white p-4">
+          <button
+            type="button"
+            disabled={activeIndex === 0}
+            className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white text-lg font-black text-gray-700 disabled:opacity-30"
+            onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}
+          >
+            <ArrowLeft size={22} />
+            Voltar
+          </button>
+          {activeIndex === rows.length - 1 ? (
+            <button
+              type="button"
+              disabled={!row?.av1}
+              className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300"
+              onClick={saveChecklist}
+            >
+              <CheckCircle2 size={22} />
+              Concluir checklist
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!row?.av1}
+              className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300"
+              onClick={() =>
+                setActiveIndex((index) => Math.min(rows.length - 1, index + 1))
+              }
+            >
+              Continuar
+              <ArrowRight size={22} />
+            </button>
+          )}
+        </footer>
+        {savedAt ? (
+          <p className="bg-green-50 p-3 text-center text-sm font-black text-cicopal-green">
+            Checklist gravado às {savedAt}
+          </p>
+        ) : null}
+      </section>
+    );
   }
 
   return (
     <section className="rounded-md border border-gray-200 bg-white p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-950">Checklist {documentName}</h2>
+          <h2 className="text-xl font-bold text-gray-950">
+            Checklist {documentName}
+          </h2>
           <p className="text-sm font-medium text-gray-600">
-            {loteId} {registro ? `- ${registro.id} - Turno ${registro.turno} - ${registro.operador ?? "Operador"}` : ""}
+            {loteId}{" "}
+            {registro
+              ? `- ${registro.id} - Turno ${registro.turno} - ${registro.operador ?? "Operador"}`
+              : ""}
           </p>
         </div>
         <div className="flex gap-2">
@@ -309,7 +576,9 @@ export function ChecklistTable({ documentName = "RG.QUA.005", loteId = "", regis
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
         <span className="text-sm font-bold text-gray-500">
-          {savedAt ? `Registro gravado as ${savedAt}` : "As NCs entram na Central de NC ao gravar."}
+          {savedAt
+            ? `Registro gravado as ${savedAt}`
+            : "As NCs entram na Central de NC ao gravar."}
         </span>
         <button
           type="button"
