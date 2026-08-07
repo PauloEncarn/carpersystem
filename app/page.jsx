@@ -60,8 +60,9 @@ export default function HomePage() {
 
   async function saveRegistroSnapshot(snapshot) {
     if (!selection.linhaId || !selection.dataId || !selection.documentoId || !selection.loteId || !selection.registroId) return;
-    let activeCycleRef = null;
-    try { activeCycleRef = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null")?.id ?? null; } catch { activeCycleRef = null; }
+    let activeCycle = null;
+    try { activeCycle = JSON.parse(window.localStorage.getItem(`carper_rg003_cycle_${selection.linhaId}`) ?? "null"); } catch { activeCycle = null; }
+    const activeCycleRef = activeCycle?.id ?? null;
 
     setOperationTree((currentTree) =>
       currentTree.map((linha) => {
@@ -177,7 +178,7 @@ export default function HomePage() {
     if (selection.documentoId === "RG.QUA.BA.003") {
       setDatabaseStatus("saving");
       try {
-        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId: activeCycleRef });
+        const result = await persistRg003Record({ lineId: selection.linhaId, loteCode: activeCycle?.productionCode ?? selection.loteId, recordCode: selection.registroId, processType: selection.subregistroId, operatorId: loggedUser?.id, turno: loggedUser?.turno, registro: snapshot.registro, subregistro: snapshot.subregistro, cycleId: activeCycleRef, cycleStartedAt: activeCycle?.startedAt, productionCode: activeCycle?.productionCode });
         setDatabaseStatus(result.remote ? "saved" : "local");
       } catch (error) {
         setDatabaseStatus(error?.message?.includes("CONFLICT") ? "conflict" : "error");
