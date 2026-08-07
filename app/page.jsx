@@ -102,7 +102,7 @@ export default function HomePage() {
         const hygieneCycles = loteAtual.registros.filter((registro) => registro.processoId === "higienizacao");
         const latestCycleId = [...hygieneCycles].reverse().find((registro) => registro.cicloId)?.cicloId;
         const cycleNumber = String(hygieneCycles.length + 1).padStart(2, "0");
-        const cycleId = existingRegistro?.cicloId ?? (selection.subregistroId === "higienizacao" ? `CICLO-${cycleNumber}` : latestCycleId ?? "CICLO-01");
+        const recordCycleId = existingRegistro?.cicloId ?? (selection.subregistroId === "higienizacao" ? `CICLO-${cycleNumber}` : latestCycleId ?? "CICLO-01");
         const registroBase =
           registroIndex >= 0
             ? loteAtual.registros[registroIndex]
@@ -110,7 +110,7 @@ export default function HomePage() {
                 ...selected.registro,
                 id: selection.registroId,
                 processoId: selection.subregistroId,
-                cicloId,
+                cicloId: recordCycleId,
                 cicloIniciadoEm: selection.subregistroId === "higienizacao" ? new Date().toISOString() : undefined,
                 subregistros: []
               };
@@ -135,7 +135,7 @@ export default function HomePage() {
           ...snapshot.registro,
           id: selection.registroId,
           processoId: selection.subregistroId,
-          cicloId,
+          cicloId: recordCycleId,
           eventoRegistradoEm: new Date().toISOString(),
           subregistros: nextSubregistros
         };

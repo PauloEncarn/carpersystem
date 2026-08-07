@@ -285,6 +285,61 @@ button {
   backdrop-filter: grayscale(1) saturate(.15);
 }
 
+/* Estado inicial do ciclo RG 003: painel operacional para tablet. */
+.modern-ui section.rounded-3xl:has(> label.block + button) {
+  border: 1px solid #d8dce5;
+  border-top: 5px solid var(--cicopal-blue);
+  border-radius: 12px;
+  padding: 1.25rem;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(20, 25, 60, .07);
+}
+
+.modern-ui section.rounded-3xl:has(> label.block + button) > label {
+  padding: 0;
+}
+
+.modern-ui section.rounded-3xl:has(> label.block + button) > label > span {
+  margin-bottom: .65rem;
+  color: #343a48;
+  font-size: .78rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.modern-ui section.rounded-3xl:has(> label.block + button) select {
+  min-height: 64px;
+  border: 2px solid #d8dce5;
+  border-radius: 8px;
+  background: #f8f9fb;
+  font-size: 1.1rem;
+}
+
+.modern-ui section.rounded-3xl:has(> label.block + button) select:focus {
+  border-color: var(--cicopal-blue);
+  background: #fff;
+  outline: 3px solid rgba(30, 34, 168, .10);
+}
+
+.modern-ui section.rounded-3xl:has(> label.block + button) > button {
+  min-height: 64px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .modern-ui section.rounded-3xl:has(> label.block + button) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: end;
+    gap: 1rem;
+  }
+
+  .modern-ui section.rounded-3xl:has(> label.block + button) > button {
+    margin-top: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .factory-pulse { animation: none; }
 }

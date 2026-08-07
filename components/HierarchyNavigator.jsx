@@ -345,7 +345,8 @@ function Rg003CyclePanel({ lineId, operatorId, operatorName, processos, onSelect
     let next = { id: `CICLO-${Date.now()}`, product, previousProduct, reason, startedAt: at, stageStartedAt: at, status: "hygiene", activeAction: null, events: [event("Higienização iniciada", { reason, previousProduct, product })] };
     try { const remoteCycle = await startRg003Cycle({ lineId, product, reason, operatorId }); if (remoteCycle) { next = remoteCycle; setSyncState("online"); } } catch { setSyncState("error"); }
     setCycle(next);
-    openProcess("higienizacao");
+    window.localStorage.setItem(storageKey, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: next }));
   }
 
   async function updateCycle(patchValue, eventLabel, processId) {
