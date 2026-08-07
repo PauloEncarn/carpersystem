@@ -437,7 +437,7 @@ function Rg003ProductionControl({ lineId, dateId, operatorId, operatorName, onOp
     const next = { ...cycle, ...extra, status, stageStartedAt: new Date().toISOString(), events: [...(cycle?.events ?? []), localEvent(label)] };
     store(next);
     setSyncState("saving");
-    try { const remote = await persistCycleTransition({ cycle, status, description: label, operatorId, operatorName, activeAction: next.activeAction ?? null }); setSyncState(remote ? "online" : "local"); } catch { setSyncState("error"); }
+    try { const remote = await persistCycleTransition({ cycle, status, description: label, operatorId, operatorName, activeAction: next.activeAction ?? null }); setSyncState(remote ? "online" : "local"); return true; } catch { setSyncState("error"); return false; }
   }
 
   async function beginHourly(type, label, processId) {
@@ -451,11 +451,13 @@ function Rg003ProductionControl({ lineId, dateId, operatorId, operatorName, onOp
     if (stopMode === "change") {
       await prepare("Troca de produto", nextProduct);
     } else if (stopMode === "cancel") {
-      await transition("ended", "Preparação cancelada antes do início da produção", { productionEndedAt: null, activeAction: null });
+      const saved = await transition("ended", "Preparação cancelada antes do início da produção", { productionEndedAt: null, activeAction: null });
+      if (!saved) return;
       store(null);
       setProduct("");
     } else {
-      await transition("ended", "Produção encerrada", { productionEndedAt: new Date().toISOString(), activeAction: null });
+      const saved = await transition("ended", "Produção encerrada", { productionEndedAt: new Date().toISOString(), activeAction: null });
+      if (!saved) return;
       store(null);
       setProduct("");
     }
