@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, Check, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, Clock, FileSignature, Plus, RotateCcw, Upload, X } from "lucide-react";
 import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
 import { loadRg003Record, persistCycleTransition } from "@/lib/rg003Persistence";
@@ -141,7 +141,6 @@ function SaveProcessBar({ savedAt, onSave }) {
 
 function StatusClickButton({ value: controlledValue, onChange }) {
   const [internalValue, setInternalValue] = useState("");
-  const lastTapRef = useRef(0);
   const value = controlledValue ?? internalValue;
 
   function setValue(nextValue) {
@@ -149,31 +148,11 @@ function StatusClickButton({ value: controlledValue, onChange }) {
     onChange?.(nextValue);
   }
 
-  function handlePointerUp() {
-    const now = Date.now();
-    if (now - lastTapRef.current < 340) {
-      setValue("NC");
-    } else {
-      setValue("C");
-    }
-    lastTapRef.current = now;
-  }
-
   return (
-    <button
-      type="button"
-      className={`min-h-12 w-full touch-manipulation rounded-md border px-2 text-sm font-bold ${
-        value === "NC"
-          ? "border-cicopal-red bg-cicopal-red text-white"
-          : value === "C"
-            ? "border-cicopal-green bg-cicopal-green text-white"
-            : "border-green-200 bg-green-50 text-cicopal-green"
-      }`}
-      onPointerUp={handlePointerUp}
-      title="Um clique confirma C. Dois cliques marcam NC."
-    >
-      {value || "C"}
-    </button>
+    <div className="grid grid-cols-2 gap-3">
+      <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white shadow-lg" : "border-green-200 bg-green-50 text-cicopal-green"}`} onClick={() => setValue("C")}><span className="block text-2xl">C</span><span className="text-sm">Conforme</span></button>
+      <button type="button" className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "NC" ? "border-cicopal-red bg-cicopal-red text-white shadow-lg" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => setValue("NC")}><span className="block text-2xl">NC</span><span className="text-sm">Não conforme</span></button>
+    </div>
   );
 }
 
@@ -1273,7 +1252,7 @@ function AssinaturasRegistro({ registro }) {
   );
 }
 
-function PhotoHourlyGrid({ activeHour = "", onSave }) {
+function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
   const [photo, setPhoto] = useState(null);
   const [observation, setObservation] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -1367,6 +1346,7 @@ function PhotoHourlyGrid({ activeHour = "", onSave }) {
             <button type="button" disabled={!photo || processing || saving} onClick={savePhoto} className="mt-4 min-h-16 w-full rounded-xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300">{saving ? "Salvando imagem..." : `Salvar foto de ${activeHour}`}</button>
           </aside>
       </div>
+      {recentPhotos.length ? <div className="mt-6 border-t border-gray-200 pt-5"><div className="mb-3"><p className="text-xs font-black uppercase tracking-wider text-gray-400">Histórico visual</p><h3 className="text-xl font-black text-gray-950">Últimos registros fotográficos</h3></div><div className="flex gap-3 overflow-x-auto pb-2">{recentPhotos.slice(0, 6).map((item, index) => <figure key={`${item.horario}-${index}`} className="min-w-52 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50"><img src={item.imagem} alt={`Registro de ${item.horario}`} className="h-32 w-full object-cover" /><figcaption className="p-3 text-sm font-black text-gray-700">{item.horario}</figcaption></figure>)}</div></div> : null}
     </section>
   );
 }
@@ -1427,11 +1407,19 @@ function Rg003ProductContext({ cycle }) {
   return <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-300 border-l-4 border-l-cicopal-blue bg-white p-4"><div><p className="text-xs font-bold uppercase text-gray-500">Produto deste ciclo</p><p className="mt-1 text-xl font-bold text-gray-950">{cycle?.product ?? "Produto do ciclo"}</p></div><p className="text-sm font-semibold text-gray-500">Definido no início da produção e bloqueado para edição.</p></section>;
 }
 
-function PersistedRg003Summary({ data, onEdit }) {
+function LegacyPersistedRg003Summary({ data, onEdit }) {
   const values = data.subregistro ?? {};
   const entries = [...(values.avaliacoes ?? []), ...(values.apontamentos ?? [])];
   const [confirmEdit, setConfirmEdit] = useState(false);
   return <section className="min-h-[calc(100vh-250px)] overflow-hidden rounded-lg border border-gray-300 bg-white"><header className="brand-header flex flex-wrap items-center justify-between gap-4 p-5 text-white"><div><p className="text-xs font-bold uppercase tracking-wider text-white/70">CICOPAL · RG.QUA.BA.003</p><h2 className="mt-1 text-2xl font-bold">Registro confirmado</h2><p className="mt-1 text-sm font-semibold text-white/75">Somente visualização</p></div><div className="text-right"><p className="text-sm font-bold">{new Date(data.filledAt).toLocaleString("pt-BR")}</p><p className="text-xs text-white/70">Versão {data.version}</p></div></header><div className="border-b border-gray-200 bg-green-50 px-5 py-3 text-sm font-bold text-cicopal-green">✓ Preenchimento gravado e protegido contra alterações acidentais.</div><div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">{entries.length ? entries.map((item, index) => <article key={`${item.item}-${index}`} className="border border-gray-200 bg-white p-4"><p className="text-xs font-bold uppercase text-gray-400">{item.maquina ?? item.grupo ?? "Parâmetro"}</p><p className="mt-1 font-semibold text-gray-800">{item.item}</p><strong className={`mt-3 inline-flex min-h-8 items-center px-3 text-sm ${item.resultado === "NC" || item.av1 === "NC" ? "bg-red-50 text-cicopal-red" : "bg-green-50 text-cicopal-green"}`}>{item.resultado ?? item.av1 ?? "Preenchido"}</strong></article>) : <p className="text-sm font-semibold text-gray-500">Registro concluído sem itens detalhados.</p>}</div>{values.ncs?.length ? <div className="border-y border-red-100 bg-red-50 p-4 text-sm font-bold text-cicopal-red">{values.ncs.length} não conformidade(s) vinculada(s).</div> : null}<footer className="flex justify-end border-t border-gray-200 p-5"><button type="button" className="min-h-14 rounded-md border border-amber-300 bg-amber-50 px-5 font-bold text-amber-900" onClick={() => setConfirmEdit(true)}>Solicitar alteração</button></footer>{confirmEdit ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"><section className="w-full max-w-lg overflow-hidden rounded-lg border border-gray-300 bg-white shadow-2xl"><header className="brand-header p-4 text-white"><p className="text-xs font-bold uppercase text-white/70">CICOPAL · RG 003</p><h3 className="mt-1 text-xl font-bold">Confirmar alteração</h3></header><div className="p-5"><p className="font-semibold text-gray-800">Este registro já foi confirmado. Deseja abrir para alteração?</p><p className="mt-2 text-sm text-gray-500">A nova versão registrará o Técnico, data e hora da modificação.</p></div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" className="min-h-14 border border-gray-300 bg-white font-bold" onClick={() => setConfirmEdit(false)}>Manter visualização</button><button type="button" className="min-h-14 bg-amber-500 font-bold text-white" onClick={onEdit}>Confirmar alteração</button></footer></section></div> : null}</section>;
+}
+
+function PersistedRg003Summary({ data, onEdit }) {
+  const values = data.subregistro ?? {};
+  const entries = [...(values.avaliacoes ?? []), ...(values.apontamentos ?? [])];
+  const photos = values.fotografias ?? [];
+  const groups = Object.entries(entries.reduce((result, item) => { const key = item.maquina ?? item.grupo ?? "Parâmetros gerais"; (result[key] ??= []).push(item); return result; }, {}));
+  return <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm"><header className="flex flex-wrap items-start justify-between gap-4 bg-gradient-to-br from-[#171b78] to-cicopal-blue p-6 text-white"><div><p className="text-xs font-black uppercase tracking-[.18em] text-white/65">Registro confirmado</p><h2 className="mt-2 text-2xl font-black">Preenchimento concluído</h2><p className="mt-1 text-sm font-semibold text-white/75">Organizado por etapa e máquina</p></div><div className="rounded-2xl bg-white/10 px-4 py-3 text-right"><p className="font-black">{new Date(data.filledAt).toLocaleString("pt-BR")}</p><p className="text-xs font-bold text-white/65">Versão {data.version}</p></div></header><div className="flex items-center gap-3 border-b border-green-100 bg-green-50 px-6 py-4 font-black text-cicopal-green"><CheckCircle2 size={22} />Salvo e protegido</div>{photos.length ? <div className="grid gap-4 border-b border-gray-200 p-6 md:grid-cols-2">{photos.map((photo, index) => <figure key={`${photo.horario}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50"><img src={photo.imagem} alt={`Registro de ${photo.horario}`} className="max-h-96 w-full object-contain" /><figcaption className="p-3 font-bold">{photo.horario}{photo.observacao ? ` · ${photo.observacao}` : ""}</figcaption></figure>)}</div> : null}<div className="space-y-5 p-6">{groups.map(([group, items]) => <section key={group}><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black uppercase tracking-wider text-gray-500">{group}</h3><span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-500">{items.length} itens</span></div><div className="grid gap-2 md:grid-cols-2">{items.map((item, index) => { const result = item.resultado ?? item.av1 ?? "Preenchido"; const nc = result === "NC"; return <article key={`${item.item}-${index}`} className={`flex min-h-20 items-center justify-between gap-3 rounded-2xl border p-4 ${nc ? "border-red-100 bg-red-50" : "border-green-100 bg-green-50/50"}`}><div><p className="font-bold text-gray-900">{item.item}</p>{item.gramatura ? <p className="mt-1 text-xs font-bold text-gray-500">{item.gramatura}</p> : null}</div><span className={`grid min-h-12 min-w-14 place-items-center rounded-xl px-3 text-sm font-black text-white ${nc ? "bg-cicopal-red" : "bg-cicopal-green"}`}>{result}</span></article>; })}</div></section>)}{!groups.length && !photos.length ? <p className="rounded-2xl bg-gray-50 p-5 font-semibold text-gray-500">Registro concluído sem itens detalhados.</p> : null}</div>{values.ncs?.length ? <div className="border-t border-red-100 bg-red-50 p-5 font-black text-cicopal-red"><AlertTriangle className="mr-2 inline" />{values.ncs.length} não conformidade(s)</div> : null}<footer className="flex justify-end border-t border-gray-200 p-5"><button type="button" className="min-h-14 rounded-xl border border-amber-300 bg-amber-50 px-5 font-black text-amber-900" onClick={() => window.confirm("Deseja abrir este registro para alteração?") && onEdit?.()}>Editar registro</button></footer></section>;
 }
 
 function buildAllowedCycleHours(cycle) {
@@ -1493,6 +1481,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
   const fillingSlot = (item) => item.subregistro?._slotKey ?? fillingHour(item);
   const completedHours = [...new Set([...persistedFillings.map(fillingSlot), ...[...(subregistro?.apontamentos ?? []), ...(subregistro?.avaliacoes ?? [])].map((item) => item._slotKey ?? item.horario)].filter(Boolean))];
   const activePersisted = isHourlyRg003 ? [...persistedFillings].reverse().find((item) => fillingSlot(item) === activeHour || (!item.subregistro?._slotKey && fillingHour(item) === activeHourLabel)) : persistedRecord;
+  const recentPhotos = [...persistedFillings].reverse().flatMap((item) => item.subregistro?.fotografias ?? []);
   if (isRg003 && !isHourlyRg003 && persistedRecord && !editMode) return <PersistedRg003Summary data={persistedRecord} onEdit={() => setEditMode(true)} />;
   const effectiveRegistro = {
     ...registro,
@@ -1637,7 +1626,7 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
       <>
         {isRg003 ? <TabletHourNavigator activeHour={activeHour} onChange={setActiveHour} allowedHours={allowedHours} completedHours={completedHours} /> : null}
         {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
-        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <PhotoHourlyGrid activeHour={isRg003 ? activeHourLabel : ""} onSave={saveProcesso} />}
+        {isRg003 && activePersisted && !editMode ? <PersistedRg003Summary data={activePersisted} onEdit={() => setEditMode(true)} /> : <PhotoHourlyGrid activeHour={isRg003 ? activeHourLabel : ""} onSave={saveProcesso} recentPhotos={recentPhotos} />}
         {!isRg003 || savedAt ? <AssinaturasRegistro registro={effectiveRegistro} /> : null}
       </>
     );

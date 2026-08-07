@@ -53,33 +53,11 @@ function buildInitialRows(subregistro, groups) {
 }
 
 function StatusClickButton({ value, onChange }) {
-  const lastTapRef = useRef(0);
-
-  function handlePointerUp() {
-    const now = Date.now();
-    if (now - lastTapRef.current < 340) {
-      onChange("NC");
-    } else {
-      onChange("C");
-    }
-    lastTapRef.current = now;
-  }
-
   return (
-    <button
-      type="button"
-      className={`inline-flex min-h-12 w-full touch-manipulation items-center justify-center rounded-md border px-3 font-bold ${
-        value === "NC"
-          ? "border-cicopal-red bg-cicopal-red text-white"
-          : value === "C"
-            ? "border-cicopal-green bg-cicopal-green text-white"
-            : "border-green-200 bg-green-50 text-cicopal-green"
-      }`}
-      onPointerUp={handlePointerUp}
-      title="Um clique confirma C. Dois cliques marcam NC."
-    >
-      {value || "C"}
-    </button>
+    <div className="grid min-w-48 grid-cols-2 gap-2">
+      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-green-50 text-cicopal-green"}`} onClick={() => onChange("C")}>C</button>
+      <button type="button" className={`min-h-14 rounded-xl border-2 text-base font-black ${value === "NC" ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-red-50 text-cicopal-red"}`} onClick={() => onChange("NC")}>NC</button>
+    </div>
   );
 }
 
