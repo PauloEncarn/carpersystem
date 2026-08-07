@@ -6,11 +6,13 @@ create table if not exists public.ciclos_producao (
   produto text not null,
   produto_anterior text,
   motivo_inicio text not null,
-  status text not null default 'higienizacao' check (status in ('higienizacao', 'aguardando_liberacao', 'produzindo', 'bloqueado', 'encerrado')),
+  status text not null default 'higienizacao' check (status in ('higienizacao', 'aguardando_liberacao', 'pronto', 'produzindo', 'bloqueado', 'encerrado')),
   iniciado_por uuid references public.operadores(id) on delete set null,
   iniciado_em timestamptz not null default now(),
   etapa_iniciada_em timestamptz not null default now(),
   encerrado_em timestamptz,
+  producao_iniciada_em timestamptz,
+  producao_encerrada_em timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -18,6 +20,12 @@ create table if not exists public.ciclos_producao (
 
 create unique index if not exists uq_ciclo_ativo_por_linha on public.ciclos_producao (linha_id) where encerrado_em is null;
 create index if not exists idx_ciclos_linha_inicio on public.ciclos_producao (linha_id, iniciado_em desc);
+
+alter table public.ciclos_producao
+  add column if not exists producao_iniciada_em timestamptz,
+  add column if not exists producao_encerrada_em timestamptz;
+alter table public.ciclos_producao drop constraint if exists ciclos_producao_status_check;
+alter table public.ciclos_producao add constraint ciclos_producao_status_check check (status in ('higienizacao', 'aguardando_liberacao', 'pronto', 'produzindo', 'bloqueado', 'encerrado'));
 
 create table if not exists public.eventos_ciclo (
   id uuid primary key default gen_random_uuid(),

@@ -1377,10 +1377,10 @@ export function Rg005SubregistroForm({ documentName, loteId, registro, subregist
         const storageKey = "carper_rg003_cycle_ROS";
         const cycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
         if (cycle) {
-          const nextCycle = { ...cycle, status: "producing", stageStartedAt: new Date().toISOString(), events: [...(cycle.events ?? []), { id: `liberacao-${Date.now()}`, label: "Produto liberado", at: new Date().toISOString(), operator: effectiveRegistro.operador }] };
+          const nextCycle = { ...cycle, status: "ready", stageStartedAt: new Date().toISOString(), events: [...(cycle.events ?? []), { id: `liberacao-${Date.now()}`, label: "Produto liberado para início", at: new Date().toISOString(), operator: effectiveRegistro.operador }] };
           window.localStorage.setItem(storageKey, JSON.stringify(nextCycle));
           window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
-          await persistCycleTransition({ cycle, status: "producing", description: "Produto liberado", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
+          await persistCycleTransition({ cycle, status: "ready", description: "Produto liberado para início", operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
         }
       } catch (error) {
         setSavedAt("");

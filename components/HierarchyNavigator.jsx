@@ -270,7 +270,7 @@ function TechnicalRg003StageNav({ lineId, currentProcessId, onOpenProcess }) {
   }, [lineId]);
   const items = [
     { id: "higienizacao", label: "Higienização", enabled: status === "hygiene", done: status !== "hygiene" },
-    { id: "produto_liberacao", label: "Liberar produto", enabled: status === "awaiting_release", done: ["producing", "blocked"].includes(status) },
+    { id: "produto_liberacao", label: "Liberar produto", enabled: status === "awaiting_release", done: ["ready", "producing", "blocked"].includes(status) },
     { id: "produto_avaliacao", label: "Produto", enabled: status === "producing" },
     { id: "processo", label: "Processo", enabled: status === "producing" },
     { id: "fotografico", label: "Foto", enabled: status === "producing" }
@@ -395,6 +395,73 @@ function Rg003CyclePanel({ lineId, operatorId, operatorName, processos, onSelect
   <div className="mt-5 border-t border-gray-200 pt-4"><p className="mb-2 text-xs font-black uppercase text-gray-500">Troca de produto</p><div className="flex flex-col gap-2 sm:flex-row"><select className="min-h-14 flex-1 rounded-xl border border-gray-300 bg-white px-4 font-bold" value={product} onChange={(e) => setProduct(e.target.value)}><option>Rosca Leite</option><option>Rosca Coco</option><option>Rosca Chocolate</option><option>Rosca Tradicional</option></select><button type="button" disabled={product === cycle.product} className="min-h-14 rounded-xl bg-amber-500 px-5 font-black text-white disabled:bg-gray-300" onClick={() => startCycle("Troca de produto")}><RefreshCw size={18} className="mr-2 inline" />Trocar e iniciar higienização</button></div></div></section>}
 
   {cycle?.events?.length ? <section className="rounded-2xl border border-gray-200 bg-white p-4"><p className="mb-3 text-xs font-black uppercase text-gray-500">Linha do tempo do ciclo</p><div className="space-y-2">{[...cycle.events].reverse().slice(0, 8).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-gray-50 px-3 py-2"><div><p className="text-sm font-black text-gray-900">{item.label}</p><p className="text-xs font-semibold text-gray-500">{item.operator || "Operador"}</p></div><time className="text-xs font-black text-gray-600">{new Date(item.at).toLocaleString("pt-BR")}</time></div>)}</div>{cycleHistory.length ? <p className="mt-3 text-xs font-bold text-gray-500">{cycleHistory.length} ciclo(s) anterior(es) preservado(s) no histórico.</p> : null}</section> : null}{ncOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"><section className="w-full max-w-2xl rounded-lg border-t-4 border-cicopal-red bg-white shadow-2xl"><header className="flex items-center justify-between border-b border-gray-200 p-4"><div><p className="text-xs font-bold uppercase text-cicopal-red">Registro imediato</p><h2 className="text-xl font-bold text-gray-950">Não conformidade</h2></div><button type="button" className="size-11 border border-gray-200 bg-white" onClick={() => setNcOpen(false)}><X size={20} className="mx-auto" /></button></header><div className="p-4"><div className="mb-4 grid grid-cols-2 gap-3"><div className="bg-gray-100 p-3"><p className="text-xs font-bold uppercase text-gray-500">Produto</p><p className="font-bold text-gray-950">{cycle?.product}</p></div><div className="bg-gray-100 p-3"><p className="text-xs font-bold uppercase text-gray-500">Data e hora</p><p className="font-bold text-gray-950">{now.toLocaleString("pt-BR")}</p></div></div><div className="grid gap-3 sm:grid-cols-2"><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Quantidade</span><input className="min-h-14 w-full rounded-md border border-gray-300 px-3 font-semibold" value={ncData.quantidade} onChange={(e) => setNcData((current) => ({ ...current, quantidade: e.target.value }))} /></label><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Ação tomada</span><select className="min-h-14 w-full rounded-md border border-gray-300 bg-white px-3 font-semibold" value={ncData.acao} onChange={(e) => setNcData((current) => ({ ...current, acao: e.target.value }))}><option value="">Selecionar</option><option>Corrigir sem parar produção</option><option>Segregar produto</option><option>Parar produção</option></select></label><label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Não conformidade</span><textarea className="min-h-24 w-full rounded-md border border-gray-300 p-3 font-semibold" value={ncData.descricao} onChange={(e) => setNcData((current) => ({ ...current, descricao: e.target.value }))} /></label><label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Causa</span><textarea className="min-h-24 w-full rounded-md border border-gray-300 p-3 font-semibold" value={ncData.causa} onChange={(e) => setNcData((current) => ({ ...current, causa: e.target.value }))} /></label></div></div><footer className="flex justify-end gap-3 border-t border-gray-200 p-4"><button type="button" className="min-h-14 border border-gray-300 bg-white px-5 font-bold" onClick={() => setNcOpen(false)}>Cancelar</button><button type="button" disabled={!ncData.quantidade || !ncData.descricao || !ncData.causa || !ncData.acao} className="min-h-14 bg-cicopal-red px-5 font-bold text-white disabled:bg-gray-300" onClick={registerNc}>Registrar NC</button></footer></section></div> : null}</div>;
+}
+
+function Rg003ProductionControl({ lineId, operatorId, operatorName, onOpenProcess }) {
+  const storageKey = `carper_rg003_cycle_${lineId}`;
+  const [cycle, setCycle] = useState(null);
+  const [product, setProduct] = useState("Rosca Leite");
+  const [now, setNow] = useState(() => new Date());
+  const [ready, setReady] = useState(false);
+  const [stopOpen, setStopOpen] = useState(false);
+  const [stopMode, setStopMode] = useState("finish");
+  const [nextProduct, setNextProduct] = useState("Rosca Chocolate");
+
+  useEffect(() => {
+    let active = true;
+    loadActiveRg003Cycle(lineId).then((result) => { if (!active) return; const saved = result.remote ? result.cycle : JSON.parse(window.localStorage.getItem(storageKey) ?? "null"); setCycle(saved); if (saved?.product) setProduct(saved.product); setReady(true); }).catch(() => { if (active) { try { setCycle(JSON.parse(window.localStorage.getItem(storageKey) ?? "null")); } catch { setCycle(null); } setReady(true); } });
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [lineId, storageKey]);
+
+  function store(next) { setCycle(next); if (next) window.localStorage.setItem(storageKey, JSON.stringify(next)); else window.localStorage.removeItem(storageKey); window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: next })); }
+  function localEvent(label) { return { id: `${Date.now()}-${label}`, label, at: new Date().toISOString(), operator: operatorName }; }
+
+  async function prepare(reason = "Início de produção", selectedProduct = product) {
+    const at = new Date().toISOString();
+    let next = { id: `CICLO-${Date.now()}`, product: selectedProduct, previousProduct: cycle?.product ?? "", reason, status: "hygiene", startedAt: at, stageStartedAt: at, events: [localEvent("Preparação iniciada")] };
+    try { next = await startRg003Cycle({ lineId, product: selectedProduct, reason, operatorId }) ?? next; } catch { /* mantém fila local */ }
+    store(next);
+  }
+
+  async function transition(status, label, extra = {}) {
+    const next = { ...cycle, ...extra, status, stageStartedAt: new Date().toISOString(), events: [...(cycle?.events ?? []), localEvent(label)] };
+    store(next);
+    try { await persistCycleTransition({ cycle, status, description: label, operatorId, operatorName, activeAction: next.activeAction ?? null }); } catch { /* permanece salvo localmente */ }
+  }
+
+  async function beginHourly(type, label, processId) {
+    if (cycle?.status !== "producing") return;
+    const activeAction = { type, label, startedAt: new Date().toISOString() };
+    await transition("producing", `${label} iniciada`, { activeAction });
+    onOpenProcess(processId);
+  }
+
+  async function stopProduction() {
+    if (stopMode === "change") {
+      await prepare("Troca de produto", nextProduct);
+    } else {
+      await transition("ended", "Produção encerrada", { productionEndedAt: new Date().toISOString(), activeAction: null });
+      store(null);
+    }
+    setStopOpen(false);
+  }
+
+  if (!ready) return <div className="min-h-72 animate-pulse rounded-lg bg-gray-100" />;
+  const hygieneDone = cycle && cycle.status !== "hygiene";
+  const releaseDone = cycle && ["ready", "producing", "blocked"].includes(cycle.status);
+  const producing = cycle?.status === "producing";
+  const statusText = !cycle ? "Aguardando preparação" : cycle.status === "hygiene" ? "Higienização pendente" : cycle.status === "awaiting_release" ? "Liberação pendente" : cycle.status === "ready" ? "Pronto para iniciar" : cycle.status === "blocked" ? "Produção bloqueada" : "Produção em andamento";
+
+  return <div className="mx-auto max-w-6xl space-y-4"><section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase text-cicopal-blue">RG.QUA.BA.003 · Rosca</p><h2 className="mt-1 text-2xl font-bold text-gray-950">{cycle?.product ?? "Nova produção"}</h2><p className={`mt-2 text-sm font-bold ${producing ? "text-cicopal-green" : cycle?.status === "blocked" ? "text-cicopal-red" : "text-amber-700"}`}>{statusText}</p></div><div className="text-right"><p className="text-xs font-bold uppercase text-gray-400">Tempo de produção</p><p className="text-3xl font-bold tabular-nums text-gray-950">{formatElapsed(cycle?.productionStartedAt, now)}</p></div></div></section>
+
+  {!cycle ? <section className="rounded-lg border border-gray-300 bg-white p-5"><p className="mb-4 text-sm font-semibold text-gray-600">Escolha o produto para criar a preparação. A produção ainda não será iniciada.</p><div className="grid gap-3 md:grid-cols-[1fr_280px]"><select className="min-h-16 rounded-md border-2 border-gray-300 bg-white px-4 text-lg font-bold" value={product} onChange={(event) => setProduct(event.target.value)}><option>Rosca Leite</option><option>Rosca Coco</option><option>Rosca Chocolate</option><option>Rosca Tradicional</option></select><button type="button" className="min-h-16 rounded-md bg-cicopal-blue px-5 text-lg font-bold text-white" onClick={() => prepare()}>Criar preparação</button></div></section> : <><section className="rounded-lg border border-gray-300 bg-white p-4"><p className="mb-3 text-xs font-bold uppercase text-gray-500">1 · Pré-requisitos</p><div className="grid gap-3 md:grid-cols-2"><button type="button" onClick={() => onOpenProcess("higienizacao")} className={`min-h-24 rounded-md border-2 p-4 text-left ${hygieneDone ? "border-green-300 bg-green-50 text-cicopal-green" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}><span className="block text-lg font-bold">{hygieneDone ? "✓ Higienização confirmada" : "Higienização"}</span><span className="mt-1 block text-sm font-semibold">{hygieneDone ? "Toque para visualizar" : "Obrigatória antes de iniciar"}</span></button><button type="button" disabled={!hygieneDone} onClick={() => onOpenProcess("produto_liberacao")} className={`min-h-24 rounded-md border-2 p-4 text-left ${releaseDone ? "border-green-300 bg-green-50 text-cicopal-green" : hygieneDone ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}><span className="block text-lg font-bold">{releaseDone ? "✓ Produto liberado" : "Liberação do produto"}</span><span className="mt-1 block text-sm font-semibold">{releaseDone ? "Toque para visualizar" : hygieneDone ? "Disponível para preenchimento" : "Aguardando higienização"}</span></button></div></section>
+
+  <section className="rounded-lg border border-gray-300 bg-white p-5"><p className="text-center text-xs font-bold uppercase text-gray-500">2 · Controle da produção</p><button type="button" disabled={!releaseDone && !producing} onClick={() => producing ? setStopOpen(true) : transition("producing", "Produção iniciada", { productionStartedAt: new Date().toISOString(), activeAction: null })} className={`mx-auto mt-4 grid size-28 place-items-center rounded-full border-8 text-white shadow-md transition ${producing ? "border-red-100 bg-cicopal-red" : releaseDone ? "border-blue-100 bg-cicopal-blue" : "border-gray-200 bg-gray-300"}`}>{producing ? <Square size={38} fill="currentColor" /> : <Play size={42} fill="currentColor" className="ml-1" />}</button><p className="mt-3 text-center text-lg font-bold text-gray-900">{producing ? "Parar produção" : releaseDone ? "Iniciar produção" : "Aguardando pré-requisitos"}</p></section>
+
+  <section className="rounded-lg border border-gray-300 bg-white p-4"><p className="mb-3 text-xs font-bold uppercase text-gray-500">3 · Controles durante a produção</p><div className="grid gap-3 md:grid-cols-3">{[["produto_avaliacao", "Avaliação do produto", "product"], ["processo", "Avaliação do processo", "process"], ["fotografico", "Registro fotográfico", "photo"]].map(([id, label, type]) => <button key={id} type="button" disabled={!producing} onClick={() => beginHourly(type, label, id)} className={`min-h-20 rounded-md border-2 p-3 font-bold ${producing ? "border-cicopal-blue bg-white text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}>{label}<span className="mt-1 block text-xs font-semibold">{producing ? cycle.activeAction?.type === type ? "Em andamento" : "Disponível" : "Liberado após iniciar"}</span></button>)}</div></section></>}
+
+  {stopOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"><section className="w-full max-w-xl overflow-hidden rounded-lg bg-white"><header className="brand-header p-4 text-white"><p className="text-xs font-bold uppercase text-white/70">RG 003 · Controle da produção</p><h3 className="mt-1 text-xl font-bold">Parar produção</h3></header><div className="p-5"><div className="grid grid-cols-2 gap-3"><button type="button" className={`min-h-20 border-2 font-bold ${stopMode === "finish" ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200"}`} onClick={() => setStopMode("finish")}>Encerrar produção</button><button type="button" className={`min-h-20 border-2 font-bold ${stopMode === "change" ? "border-amber-400 bg-amber-50 text-amber-900" : "border-gray-200"}`} onClick={() => setStopMode("change")}>Trocar produto</button></div>{stopMode === "change" ? <label className="mt-4 block"><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Próximo produto</span><select className="min-h-14 w-full border border-gray-300 bg-white px-3 font-bold" value={nextProduct} onChange={(event) => setNextProduct(event.target.value)}>{["Rosca Leite", "Rosca Coco", "Rosca Chocolate", "Rosca Tradicional"].filter((item) => item !== cycle.product).map((item) => <option key={item}>{item}</option>)}</select></label> : null}</div><footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" className="min-h-14 border border-gray-300 bg-white font-bold" onClick={() => setStopOpen(false)}>Cancelar</button><button type="button" className="min-h-14 bg-cicopal-red font-bold text-white" onClick={stopProduction}>{stopMode === "change" ? "Parar e preparar troca" : "Confirmar encerramento"}</button></footer></section></div> : null}</div>;
 }
 
 export { getShortRegistroId };
@@ -1053,7 +1120,20 @@ export function HierarchyNavigator({ tree, selection, selected, onSelectionChang
               title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
             />
             {selection.documentoId === "RG.QUA.BA.003" ? (
-              <Rg003CyclePanel lineId={selection.linhaId} operatorId={operatorId} operatorName={operatorName} processos={processosDoDocumento} onSelect={selectProcesso} onOpen={() => onStepChange(5)} onOpenProcess={hideDates ? abrirRegistroTecnico : undefined} />
+              <Rg003ProductionControl
+                lineId={selection.linhaId}
+                operatorId={operatorId}
+                operatorName={operatorName}
+                onOpenProcess={(processId) => {
+                  if (hideDates) {
+                    abrirRegistroTecnico(processId);
+                    return;
+                  }
+
+                  selectProcesso(processId);
+                  onStepChange(5);
+                }}
+              />
             ) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {processosDoDocumento.map((processo) => {
                 const registros = selected.lote?.registros.filter((registro) => registro.processoId === processo.id) ?? [];
