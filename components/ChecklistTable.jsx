@@ -370,11 +370,13 @@ export function ChecklistTable({
       const now = Date.now();
       const isSecondTap =
         choiceTapRef.current.value === value &&
-        now - choiceTapRef.current.at < 650;
+        now - choiceTapRef.current.at < 900;
       updateRow(activeIndex, { av1: value });
       choiceTapRef.current = { value, at: now };
-      if (isSecondTap && value === "C" && activeIndex < rows.length - 1)
-        setActiveIndex((index) => index + 1);
+      if (isSecondTap && ["C", "NA"].includes(value)) {
+        if (activeIndex < rows.length - 1) setActiveIndex((index) => index + 1);
+        else saveChecklist();
+      }
     }
     return (
       <section className="checklist-focus mx-auto max-w-5xl overflow-hidden border border-gray-300 bg-white">
@@ -416,7 +418,7 @@ export function ChecklistTable({
             <button
               type="button"
               className={`min-h-24 rounded-md border-2 p-3 text-lg font-bold ${row?.av1 === "C" ? "border-cicopal-green bg-cicopal-green text-white" : "border-green-200 bg-white text-cicopal-green"}`}
-              onPointerUp={() => choose("C")}
+              onClick={() => choose("C")}
             >
               <CheckCircle2 size={28} className="mx-auto mb-2" />
               Conforme
@@ -424,14 +426,14 @@ export function ChecklistTable({
             <button
               type="button"
               className={`min-h-24 border-2 p-3 text-lg font-bold ${["N", "NC"].includes(row?.av1) ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`}
-              onPointerUp={() => choose("N")}
+              onClick={() => choose("N")}
             >
               <XCircle size={28} className="mx-auto mb-2" />N · Não conforme
             </button>
             <button
               type="button"
               className={`min-h-24 border-2 p-3 text-lg font-bold ${row?.av1 === "NA" ? "border-gray-600 bg-gray-600 text-white" : "border-gray-300 bg-gray-100 text-gray-600"}`}
-              onPointerUp={() => choose("NA")}
+              onClick={() => choose("NA")}
             >
               <Circle size={28} className="mx-auto mb-2" />
               NA · Não se aplica

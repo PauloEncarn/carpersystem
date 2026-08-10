@@ -217,13 +217,19 @@ function SaveProcessBar({ savedAt, onSave }) {
   );
 }
 
-function StatusClickButton({ value: controlledValue, onChange }) {
+function StatusClickButton({ value: controlledValue, onChange, onConfirm }) {
   const [internalValue, setInternalValue] = useState("");
+  const tapRef = useRef({ value: "", at: 0 });
   const value = controlledValue ?? internalValue;
 
   function setValue(nextValue) {
+    const now = Date.now();
+    const confirmed =
+      tapRef.current.value === nextValue && now - tapRef.current.at < 900;
     setInternalValue(nextValue);
     onChange?.(nextValue);
+    tapRef.current = { value: nextValue, at: now };
+    if (confirmed) onConfirm?.(nextValue);
   }
 
   return (
@@ -868,7 +874,6 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
   const [index, setIndex] = useState(0);
-  const tapRef = useRef({ value: "", at: 0 });
   async function save() {
     const apontamentos = columns
       .filter((item) => values[item])
@@ -895,13 +900,7 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
   }
   const column = columns[index];
   function choose(value) {
-    const now = Date.now();
-    const secondTap =
-      tapRef.current.value === value && now - tapRef.current.at < 650;
     setValues((current) => ({ ...current, [column]: value }));
-    tapRef.current = { value, at: now };
-    if (secondTap && index < columns.length - 1)
-      setIndex((current) => current + 1);
   }
   if (savedAt) {
     return (
@@ -939,6 +938,10 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
         <StatusClickButton
           value={values[column]}
           onChange={(value) => choose(value)}
+          onConfirm={() => {
+            if (index < columns.length - 1) setIndex((current) => current + 1);
+            else save();
+          }}
         />
         <footer>
           <button
@@ -1004,61 +1007,69 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
     onSave?.({ apontamentos, ncs });
   }
   return (
-    <section className="mx-auto max-w-2xl rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white">
-      <header className="border-b border-gray-200 p-4">
-        <p className="text-xs font-bold uppercase text-cicopal-blue">
-          {title} · {activeHour}
-        </p>
-        <div className="mt-2 h-2 bg-gray-200">
-          <div
-            className="h-full bg-cicopal-blue"
-            style={{ width: `${((index + 1) / items.length) * 100}%` }}
-          />
+    <section className="inspection-focus">
+      <aside className="inspection-progress">
+        <p className="text-center">{activeHour}</p>
+        <strong>{index + 1}</strong>
+        <span>de {items.length}</span>
+        <div>
+          <i style={{ height: `${((index + 1) / items.length) * 100}%` }} />
         </div>
-      </header>
-      <div className="p-5">
-        <p className="text-sm font-bold text-gray-500">
-          {item.machine} · parâmetro {index + 1} de {items.length}
-        </p>
-        <h2 className="mt-2 min-h-20 text-2xl font-bold text-gray-950">
-          {item.column}
-        </h2>
+      </aside>
+      <div className="inspection-question">
+        <div className="mb-5 border-l-8 border-cicopal-blue bg-blue-50 p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-cicopal-blue">
+            Máquina em preenchimento
+          </p>
+          <strong className="mt-1 block text-3xl font-black text-gray-950 md:text-4xl">
+            {item.machine}
+          </strong>
+          <span className="mt-1 block font-bold text-gray-600">{title}</span>
+        </div>
+        <p className="inspection-eyebrow">Parâmetro atual</p>
+        <h2>{item.column}</h2>
         <StatusClickButton
           value={values[key]}
           onChange={(value) =>
             setValues((current) => ({ ...current, [key]: value }))
           }
+          onConfirm={() => {
+            if (index < items.length - 1) setIndex((current) => current + 1);
+            else finish();
+          }}
         />
+        <footer>
+          <button
+            type="button"
+            disabled={index === 0}
+            onClick={() => setIndex((value) => value - 1)}
+          >
+            Voltar
+          </button>
+          {index === items.length - 1 ? (
+            <button
+              type="button"
+              disabled={!values[key]}
+              className="primary"
+              onClick={finish}
+            >
+              Confirmar máquina
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!values[key]}
+              className="primary"
+              onClick={() => setIndex((value) => value + 1)}
+            >
+              Avançar
+            </button>
+          )}
+        </footer>
+        <p className="mt-3 text-center text-sm font-bold text-gray-500">
+          Toque duas vezes na mesma resposta para confirmar e avançar.
+        </p>
       </div>
-      <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4">
-        <button
-          type="button"
-          disabled={index === 0}
-          className="min-h-14 rounded-md border border-gray-300 bg-white font-bold disabled:opacity-30"
-          onClick={() => setIndex((value) => value - 1)}
-        >
-          Voltar
-        </button>
-        {index === items.length - 1 ? (
-          <button
-            type="button"
-            disabled={!values[key]}
-            className="min-h-14 rounded-md bg-cicopal-green font-bold text-white disabled:bg-gray-300"
-            onClick={finish}
-          >
-            Concluir máquina e avançar
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={!values[key]}
-            className="min-h-14 rounded-md bg-cicopal-blue font-bold text-white disabled:bg-gray-300"
-            onClick={() => setIndex((value) => value + 1)}
-          >
-            Continuar
-          </button>
-        )}
-      </footer>
     </section>
   );
 }
@@ -1485,6 +1496,7 @@ function ProductEvaluationTabletFlow({
           Voltar às máquinas
         </button>
         <MachineEvaluationWizard
+          key={`${activeHour}-${selectedMachine.label}`}
           title={`Avaliação do produto · ${selectedMachine.label} · ${machineGrams[selectedMachine.label]}`}
           machines={[selectedMachine]}
           activeHour={activeHour}
@@ -1722,6 +1734,7 @@ function ProcessEvaluationTabletFlow({
           Voltar às máquinas
         </button>
         <MachineEvaluationWizard
+          key={`${activeHour}-${currentMachine.label}`}
           title={`Avaliação do processo · Máquina ${activeMachines.indexOf(currentMachine) + 1} · ${machineGrams[currentMachine.label]}`}
           machines={[currentMachine]}
           activeHour={activeHour}
