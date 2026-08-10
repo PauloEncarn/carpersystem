@@ -852,7 +852,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
               className="primary"
               onClick={finish}
             >
-              Gravar parâmetros
+              Confirmar parâmetros
             </button>
           ) : (
             <button
@@ -861,7 +861,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
               className="primary"
               onClick={() => setIndex((value) => value + 1)}
             >
-              Continuar
+              Próximo item
             </button>
           )}
         </footer>
@@ -870,7 +870,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
   );
 }
 
-function TabletRelease({ columns, activeHour, registro, onSave }) {
+function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
   const [index, setIndex] = useState(0);
@@ -916,6 +916,14 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
           Confirmada às {savedAt}. A etapa seguinte está disponível no fluxo.
           Para alterar este registro, use “Editar registro”.
         </p>
+        <button
+          type="button"
+          className="mt-6 inline-flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-6 text-lg font-bold text-white"
+          onClick={onNextStep}
+        >
+          Voltar ao fluxo para iniciar produção
+          <ArrowRight size={22} />
+        </button>
       </section>
     );
   }
@@ -967,7 +975,7 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
               className="primary"
               onClick={() => setIndex((value) => value + 1)}
             >
-              Avançar
+              Próximo item
             </button>
           )}
         </footer>
@@ -1062,7 +1070,7 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
               className="primary"
               onClick={() => setIndex((value) => value + 1)}
             >
-              Avançar
+              Próximo item
             </button>
           )}
         </footer>
@@ -1717,7 +1725,7 @@ function ProcessEvaluationTabletFlow({
             className="mt-5 min-h-16 w-full rounded-xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300"
             onClick={confirmSetup}
           >
-            Continuar para avaliação
+            Abrir avaliação das máquinas
           </button>
         </div>
       </section>
@@ -3509,6 +3517,14 @@ export function Rg005SubregistroForm({
           subregistro={subregistro}
           groups={config.checklistGroups}
           onSave={saveProcesso}
+          onNextStep={() =>
+            window.dispatchEvent(
+              new CustomEvent("rg003-advance-process", {
+                detail: { processId: "produto_liberacao" },
+              }),
+            )
+          }
+          nextStepLabel="Ir para liberação do produto"
           stepByStep={documentName === "RG.QUA.BA.003"}
         />
         {!isRg003 || savedAt ? (
@@ -3539,6 +3555,11 @@ export function Rg005SubregistroForm({
             activeHour="Pré-produção"
             registro={effectiveRegistro}
             onSave={saveProcesso}
+            onNextStep={() =>
+              window.dispatchEvent(
+                new CustomEvent("rg003-advance-process", { detail: {} }),
+              )
+            }
           />
         ) : (
           <LiberacaoProdutoTable

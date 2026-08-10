@@ -246,6 +246,8 @@ export function ChecklistTable({
   subregistro,
   groups = checklistGroups,
   onSave,
+  onNextStep,
+  nextStepLabel = "Ir para a próxima etapa",
   stepByStep = false,
 }) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
@@ -354,6 +356,16 @@ export function ChecklistTable({
             Confirmada às {savedAt}. Para alterar as respostas, abra novamente o
             registro e escolha “Editar registro”.
           </p>
+          {onNextStep ? (
+            <button
+              type="button"
+              className="mt-6 inline-flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-6 text-lg font-bold text-white"
+              onClick={onNextStep}
+            >
+              {nextStepLabel}
+              <ArrowRight size={22} />
+            </button>
+          ) : null}
         </section>
       );
     }
@@ -519,7 +531,7 @@ export function ChecklistTable({
                 setActiveIndex((index) => Math.min(rows.length - 1, index + 1))
               }
             >
-              Avançar
+              Próximo item
               <ArrowRight size={22} />
             </button>
           )}
