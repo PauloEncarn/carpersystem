@@ -902,6 +902,23 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
     if (secondTap && index < columns.length - 1)
       setIndex((current) => current + 1);
   }
+  if (savedAt) {
+    return (
+      <section className="mx-auto max-w-5xl border border-green-200 bg-white p-6 text-center shadow-sm">
+        <CheckCircle2 size={46} className="mx-auto text-cicopal-green" />
+        <p className="mt-4 text-xs font-bold uppercase tracking-wider text-cicopal-green">
+          Registro confirmado
+        </p>
+        <h2 className="mt-1 text-2xl font-bold text-gray-950">
+          Liberação do produto gravada
+        </h2>
+        <p className="mt-2 font-semibold text-gray-500">
+          Confirmada às {savedAt}. A etapa seguinte está disponível no fluxo.
+          Para alterar este registro, use “Editar registro”.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="inspection-focus">
       <aside className="inspection-progress">
@@ -937,7 +954,7 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
               className="primary"
               onClick={save}
             >
-              Confirmar e avançar
+              Confirmar registro
             </button>
           ) : (
             <button
@@ -946,7 +963,7 @@ function TabletRelease({ columns, activeHour, registro, onSave }) {
               className="primary"
               onClick={() => setIndex((value) => value + 1)}
             >
-              Continuar
+              Avançar
             </button>
           )}
         </footer>
@@ -3290,8 +3307,8 @@ export function Rg005SubregistroForm({
       !(await requestConfirmation({
         title: "Confirmar higienização?",
         description:
-          "Ao confirmar, este checklist será gravado como pré-requisito da produção e o sistema avançará para a liberação do produto.",
-        confirmLabel: "Confirmar e avançar",
+          "Ao confirmar, este checklist será gravado como pré-requisito da produção. Você permanecerá nesta tela e a próxima etapa ficará disponível no fluxo.",
+        confirmLabel: "Confirmar registro",
       }))
     )
       return false;
@@ -3458,20 +3475,6 @@ export function Rg005SubregistroForm({
         minute: "2-digit",
       }),
     );
-    if (isRg003 && !(payload.ncs ?? []).length) {
-      if (subregistro.id === "higienizacao") {
-        window.dispatchEvent(
-          new CustomEvent("rg003-advance-process", {
-            detail: { processId: "produto_liberacao" },
-          }),
-        );
-      }
-      if (subregistro.id === "produto_liberacao") {
-        window.dispatchEvent(
-          new CustomEvent("rg003-advance-process", { detail: {} }),
-        );
-      }
-    }
     return true;
   }
 

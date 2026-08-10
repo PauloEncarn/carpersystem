@@ -8,7 +8,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 const fallbackUsers = [
   {
     id: "demo-operador",
-    nome: "Operador Demo",
+    nome: "Operador",
     turno: "A",
     codigo_pin: "1111",
     perfis: [
@@ -21,7 +21,7 @@ const fallbackUsers = [
   },
   {
     id: "demo-configurador",
-    nome: "Configurador Demo",
+    nome: "Configurador",
     turno: "ADM",
     codigo_pin: "3333",
     perfis: [
@@ -34,7 +34,7 @@ const fallbackUsers = [
   },
   {
     id: "00000000-0000-0000-0000-000000000205",
-    nome: "Técnico Demo",
+    nome: "Técnico",
     turno: "A",
     codigo_pin: "4444",
     perfis: [
@@ -61,7 +61,7 @@ function normalizeUser(user) {
 
   return {
     id: user.id,
-    nome: user.nome,
+    nome: String(user.nome ?? "Usuário").replace(/\s+Demo$/i, ""),
     turno: user.turno ?? "",
     matricula: user.matricula ?? "",
     perfil: perfilPrincipal,
@@ -96,9 +96,7 @@ export function LoginScreen({ onLogin }) {
         return;
       }
 
-      setError(
-        "Supabase nao configurado no ambiente. Cadastre as variaveis na Vercel ou use PIN demo.",
-      );
+      setError("O serviço de dados não está configurado neste ambiente.");
       setLoading(false);
       return;
     }
@@ -218,11 +216,6 @@ export function LoginScreen({ onLogin }) {
             >
               {loading ? "Entrando..." : "Entrar"}
             </button>
-
-            <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-semibold text-gray-500">
-              Ambiente de demonstração: operador 1111 • técnico 4444 •
-              configurador 3333
-            </div>
           </form>
         </div>
       </section>

@@ -340,6 +340,23 @@ export function ChecklistTable({
   }
 
   if (stepByStep) {
+    if (savedAt) {
+      return (
+        <section className="mx-auto max-w-5xl border border-green-200 bg-white p-6 text-center shadow-sm">
+          <CheckCircle2 size={46} className="mx-auto text-cicopal-green" />
+          <p className="mt-4 text-xs font-bold uppercase tracking-wider text-cicopal-green">
+            Registro confirmado
+          </p>
+          <h2 className="mt-1 text-2xl font-bold text-gray-950">
+            Higienização gravada com sucesso
+          </h2>
+          <p className="mt-2 font-semibold text-gray-500">
+            Confirmada às {savedAt}. Para alterar as respostas, abra novamente o
+            registro e escolha “Editar registro”.
+          </p>
+        </section>
+      );
+    }
     const row = rows[activeIndex];
     const progress = rows.length
       ? Math.round(((activeIndex + 1) / rows.length) * 100)
@@ -489,7 +506,7 @@ export function ChecklistTable({
               onClick={saveChecklist}
             >
               <CheckCircle2 size={22} />
-              Confirmar e avançar
+              Confirmar registro
             </button>
           ) : (
             <button
@@ -500,7 +517,7 @@ export function ChecklistTable({
                 setActiveIndex((index) => Math.min(rows.length - 1, index + 1))
               }
             >
-              Continuar
+              Avançar
               <ArrowRight size={22} />
             </button>
           )}
