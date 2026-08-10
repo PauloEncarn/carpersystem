@@ -512,7 +512,7 @@ export function ChecklistTable({
               onClick={saveChecklist}
             >
               <CheckCircle2 size={22} />
-              Concluir checklist
+              Confirmar e avançar
             </button>
           ) : (
             <button

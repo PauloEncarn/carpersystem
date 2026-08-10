@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { LockKeyhole, ShieldCheck } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
+import { CicopalLogo } from "@/components/CicopalLogo";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 const fallbackUsers = [
@@ -10,7 +11,13 @@ const fallbackUsers = [
     nome: "Operador Demo",
     turno: "A",
     codigo_pin: "1111",
-    perfis: [{ codigo: "operador", nome: "Operador", permissoes: ["operacao:acessar"] }]
+    perfis: [
+      {
+        codigo: "operador",
+        nome: "Operador",
+        permissoes: ["operacao:acessar"],
+      },
+    ],
   },
   {
     id: "demo-configurador",
@@ -21,17 +28,23 @@ const fallbackUsers = [
       {
         codigo: "configurador",
         nome: "Configurador",
-        permissoes: ["operacao:acessar", "configurador:acessar"]
-      }
-    ]
+        permissoes: ["operacao:acessar", "configurador:acessar"],
+      },
+    ],
   },
   {
-    id: "demo-tecnico",
+    id: "00000000-0000-0000-0000-000000000205",
     nome: "Técnico Demo",
     turno: "A",
     codigo_pin: "4444",
-    perfis: [{ codigo: "tecnico", nome: "Técnico", permissoes: ["operacao:acessar", "operacao:dia_atual"] }]
-  }
+    perfis: [
+      {
+        codigo: "tecnico",
+        nome: "Técnico",
+        permissoes: ["operacao:acessar", "operacao:dia_atual"],
+      },
+    ],
+  },
 ];
 
 function normalizeUser(user) {
@@ -40,10 +53,11 @@ function normalizeUser(user) {
     new Set(
       perfis.reduce((acc, perfil) => {
         return acc.concat(perfil.permissoes ?? []);
-      }, [])
-    )
+      }, []),
+    ),
   );
-  const perfilPrincipal = perfis.find((perfil) => perfil.principal) ?? perfis[0] ?? { codigo: "operador", nome: "Operador" };
+  const perfilPrincipal = perfis.find((perfil) => perfil.principal) ??
+    perfis[0] ?? { codigo: "operador", nome: "Operador" };
 
   return {
     id: user.id,
@@ -52,7 +66,7 @@ function normalizeUser(user) {
     matricula: user.matricula ?? "",
     perfil: perfilPrincipal,
     perfis,
-    permissoes
+    permissoes,
   };
 }
 
@@ -73,14 +87,18 @@ export function LoginScreen({ onLogin }) {
     setError("");
 
     if (!isSupabaseConfigured || !supabase) {
-      const fallbackUser = fallbackUsers.find((user) => user.codigo_pin === cleanPin);
+      const fallbackUser = fallbackUsers.find(
+        (user) => user.codigo_pin === cleanPin,
+      );
       if (fallbackUser) {
         onLogin(normalizeUser(fallbackUser));
         setLoading(false);
         return;
       }
 
-      setError("Supabase nao configurado no ambiente. Cadastre as variaveis na Vercel ou use PIN demo.");
+      setError(
+        "Supabase nao configurado no ambiente. Cadastre as variaveis na Vercel ou use PIN demo.",
+      );
       setLoading(false);
       return;
     }
@@ -93,25 +111,41 @@ export function LoginScreen({ onLogin }) {
       .maybeSingle();
 
     if (loginError) {
-      const fallbackUser = fallbackUsers.find((user) => user.codigo_pin === cleanPin);
+      const fallbackUser = fallbackUsers.find(
+        (user) => user.codigo_pin === cleanPin,
+      );
       if (fallbackUser) {
         onLogin(normalizeUser(fallbackUser));
         setLoading(false);
         return;
       }
 
-      setError("Nao foi possivel consultar o login. Confira se a migration de perfis foi executada.");
+      setError(
+        "Nao foi possivel consultar o login. Confira se a migration de perfis foi executada.",
+      );
       setLoading(false);
       return;
     }
 
     if (!data) {
+      const fallbackUser = fallbackUsers.find(
+        (user) => user.codigo_pin === cleanPin,
+      );
+      if (fallbackUser) {
+        onLogin(normalizeUser(fallbackUser));
+        setLoading(false);
+        return;
+      }
+
       setError("PIN nao encontrado ou usuario inativo.");
       setLoading(false);
       return;
     }
 
-    await supabase.from("operadores").update({ ultimo_login_em: new Date().toISOString() }).eq("id", data.id);
+    await supabase
+      .from("operadores")
+      .update({ ultimo_login_em: new Date().toISOString() })
+      .eq("id", data.id);
     onLogin(normalizeUser(data));
     setLoading(false);
   }
@@ -122,17 +156,26 @@ export function LoginScreen({ onLogin }) {
         <div className="modern-login-shell grid w-full md:grid-cols-[1fr_420px]">
           <div className="modern-login-visual flex min-h-[390px] flex-col justify-between p-8 text-white">
             <div className="flex items-center gap-3">
-              <span className="grid size-12 place-items-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur"><ShieldCheck size={27} /></span>
+              <CicopalLogo className="h-16 w-auto" light priority />
               <div>
-                <h1 className="text-xl font-black tracking-tight">CICOPAL</h1>
-                <p className="text-sm font-semibold text-white/75">Sistema RG Qualidade</p>
+                <p className="text-sm font-semibold text-white/75">
+                  Sistema RG Qualidade
+                </p>
               </div>
             </div>
             <div>
-              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white/80">Entrada segura</span>
-              <h2 className="mt-4 text-4xl font-black leading-[1.08] tracking-tight">Produzindo sabor de <span className="text-white underline decoration-cicopal-red decoration-4 underline-offset-8">felicidade.</span></h2>
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white/80">
+                Entrada segura
+              </span>
+              <h2 className="mt-4 text-4xl font-black leading-[1.08] tracking-tight">
+                Produzindo sabor de{" "}
+                <span className="text-white underline decoration-cicopal-red decoration-4 underline-offset-8">
+                  felicidade.
+                </span>
+              </h2>
               <p className="mt-3 max-w-xl text-base font-semibold text-white/85">
-                Identifique-se para acessar seus processos, preenchimentos e configurações.
+                Identifique-se para acessar seus processos, preenchimentos e
+                configurações.
               </p>
             </div>
           </div>
@@ -141,11 +184,17 @@ export function LoginScreen({ onLogin }) {
             <div className="mb-5 inline-flex size-14 items-center justify-center rounded-2xl bg-blue-50 text-cicopal-blue shadow-sm">
               <LockKeyhole size={28} />
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-gray-950">Bem-vindo</h2>
-            <p className="mt-1 text-sm font-semibold text-gray-500">Digite seu PIN para continuar.</p>
+            <h2 className="text-2xl font-black tracking-tight text-gray-950">
+              Bem-vindo
+            </h2>
+            <p className="mt-1 text-sm font-semibold text-gray-500">
+              Digite seu PIN para continuar.
+            </p>
 
             <label className="mt-5 block">
-              <span className="mb-1 block text-xs font-bold uppercase text-gray-500">PIN</span>
+              <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                PIN
+              </span>
               <input
                 className="min-h-16 w-full border border-gray-300 bg-gray-50 px-4 text-center text-3xl font-black tracking-[.35em] outline-none focus:bg-white focus:border-cicopal-blue"
                 inputMode="numeric"
@@ -156,7 +205,11 @@ export function LoginScreen({ onLogin }) {
               />
             </label>
 
-            {error ? <p className="mt-3 rounded-md border border-red-100 bg-red-50 p-3 text-sm font-bold text-cicopal-red">{error}</p> : null}
+            {error ? (
+              <p className="mt-3 rounded-md border border-red-100 bg-red-50 p-3 text-sm font-bold text-cicopal-red">
+                {error}
+              </p>
+            ) : null}
 
             <button
               type="submit"
@@ -167,7 +220,8 @@ export function LoginScreen({ onLogin }) {
             </button>
 
             <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-semibold text-gray-500">
-              Ambiente de demonstração: operador 1111 • técnico 4444 • configurador 3333
+              Ambiente de demonstração: operador 1111 • técnico 4444 •
+              configurador 3333
             </div>
           </form>
         </div>

@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Greycliff CF";
+  src: url("/fonts/greycliffcf-regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Greycliff CF";
+  src: url("/fonts/greycliffcf-medium.otf") format("opentype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Greycliff CF";
+  src: url("/fonts/greycliffcf-demibold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Greycliff CF";
+  src: url("/fonts/greycliffcf-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --cicopal-blue: #1e22a8;
@@ -16,7 +48,7 @@
   --ui-radius-lg: 24px;
   --ui-shadow-sm: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px rgba(15, 23, 42, .05);
   --ui-shadow: 0 18px 45px rgba(30, 34, 80, .10);
-  --font-brand: "Gotham", "Montserrat", "Avenir Next", Arial, sans-serif;
+  --font-brand: "Greycliff CF", "Avenir Next", Arial, sans-serif;
 }
 
 * {
