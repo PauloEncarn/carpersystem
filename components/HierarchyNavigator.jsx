@@ -26,6 +26,7 @@ import {
   persistCycleTransition,
   startRg003Cycle,
 } from "@/lib/rg003Persistence";
+import { repairTextDeep } from "@/lib/textEncoding";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -713,19 +714,21 @@ function Rg003CyclePanel({
           if (result.cycle?.product) setProduct(result.cycle.product);
           setSyncState("online");
         } else {
-          const savedCycle = JSON.parse(
-            window.localStorage.getItem(storageKey) ?? "null",
+          const savedCycle = repairTextDeep(
+            JSON.parse(window.localStorage.getItem(storageKey) ?? "null"),
           );
           setCycle(savedCycle);
           if (savedCycle?.product) setProduct(savedCycle.product);
           setSyncState("local");
         }
         setCycleHistory(
-          JSON.parse(window.localStorage.getItem(historyKey) ?? "[]"),
+          repairTextDeep(
+            JSON.parse(window.localStorage.getItem(historyKey) ?? "[]"),
+          ),
         );
       } catch {
-        const savedCycle = JSON.parse(
-          window.localStorage.getItem(storageKey) ?? "null",
+        const savedCycle = repairTextDeep(
+          JSON.parse(window.localStorage.getItem(storageKey) ?? "null"),
         );
         if (active) {
           setCycle(savedCycle);

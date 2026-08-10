@@ -21,6 +21,7 @@ import {
   loadRg003Record,
   persistCycleTransition,
 } from "@/lib/rg003Persistence";
+import { repairTextDeep } from "@/lib/textEncoding";
 
 const hours = Array.from(
   { length: 24 },
@@ -3189,13 +3190,15 @@ export function Rg005SubregistroForm({
     if (!isRg003) return;
     function loadCycle(event) {
       if (event?.detail) {
-        setCycleContext(event.detail);
+        setCycleContext(repairTextDeep(event.detail));
         return;
       }
       try {
         setCycleContext(
-          JSON.parse(
-            window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null",
+          repairTextDeep(
+            JSON.parse(
+              window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null",
+            ),
           ),
         );
       } catch {

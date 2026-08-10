@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import { CicopalLogo } from "@/components/CicopalLogo";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
+import { repairText } from "@/lib/textEncoding";
 
 const fallbackUsers = [
   {
@@ -61,7 +62,7 @@ function normalizeUser(user) {
 
   return {
     id: user.id,
-    nome: String(user.nome ?? "Usuário").replace(/\s+Demo$/i, ""),
+    nome: repairText(String(user.nome ?? "Usuário")).replace(/\s+Demo$/i, ""),
     turno: user.turno ?? "",
     matricula: user.matricula ?? "",
     perfil: perfilPrincipal,
