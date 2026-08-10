@@ -3084,22 +3084,35 @@ function PersistedRg003Summary({ data, onEdit }) {
 }
 
 function buildAllowedCycleHours(cycle) {
-  const productionStart = cycle?.productionStartedAt ?? cycle?.startedAt;
-  if (!productionStart)
-    return [
-      {
-        key: getCurrentHourSlot(),
-        value: getCurrentHourSlot(),
-        hour: getCurrentHourSlot(),
-        label: getCurrentHourSlot(),
-      },
-    ];
+  const currentSlot = getCurrentHourSlot();
+  const fallback = [
+    {
+      key: currentSlot,
+      value: currentSlot,
+      hour: currentSlot,
+      label: currentSlot,
+      timestamp: Date.now(),
+      locked: false,
+    },
+  ];
+  const productionStart =
+    cycle?.productionStartedAt ??
+    cycle?.events?.find((item) =>
+      String(item.label ?? "")
+        .toLowerCase()
+        .includes("produção iniciada"),
+    )?.at ??
+    cycle?.startedAt;
+  if (!productionStart) return fallback;
   const start = new Date(productionStart);
+  if (!Number.isFinite(start.getTime())) return fallback;
   start.setMinutes(0, 0, 0);
   const productionEnd =
     cycle.productionEndedAt ?? cycle.endedAt ?? Date.now() + 3_600_000;
   const end = new Date(productionEnd);
+  if (!Number.isFinite(end.getTime())) return fallback;
   end.setMinutes(0, 0, 0);
+  if (end < start) end.setTime(start.getTime());
   const result = [];
   for (
     let cursor = new Date(start);
@@ -3124,16 +3137,7 @@ function buildAllowedCycleHours(cycle) {
       locked: cursor.getTime() > Date.now(),
     });
   }
-  return result.length
-    ? result
-    : [
-        {
-          key: getCurrentHourSlot(),
-          value: getCurrentHourSlot(),
-          hour: getCurrentHourSlot(),
-          label: getCurrentHourSlot(),
-        },
-      ];
+  return result.length ? result : fallback;
 }
 
 export function Rg005SubregistroForm({

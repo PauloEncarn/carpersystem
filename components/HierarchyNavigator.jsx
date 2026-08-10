@@ -978,25 +978,42 @@ function Rg003CyclePanel({
               {statusLabel}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-center">
-            <div className="rounded-2xl bg-white/10 p-3">
-              <p className="text-[10px] font-bold uppercase text-white/60">
-                Tempo do ciclo
-              </p>
-              <p className="mt-1 text-xl font-black tabular-nums">
-                {formatElapsed(cycle?.startedAt, now)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/10 p-3">
-              <p className="text-[10px] font-bold uppercase text-white/60">
-                Atividade atual
-              </p>
-              <p className="mt-1 text-xl font-black tabular-nums">
-                {formatElapsed(
-                  cycle?.activeAction?.startedAt ?? cycle?.stageStartedAt,
-                  now,
-                )}
-              </p>
+          <div className="flex flex-wrap items-stretch justify-end gap-3">
+            {cycle ? (
+              <button
+                type="button"
+                className="inline-flex min-h-16 items-center gap-3 border-2 border-red-400 bg-red-500 px-4 text-left font-bold text-white shadow-lg transition hover:bg-red-600 active:scale-[.98]"
+                onClick={() => setNcOpen(true)}
+              >
+                <AlertTriangle size={26} />
+                <span>
+                  Registrar NC
+                  <small className="block text-xs font-semibold text-red-100">
+                    Produto e horário automáticos
+                  </small>
+                </span>
+              </button>
+            ) : null}
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="rounded-2xl bg-white/10 p-3">
+                <p className="text-[10px] font-bold uppercase text-white/60">
+                  Tempo do ciclo
+                </p>
+                <p className="mt-1 text-xl font-black tabular-nums">
+                  {formatElapsed(cycle?.startedAt, now)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-3">
+                <p className="text-[10px] font-bold uppercase text-white/60">
+                  Atividade atual
+                </p>
+                <p className="mt-1 text-xl font-black tabular-nums">
+                  {formatElapsed(
+                    cycle?.activeAction?.startedAt ?? cycle?.stageStartedAt,
+                    now,
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1013,14 +1030,6 @@ function Rg003CyclePanel({
                 bloqueadas.
               </p>
             </div>
-            <button
-              type="button"
-              className="inline-flex min-h-14 items-center gap-2 rounded-md border-2 border-red-300 bg-red-50 px-4 font-bold text-cicopal-red"
-              onClick={() => setNcOpen(true)}
-            >
-              <AlertTriangle size={22} />
-              Registrar não conformidade
-            </button>
           </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
             {stages.map((stage, index) => (

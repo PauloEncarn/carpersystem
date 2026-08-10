@@ -146,20 +146,7 @@ function ChecklistGroupTable({ title, rows, onChange }) {
                           <AlertTriangle size={18} />
                           Dados da nao conformidade
                         </div>
-                        <div className="grid gap-3 md:grid-cols-3">
-                          <label className="block">
-                            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
-                              Horario
-                            </span>
-                            <input
-                              type="time"
-                              className="min-h-12 w-full rounded-md border border-gray-300 px-3 font-semibold"
-                              value={row.nc.horario}
-                              onChange={(event) =>
-                                updateNc(index, "horario", event.target.value)
-                              }
-                            />
-                          </label>
+                        <div className="grid gap-3 md:grid-cols-2">
                           <label className="block">
                             <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
                               Quantidade
@@ -323,12 +310,11 @@ export function ChecklistTable({
         item: row.item,
         grupo: row.group,
         status: row.av2 === "C" ? "Tratada" : "Aberta",
-        horario:
-          row.nc.horario ||
-          new Date().toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+        horario: new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
         quantidade: row.nc.quantidade || "-",
         descricao: `${row.item} marcado como N na 1 AV`,
         causa: row.nc.causa || "Nao informada",
@@ -423,8 +409,7 @@ export function ChecklistTable({
               className={`min-h-24 border-2 p-3 text-lg font-bold ${["N", "NC"].includes(row?.av1) ? "border-cicopal-red bg-cicopal-red text-white" : "border-red-200 bg-white text-cicopal-red"}`}
               onPointerUp={() => choose("N")}
             >
-              <XCircle size={28} className="mx-auto mb-2" />
-              N · Não conforme
+              <XCircle size={28} className="mx-auto mb-2" />N · Não conforme
             </button>
             <button
               type="button"
@@ -441,18 +426,10 @@ export function ChecklistTable({
                 <AlertTriangle size={20} />
                 Detalhes da não conformidade
               </div>
+              <p className="mb-3 text-sm font-semibold text-red-800">
+                Data e horário serão registrados automaticamente pelo sistema.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label>
-                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">
-                    Horário
-                  </span>
-                  <input
-                    type="time"
-                    className="min-h-14 w-full rounded-xl border border-red-200 bg-white px-3 font-bold"
-                    value={row.nc.horario}
-                    onChange={(e) => updateNc("horario", e.target.value)}
-                  />
-                </label>
                 <label>
                   <span className="mb-1 block text-xs font-black uppercase text-gray-600">
                     Disposição imediata
