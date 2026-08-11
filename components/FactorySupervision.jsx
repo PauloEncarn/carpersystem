@@ -145,7 +145,7 @@ async function loadLiveFactory() {
   );
 }
 
-export function FactorySupervision() {
+export function FactorySupervision({ variant = "classic" }) {
   const [now, setNow] = useState(() => new Date());
   const [cycles, setCycles] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -236,6 +236,15 @@ export function FactorySupervision() {
         Atualizar
       </button>
       <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-24 md:p-5 md:pt-24">
+        {variant === "vector" ? (
+          <VectorFactoryScene
+            lines={lines}
+            selectedId={selectedId}
+            hoveredId={hoveredId}
+            onSelect={setSelectedId}
+            onHover={setHoveredId}
+          />
+        ) : (
         <div className="relative mx-auto min-w-[820px] overflow-hidden rounded-2xl shadow-2xl">
           <img
             src="/images/fabrica-isometrica-cicopal.png"
@@ -254,11 +263,6 @@ export function FactorySupervision() {
                 onClick={() => setSelectedId(line.id)}
                 className={`absolute rounded-[28px] border-2 transition ${focused ? "border-white bg-white/10 shadow-[0_0_0_5px_rgba(30,34,168,.45)]" : "border-transparent"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
               >
-                <AnimatedLineActivity
-                  status={line.cycle?.status}
-                  active={line.active}
-                  lineName={line.name}
-                />
                 <span
                   className={`absolute left-3 top-3 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}
                 >
@@ -273,6 +277,7 @@ export function FactorySupervision() {
             );
           })}
         </div>
+        )}
         {loading ? (
           <div className="absolute inset-0 z-30 grid place-items-center bg-white/55 backdrop-blur-sm">
             <span className="inline-flex items-center gap-3 rounded-2xl bg-white px-5 py-4 font-black text-cicopal-blue shadow-xl">
@@ -517,6 +522,59 @@ function Title({ icon, text }) {
       {icon}
       {text}
     </h3>
+  );
+}
+
+function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover }) {
+  const positions = {
+    PUR: { left: "8%", top: "15%", width: "42%", height: "27%" },
+    SAL: { left: "50%", top: "34%", width: "42%", height: "27%" },
+    ROS: { left: "12%", top: "59%", width: "46%", height: "27%" },
+  };
+  return (
+    <div className="vector-factory-scene relative mx-auto min-h-[690px] min-w-[920px] overflow-hidden border border-[#54717c] shadow-2xl">
+      <svg className="absolute inset-0 size-full" viewBox="0 0 1200 720" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="factory-floor" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#163f4b" /><stop offset="1" stopColor="#0a2733" /></linearGradient>
+          <pattern id="floor-grid" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0H0v55" fill="none" stroke="#82aab3" strokeOpacity=".2" strokeWidth="2" /></pattern>
+        </defs>
+        <path d="M0 0h1200v720H0z" fill="#18869a" />
+        <path d="M0 112 240 0h960v128L0 362z" fill="#f4d39a" />
+        <path d="M0 112v250l1200-234V0H240z" fill="none" stroke="#e9f0e9" strokeWidth="16" />
+        {[180, 390, 600, 810, 1020].map((x) => <path key={x} d={`M${x} 30v250`} stroke="#e9f0e9" strokeWidth="10" opacity=".85" />)}
+        <path d="M0 362 1200 128v592H0z" fill="url(#factory-floor)" />
+        <path d="M0 362 1200 128v592H0z" fill="url(#floor-grid)" />
+        <path d="m90 590 820-164 220 90-820 164z" fill="none" stroke="#f2b721" strokeWidth="9" strokeDasharray="22 14" opacity=".75" />
+        <path d="M870 720v-98h330v98" fill="#dfe7e8" stroke="#46636c" strokeWidth="10" />
+        <path d="M900 690h260" stroke="#e45b66" strokeWidth="28" />
+        <rect x="925" y="625" width="76" height="44" fill="#244e64" stroke="#132f3c" strokeWidth="5" />
+        <rect x="1020" y="625" width="76" height="44" fill="#244e64" stroke="#132f3c" strokeWidth="5" />
+      </svg>
+      <div className="absolute left-6 top-5 border-l-4 border-cicopal-red bg-white/90 px-4 py-3 shadow-lg">
+        <p className="text-xs font-black uppercase tracking-[.18em] text-cicopal-blue">Planta vetorial</p>
+        <strong className="text-xl text-gray-950">Área de produção Cicopal</strong>
+      </div>
+      {lines.map((line) => {
+        const focused = selectedId === line.id || hoveredId === line.id;
+        return (
+          <button
+            key={line.id}
+            type="button"
+            style={positions[line.id]}
+            onMouseEnter={() => onHover(line.id)}
+            onMouseLeave={() => onHover("")}
+            onClick={() => onSelect(line.id)}
+            className={`vector-line-station absolute border-2 bg-[#102f3a]/75 transition ${focused ? "border-white shadow-[0_0_0_5px_rgba(32,36,118,.55)]" : "border-white/15"}`}
+          >
+            <AnimatedLineActivity status={line.cycle?.status} active={line.active} lineName={line.name} />
+            <span className={`absolute left-3 top-3 px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}>
+              {line.name} · {statusLabel(line.cycle?.status)}
+            </span>
+            {line.ncs.length ? <span className="absolute right-3 top-3 bg-cicopal-red px-3 py-2 text-xs font-black text-white shadow-lg">{line.ncs.length} NC</span> : null}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

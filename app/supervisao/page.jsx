@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, LogOut } from "lucide-react";
+import { ArrowLeft, BarChart3, Boxes, Image as ImageIcon, LogOut } from "lucide-react";
 import { FactorySupervision } from "@/components/FactorySupervision";
 import { CicopalLogo } from "@/components/CicopalLogo";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -15,8 +15,10 @@ import {
 export default function SupervisaoPage() {
   const [loggedUser, setLoggedUser] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [view, setView] = useState("classic");
   useEffect(() => {
     setLoggedUser(loadUserSession());
+    setView(window.localStorage.getItem("carper_supervision_view") ?? "classic");
     setSessionReady(true);
   }, []);
   function handleLogin(user) {
@@ -68,7 +70,21 @@ export default function SupervisaoPage() {
         </div>
       </header>
       <div className="mx-auto max-w-[1500px] px-4 py-5">
-        <FactorySupervision />
+        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-gray-200 bg-white p-3 shadow-sm">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Modo de visualização</p>
+            <p className="text-sm font-semibold text-gray-500">As duas telas usam os mesmos dados em tempo real.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setView("classic"); window.localStorage.setItem("carper_supervision_view", "classic"); }} className={`inline-flex min-h-12 items-center gap-2 px-4 font-black ${view === "classic" ? "bg-cicopal-blue text-white" : "border border-gray-200 bg-gray-50 text-gray-600"}`}>
+              <ImageIcon size={19} /> Planta clássica
+            </button>
+            <button type="button" onClick={() => { setView("vector"); window.localStorage.setItem("carper_supervision_view", "vector"); }} className={`inline-flex min-h-12 items-center gap-2 px-4 font-black ${view === "vector" ? "bg-cicopal-blue text-white" : "border border-gray-200 bg-gray-50 text-gray-600"}`}>
+              <Boxes size={19} /> Planta animada
+            </button>
+          </div>
+        </section>
+        <FactorySupervision variant={view} />
       </div>
     </main>
   );
