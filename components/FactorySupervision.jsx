@@ -89,6 +89,28 @@ function statusLabel(status) {
           ? "Preparação"
           : "Inativa";
 }
+function isOpenNc(nc) {
+  return !["fechada", "fechado", "resolvida", "resolvido", "concluida", "concluído"].includes(
+    String(nc?.status ?? "aberta").toLocaleLowerCase("pt-BR"),
+  );
+}
+function productAttention(records, specifications) {
+  const record = records.find((item) => item.contexto_tipo === "produto_avaliacao");
+  const values = [
+    ...(record?.valores?.apontamentos ?? []),
+    ...(record?.valores?.avaliacoes ?? []),
+  ];
+  const effectiveSpecifications = specifications?.length
+    ? specifications
+    : makeTestSpecifications(values.map((item) => ({ name: item.item, unit: item.unidade })));
+  return values
+    .map((item) => {
+      const specification = matchSpecification(effectiveSpecifications, item.item);
+      const classification = item.classificacao ?? classifyProductValue(specification, item.resultado ?? item.valor);
+      return { ...item, specification, classification };
+    })
+    .filter((item) => ["yellow", "red"].includes(item.classification));
+}
 
 async function loadLiveFactory() {
   if (!isSupabaseConfigured || !supabase) return [];
@@ -185,8 +207,12 @@ export function FactorySupervision({ variant = "classic" }) {
           cycle: latest,
           active: Boolean(active),
           records: latest?.records ?? [],
-          ncs: latest?.ncs ?? [],
+          ncs: (latest?.ncs ?? []).filter(isOpenNc),
           photos: latest?.photos ?? [],
+          attentionParameters: productAttention(
+            latest?.records ?? [],
+            latest?.specifications ?? [],
+          ),
         };
       }),
     [cycles],
@@ -309,6 +335,11 @@ export function FactorySupervision({ variant = "classic" }) {
             <p className="mt-2 font-bold text-gray-600">
               {hovered.cycle?.produto ?? "Sem produção registrada hoje"}
             </p>
+            {hovered.attentionParameters.length ? (
+              <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 font-black text-amber-900">
+                {hovered.attentionParameters.length} parâmetro(s) em atenção
+              </div>
+            ) : null}
             {hovered.ncs.length ? (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 p-3 font-black text-cicopal-red">
                 <AlertTriangle />
@@ -386,17 +417,17 @@ export function FactorySupervision({ variant = "classic" }) {
                   </figure>
                 </section>
               ) : null}
-              {selectedProductValues.length ? (
+              {selected.attentionParameters.length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
-                    text="Últimos parâmetros do produto"
+                    text="Parâmetros abaixo ou fora da faixa"
                   />
                   <p className="mt-1 text-xs font-bold text-gray-500">
                     Registro das {time(selectedProductRecord?.preenchido_em)}
                   </p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {selectedProductValues.map((item, index) => {
+                    {selected.attentionParameters.map((item, index) => {
                       const specification = matchSpecification(
                         selectedSpecifications,
                         item.item,

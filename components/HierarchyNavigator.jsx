@@ -27,6 +27,7 @@ import {
   startRg003Cycle,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -2549,11 +2550,29 @@ function collectNcsFromLote(lote) {
   }, []);
 }
 
-function CentralNc({ ncs, onDetail }) {
+function localDateId(value) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function CentralNc({ ncs, onDetail, contextLabel = "Todas as linhas", loading = false }) {
+  const openNcs = ncs.filter((nc) =>
+    !["fechada", "fechado", "resolvida", "resolvido", "concluida", "concluído"].includes(
+      String(nc.status ?? "aberta").toLocaleLowerCase("pt-BR"),
+    ),
+  );
+  if (loading) return <div className="grid min-h-[430px] place-items-center border border-gray-200 bg-white"><span className="inline-flex items-center gap-2 font-bold text-cicopal-blue"><RefreshCw className="animate-spin" /> Carregando não conformidades...</span></div>;
   if (!ncs.length) {
     return (
       <div className="min-h-[430px] rounded-md border border-t-[5px] border-t-cicopal-red bg-white p-4">
-        <StageHeader title="Central de NC" />
+        <StageHeader title={`Central de NC · ${contextLabel}`} />
         <div className="rounded-md bg-gray-50 p-8 text-center">
           <CheckCircle2 size={40} className="mx-auto text-cicopal-green" />
           <p className="mt-3 text-xl font-bold text-gray-700">
@@ -2565,60 +2584,24 @@ function CentralNc({ ncs, onDetail }) {
   }
 
   return (
-    <div className="min-h-[430px] overflow-hidden rounded-md border border-t-[5px] border-t-cicopal-red bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
-        <h2 className="text-2xl font-bold text-cicopal-red">Central de NC</h2>
-        <span className="audit-badge bg-cicopal-red text-white">
-          {ncs.length} NC
-        </span>
+    <div className="min-h-[430px] overflow-hidden border border-t-[5px] border-t-cicopal-red bg-[#f6f7fb]">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 bg-white p-5">
+        <div><p className="text-xs font-black uppercase tracking-wider text-cicopal-red">Central de NC</p><h2 className="mt-1 text-2xl font-black text-gray-950">{contextLabel}</h2></div>
+        <div className="flex gap-2">
+          <span className="bg-red-100 px-3 py-2 text-sm font-black text-cicopal-red">{openNcs.length} em aberto</span>
+          <span className="bg-gray-100 px-3 py-2 text-sm font-black text-gray-600">{ncs.length} no contexto</span>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="audit-table min-w-[980px] text-left">
-          <thead>
-            <tr>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Etapa</th>
-              <th className="px-4 py-3">Item</th>
-              <th className="px-4 py-3">Descricao</th>
-              <th className="px-4 py-3">Aberta por</th>
-              <th className="px-4 py-3">Data/Hora</th>
-              <th className="px-4 py-3">Supervisor</th>
-              <th className="px-4 py-3">Acao</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ncs.map((nc) => (
-              <tr key={nc.id} className="bg-white">
-                <td className="px-4 py-3">
-                  <span className="audit-badge bg-red-100 text-cicopal-red">
-                    {nc.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-semibold">{nc.etapa}</td>
-                <td className="px-4 py-3 font-bold text-gray-950">{nc.item}</td>
-                <td className="px-4 py-3 text-gray-700">{nc.descricao}</td>
-                <td className="px-4 py-3">{nc.operador}</td>
-                <td className="px-4 py-3">{nc.horario}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`audit-badge ${nc.assinaturaSupervisorAt ? "bg-cicopal-green text-white" : "bg-gray-200 text-gray-700"}`}
-                  >
-                    {nc.assinaturaSupervisorAt ? "Assinada" : "Pendente"}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    className="inline-flex min-h-10 items-center rounded-md bg-cicopal-red px-3 text-sm font-bold text-white"
-                    onClick={() => onDetail(nc)}
-                  >
-                    DETALHAR
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid gap-3 p-4 lg:grid-cols-2">
+        {ncs.map((nc) => {
+          const open = openNcs.includes(nc);
+          return <article key={nc.id} className={`border-l-4 bg-white p-4 shadow-sm ${open ? "border-l-cicopal-red" : "border-l-gray-300 opacity-70"}`}>
+            <div className="flex items-start justify-between gap-3"><div className="flex flex-wrap gap-2"><span className={`px-2 py-1 text-xs font-black uppercase ${open ? "bg-red-100 text-cicopal-red" : "bg-gray-100 text-gray-600"}`}>{open ? "Em aberto" : nc.status}</span><span className="bg-blue-50 px-2 py-1 text-xs font-black text-cicopal-blue">{nc.linhaNome ?? nc.linhaId ?? "Linha"}</span><span className="bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">{nc.dataLabel ?? "Data não informada"}</span></div><button type="button" className="shrink-0 bg-cicopal-red px-3 py-2 text-xs font-black text-white" onClick={() => onDetail(nc)}>DETALHAR</button></div>
+            <h3 className="mt-3 text-lg font-black text-gray-950">{nc.item ?? nc.descricao}</h3>
+            <p className="mt-1 text-sm font-semibold text-gray-600">{nc.descricao}</p>
+            <div className="mt-3 grid gap-2 border-t border-gray-100 pt-3 text-xs font-bold text-gray-500 sm:grid-cols-3"><span>Produto<br/><b className="text-gray-900">{nc.produto ?? "—"}</b></span><span>Etapa<br/><b className="text-gray-900">{nc.etapa ?? "Produção"}</b></span><span>Horário<br/><b className="text-gray-900">{nc.horario ?? "—"}</b></span></div>
+          </article>;
+        })}
       </div>
     </div>
   );
@@ -2647,6 +2630,8 @@ export function HierarchyNavigator({
   const [previewRegistro, setPreviewRegistro] = useState(null);
   const [selectedNc, setSelectedNc] = useState(null);
   const [rg003CycleStatus, setRg003CycleStatus] = useState("");
+  const [databaseNcs, setDatabaseNcs] = useState([]);
+  const [ncsLoading, setNcsLoading] = useState(false);
 
   useEffect(() => {
     function syncCycleStatus(event) {
@@ -2671,6 +2656,54 @@ export function HierarchyNavigator({
     return () =>
       window.removeEventListener("rg003-cycle-updated", syncCycleStatus);
   }, [selection.linhaId]);
+
+  useEffect(() => {
+    if (activeTab !== "nc" || !isSupabaseConfigured || !supabase) return;
+    let active = true;
+    setNcsLoading(true);
+    Promise.all([
+      supabase.from("ciclos_producao").select("id,linha_id,rg_id,produto,iniciado_em,metadata,rgs(codigo)"),
+      supabase.from("ciclo_nao_conformidades").select("*").order("registrada_em", { ascending: false }),
+      supabase.from("preenchimentos").select("id,ciclo_id,contexto_tipo,horario,valores,preenchido_em").order("preenchido_em", { ascending: false }),
+    ]).then(([cyclesResult, genericResult, fillingsResult]) => {
+      if (!active) return;
+      const cycles = new Map((cyclesResult.data ?? []).map((cycle) => [cycle.id, cycle]));
+      const decorate = (nc, cycle, extra = {}) => {
+        const dateId = localDateId(nc.registrada_em ?? extra.preenchido_em ?? cycle?.iniciado_em);
+        return {
+          ...nc,
+          ...extra,
+          cycleId: cycle?.id,
+          linhaId: cycle?.linha_id,
+          linhaNome: { PUR: "Pururuca", SAL: "Salgadinho", ROS: "Rosca" }[cycle?.linha_id] ?? cycle?.linha_id,
+          rgCode:
+            cycle?.rgs?.codigo ??
+            { PUR: "RG.QUA.005", SAL: "RG.QUA.004", ROS: "RG.QUA.BA.003" }[
+              cycle?.linha_id
+            ],
+          produto: nc.produto ?? cycle?.produto,
+          dataId: dateId,
+          dataLabel: dateId ? formatDateLabel(dateId) : "",
+          horario: nc.horario ?? new Date(nc.registrada_em ?? extra.preenchido_em).toLocaleString("pt-BR"),
+        };
+      };
+      const generic = (genericResult.data ?? []).map((nc) => decorate(nc, cycles.get(nc.ciclo_id), { item: nc.descricao, etapa: "Produção" }));
+      const embedded = (fillingsResult.data ?? []).flatMap((filling) => {
+        const cycle = cycles.get(filling.ciclo_id);
+        return (filling.valores?.ncs ?? []).map((nc, index) => decorate(nc, cycle, {
+          id: `${filling.id}-${nc.id ?? index}`,
+          etapa: filling.contexto_tipo,
+          preenchido_em: filling.preenchido_em,
+          horario: nc.horario ?? filling.horario,
+        }));
+      });
+      setDatabaseNcs(repairTextDeep([...generic, ...embedded]));
+      setNcsLoading(false);
+    }).catch(() => {
+      if (active) setNcsLoading(false);
+    });
+    return () => { active = false; };
+  }, [activeTab]);
 
   const datesById = useMemo(() => {
     return new Map(selected.linha?.datas.map((data) => [data.id, data]) ?? []);
@@ -2720,20 +2753,32 @@ export function HierarchyNavigator({
     selected.lote?.registros.filter(
       (registro) => registro.processoId === selection.subregistroId,
     ) ?? [];
-  const ncCount =
-    selected.lote?.registros.reduce((total, registro) => {
-      return (
-        total +
-        (registro.subregistros ?? []).reduce(
-          (subtotal, subregistro) => subtotal + (subregistro.ncs?.length ?? 0),
-          0,
-        )
-      );
-    }, 0) ?? 0;
   const ncsDoLote = useMemo(
     () => collectNcsFromLote(selected.lote),
     [selected.lote],
   );
+  const contextualNcs = useMemo(() => {
+    if (!databaseNcs.length) return ncsDoLote;
+    return databaseNcs.filter((nc) => {
+      if (currentStep >= 2 && selection.linhaId && nc.linhaId !== selection.linhaId) return false;
+      if (currentStep >= 3 && selection.dataId && nc.dataId !== selection.dataId) return false;
+      if (currentStep >= 4 && selection.documentoId && nc.rgCode && nc.rgCode !== selection.documentoId) return false;
+      if (currentStep >= 5 && selection.subregistroId && nc.etapa && nc.etapa !== selection.subregistroId) return false;
+      if (currentStep >= 6 && selected.registro?.cicloId && nc.cycleId !== selected.registro.cicloId) return false;
+      return true;
+    });
+  }, [currentStep, databaseNcs, ncsDoLote, selection.dataId, selection.documentoId, selection.linhaId, selection.subregistroId, selected.registro?.cicloId]);
+  const ncContextLabel = currentStep === 1
+    ? "Todas as linhas"
+    : currentStep === 2
+      ? `Todas as datas · ${selected.linha?.nome ?? "Linha"}`
+      : currentStep === 3
+        ? `${selected.linha?.nome ?? "Linha"} · ${selectedDateLabel || "Todas as datas"}`
+        : currentStep === 4
+          ? `${selection.documentoId || "RG"} · ${selectedDateLabel}`
+          : currentStep === 5
+            ? `${selected.subregistro?.nome ?? "Processo"} · ${selection.documentoId}`
+            : `Registro atual · ${selected.registro?.produto ?? selection.documentoId}`;
 
   const canAdvance =
     (currentStep === 1 && Boolean(selected.linha)) ||
@@ -2955,12 +3000,17 @@ export function HierarchyNavigator({
           className={`rounded-md px-4 py-3 text-base font-bold ${activeTab === "nc" ? "bg-cicopal-red text-white" : "bg-white text-cicopal-red"}`}
           onClick={() => setActiveTab("nc")}
         >
-          CENTRAL DE NC {ncCount ? ` ${String(ncCount).padStart(2, "0")}` : ""}
+          CENTRAL DE NC {contextualNcs.length ? ` ${String(contextualNcs.length).padStart(2, "0")}` : ""}
         </button>
       </div>
 
       {activeTab === "nc" ? (
-        <CentralNc ncs={ncsDoLote} onDetail={setSelectedNc} />
+        <CentralNc
+          ncs={contextualNcs}
+          contextLabel={ncContextLabel}
+          loading={ncsLoading}
+          onDetail={setSelectedNc}
+        />
       ) : (
         <>
           <Stepper currentStep={currentStep} hideDates={hideDates} />
