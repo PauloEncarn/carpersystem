@@ -781,6 +781,38 @@ button {
   }
 }
 /* Camada operacional animada da supervisão da fábrica. */
+.vector-factory-scene--bright {
+  isolation: isolate;
+  background:
+    linear-gradient(166deg, transparent 0 43%, rgb(249 115 22 / 82%) 43.2% 44%, transparent 44.2%),
+    linear-gradient(166deg, transparent 0 69%, rgb(249 115 22 / 82%) 69.2% 70%, transparent 70.2%),
+    linear-gradient(155deg, #fff 0 24%, #edf1f5 24.2% 100%);
+}
+.vector-factory-scene--bright > svg:first-child { z-index: -1; opacity: .12; filter: grayscale(1) brightness(1.9); }
+.vector-factory-scene--bright::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(rgb(100 116 139 / 7%) 1px, transparent 1px), linear-gradient(90deg, rgb(100 116 139 / 7%) 1px, transparent 1px);
+  background-size: 52px 52px;
+  transform: skewY(-8deg) scale(1.15);
+}
+.vector-factory-scene--bright .vector-line-station { border-radius: 6px; overflow: visible; backdrop-filter: blur(7px); }
+.vector-factory-scene--bright .vector-line-station::after {
+  content: "";
+  position: absolute;
+  inset: auto 8% -9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e, 0 0 28px rgb(34 197 94 / 80%);
+}
+.vector-factory-scene--bright .vector-line-station:has(.factory-motion--blocked)::after { background: #ef4444; box-shadow: 0 0 10px #ef4444, 0 0 28px rgb(239 68 68 / 85%); }
+.vector-factory-scene--bright .vector-line-station:has(.factory-motion--inactive)::after { background: #94a3b8; box-shadow: 0 0 14px rgb(100 116 139 / 45%); }
+.vector-factory-scene--bright .vector-line-station:has(.factory-motion--cleaning)::after { background: #22d3ee; box-shadow: 0 0 10px #22d3ee, 0 0 28px rgb(34 211 238 / 80%); }
+.vector-factory-scene--bright .vector-line-station:has(.factory-motion--inspection)::after { background: #f59e0b; box-shadow: 0 0 10px #f59e0b, 0 0 28px rgb(245 158 11 / 75%); }
 .factory-motion {
   position: absolute;
   left: 50%;
@@ -791,11 +823,11 @@ button {
   filter: drop-shadow(0 10px 12px rgb(10 24 55 / 24%));
 }
 .factory-motion svg { display: block; width: 100%; overflow: visible; }
-.factory-machine-body { fill: #d6dbe2; stroke: #303948; stroke-width: 3; }
-.factory-machine-top { fill: #eef1f5; stroke: #303948; stroke-width: 3; }
+.factory-machine-body { fill: #cbd5df; stroke: #3b4653; stroke-width: 3; }
+.factory-machine-top { fill: #f8fafc; stroke: #3b4653; stroke-width: 3; }
 .factory-window { fill: #263b55; stroke: #111827; stroke-width: 2; }
-.factory-conveyor-frame { fill: #e89b18; stroke: #5d421d; stroke-width: 2; }
-.factory-belt { fill: #283443; stroke: #111827; stroke-width: 2; }
+.factory-conveyor-frame { fill: #aeb8c3; stroke: #4b5563; stroke-width: 2; }
+.factory-belt { fill: #174b50; stroke: #12353a; stroke-width: 2; }
 .factory-roller { fill: #b9c1cb; stroke: #303948; stroke-width: 2; transform-box: fill-box; transform-origin: center; }
 .factory-gear { fill: #f5a900; stroke: #764d00; stroke-width: 2; transform-box: fill-box; transform-origin: center; }
 .factory-gear-mark { fill: none; stroke: #764d00; stroke-width: 3; }

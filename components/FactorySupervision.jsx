@@ -598,12 +598,12 @@ function Title({ icon, text }) {
 
 function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover }) {
   const positions = {
-    PUR: { left: "8%", top: "15%", width: "42%", height: "27%" },
-    SAL: { left: "50%", top: "34%", width: "42%", height: "27%" },
-    ROS: { left: "12%", top: "59%", width: "46%", height: "27%" },
+    PUR: { left: "5%", top: "17%", width: "43%", height: "27%" },
+    SAL: { left: "52%", top: "37%", width: "43%", height: "27%" },
+    ROS: { left: "8%", top: "66%", width: "46%", height: "27%" },
   };
   return (
-    <div className="vector-factory-scene relative mx-auto min-h-[620px] w-full overflow-hidden border border-[#54717c] shadow-2xl lg:min-h-[690px]">
+    <div className="vector-factory-scene vector-factory-scene--bright relative mx-auto min-h-[650px] w-full overflow-hidden border border-slate-200 shadow-2xl lg:min-h-[760px]">
       <svg className="absolute inset-0 size-full" viewBox="0 0 1200 720" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="factory-floor" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#163f4b" /><stop offset="1" stopColor="#0a2733" /></linearGradient>
@@ -635,7 +635,7 @@ function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover })
             onMouseEnter={() => onHover(line.id)}
             onMouseLeave={() => onHover("")}
             onClick={() => onSelect(line.id)}
-            className={`vector-line-station absolute border-2 bg-[#102f3a]/75 transition ${focused ? "border-white shadow-[0_0_0_5px_rgba(32,36,118,.55)]" : "border-white/15"}`}
+            className={`vector-line-station absolute border bg-white/90 transition duration-300 ${focused ? "-translate-y-1 border-cicopal-blue shadow-[0_22px_45px_rgba(15,23,42,.28)]" : "border-white/80 shadow-[0_14px_30px_rgba(15,23,42,.18)]"}`}
           >
             <AnimatedLineActivity status={line.cycle?.status} active={line.active} lineName={line.name} />
             <span className={`absolute left-3 top-3 px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}>
