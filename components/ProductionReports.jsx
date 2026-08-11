@@ -9,6 +9,8 @@ import {
   Download,
   LoaderCircle,
   RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { repairTextDeep } from "@/lib/textEncoding";
@@ -156,6 +158,10 @@ export function ProductionReports() {
   const [startDate, setStartDate] = useState(() => inputDate(initialStart));
   const [endDate, setEndDate] = useState(() => inputDate(new Date()));
   const [lineId, setLineId] = useState("ALL");
+  const [product, setProduct] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [ncFilter, setNcFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -175,7 +181,6 @@ export function ProductionReports() {
         .gte("iniciado_em", periodBoundary(startDate))
         .lte("iniciado_em", periodBoundary(endDate, true))
         .order("iniciado_em", { ascending: false });
-      if (lineId !== "ALL") cycleQuery = cycleQuery.eq("linha_id", lineId);
       const { data: cycles, error: cycleError } = await cycleQuery;
       if (cycleError) throw cycleError;
       const ids = (cycles ?? []).map((item) => item.id);
@@ -225,20 +230,58 @@ export function ProductionReports() {
     load();
   }, []);
 
+  const productOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          data
+            .filter((item) => lineId === "ALL" || item.linha_id === lineId)
+            .map((item) => item.produto)
+            .filter(Boolean),
+        ),
+      ].sort(
+        (a, b) => a.localeCompare(b, "pt-BR"),
+      ),
+    [data, lineId],
+  );
+  const filteredData = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    return data.filter((item) => {
+      if (lineId !== "ALL" && item.linha_id !== lineId) return false;
+      if (product !== "ALL" && item.produto !== product) return false;
+      if (status === "ACTIVE" && item.encerrado_em) return false;
+      if (status === "FINISHED" && !item.encerrado_em) return false;
+      if (ncFilter === "WITH" && !item.ncCount) return false;
+      if (ncFilter === "WITHOUT" && item.ncCount) return false;
+      if (!term) return true;
+      return [
+        item.produto,
+        item.metadata?.productionCode,
+        item.operator,
+        item.line.name,
+        item.line.rg,
+      ].some((value) =>
+        String(value ?? "")
+          .toLocaleLowerCase("pt-BR")
+          .includes(term),
+      );
+    });
+  }, [data, lineId, product, status, ncFilter, search]);
+
   const totals = useMemo(
     () => ({
-      cycles: data.length,
-      active: data.filter((item) => !item.encerrado_em).length,
-      ncs: data.reduce((total, item) => total + item.ncCount, 0),
-      photos: data.reduce((total, item) => total + item.photos, 0),
-      compliance: data.length
+      cycles: filteredData.length,
+      active: filteredData.filter((item) => !item.encerrado_em).length,
+      ncs: filteredData.reduce((total, item) => total + item.ncCount, 0),
+      photos: filteredData.reduce((total, item) => total + item.photos, 0),
+      compliance: filteredData.length
         ? Math.round(
-            data.reduce((total, item) => total + item.compliance, 0) /
-              data.length,
+            filteredData.reduce((total, item) => total + item.compliance, 0) /
+              filteredData.length,
           )
         : 0,
     }),
-    [data],
+    [filteredData],
   );
   const groupedData = useMemo(
     () =>
@@ -246,7 +289,7 @@ export function ProductionReports() {
         id,
         ...line,
         products: Object.entries(
-          data
+          filteredData
             .filter((cycle) => cycle.linha_id === id)
             .reduce((result, cycle) => {
               (result[cycle.produto] ??= []).push(cycle);
@@ -254,7 +297,7 @@ export function ProductionReports() {
             }, {}),
         ).map(([product, cycles]) => ({ product, cycles })),
       })),
-    [data],
+    [filteredData],
   );
 
   function exportCsv() {
@@ -276,7 +319,7 @@ export function ProductionReports() {
       "NCs",
       "Fotos",
     ];
-    const rows = data.map((item) => [
+    const rows = filteredData.map((item) => [
       item.line.name,
       item.line.rg,
       item.metadata?.productionCode,
@@ -327,7 +370,7 @@ export function ProductionReports() {
               Supabase.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label>
               <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
                 De
@@ -357,7 +400,10 @@ export function ProductionReports() {
               <select
                 className="min-h-12 border border-gray-300 bg-white px-3"
                 value={lineId}
-                onChange={(event) => setLineId(event.target.value)}
+                onChange={(event) => {
+                  setLineId(event.target.value);
+                  setProduct("ALL");
+                }}
               >
                 <option value="ALL">Todas</option>
                 {Object.entries(lines).map(([id, item]) => (
@@ -369,7 +415,94 @@ export function ProductionReports() {
             </label>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
+        <div className="mt-4 grid gap-3 border-t border-gray-200 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label>
+            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+              Produto
+            </span>
+            <select
+              className="min-h-12 w-full border border-gray-300 bg-white px-3"
+              value={product}
+              onChange={(event) => setProduct(event.target.value)}
+            >
+              <option value="ALL">Todos os produtos</option>
+              {productOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+              Situação da produção
+            </span>
+            <select
+              className="min-h-12 w-full border border-gray-300 bg-white px-3"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="ALL">Todas</option>
+              <option value="ACTIVE">Em andamento</option>
+              <option value="FINISHED">Encerradas</option>
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+              Não conformidade
+            </span>
+            <select
+              className="min-h-12 w-full border border-gray-300 bg-white px-3"
+              value={ncFilter}
+              onChange={(event) => setNcFilter(event.target.value)}
+            >
+              <option value="ALL">Com ou sem NC</option>
+              <option value="WITH">Somente com NC</option>
+              <option value="WITHOUT">Somente sem NC</option>
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+              Buscar produção
+            </span>
+            <span className="flex min-h-12 items-center border border-gray-300 bg-white px-3 focus-within:border-cicopal-blue">
+              <Search size={18} className="shrink-0 text-gray-400" />
+              <input
+                type="search"
+                className="min-w-0 flex-1 border-0 bg-transparent px-2 outline-none"
+                placeholder="Código, operador..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </span>
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-3">
+            <strong className="text-sm text-gray-700">
+              {filteredData.length} produção(ões) encontrada(s)
+            </strong>
+            {(lineId !== "ALL" ||
+              product !== "ALL" ||
+              status !== "ALL" ||
+              ncFilter !== "ALL" ||
+              search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLineId("ALL");
+                  setProduct("ALL");
+                  setStatus("ALL");
+                  setNcFilter("ALL");
+                  setSearch("");
+                }}
+                className="inline-flex min-h-10 items-center gap-1 px-2 font-bold text-cicopal-blue"
+              >
+                <X size={17} /> Limpar filtros
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={load}
@@ -380,13 +513,14 @@ export function ProductionReports() {
           </button>
           <button
             type="button"
-            disabled={!data.length}
+            disabled={!filteredData.length}
             onClick={exportCsv}
             className="inline-flex items-center gap-2 border border-gray-300 bg-white px-5 font-bold text-gray-700 disabled:opacity-40"
           >
             <Download size={18} />
             Exportar CSV
           </button>
+          </div>
         </div>
       </section>
 
@@ -417,9 +551,9 @@ export function ProductionReports() {
           <div className="m-5 border border-red-200 bg-red-50 p-4 font-bold text-cicopal-red">
             {error}
           </div>
-        ) : !data.length ? (
+        ) : !filteredData.length ? (
           <div className="p-10 text-center font-semibold text-gray-500">
-            Nenhuma produção iniciada no período.
+            Nenhuma produção encontrada com os filtros selecionados.
           </div>
         ) : (
           <div className="space-y-4 bg-gray-100 p-4">

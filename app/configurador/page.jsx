@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Factory, LogOut, ShieldCheck } from "lucide-react";
 import { LoginScreen } from "@/components/LoginScreen";
 import { CicopalLogo } from "@/components/CicopalLogo";
-import { RgConfigurator } from "@/components/RgConfigurator";
-import { rastreabilidadeTree } from "@/lib/rastreabilidade";
+import { ProductSpecificationsConfigurator } from "@/components/ProductSpecificationsConfigurator";
 import {
   clearUserSession,
   loadUserSession,
@@ -107,7 +106,7 @@ export default function ConfiguradorPage() {
         </div>
       </header>
       <div className="mx-auto max-w-[1500px] px-4 py-5">
-        <RgConfigurator lines={rastreabilidadeTree} loggedUser={loggedUser} />
+        <ProductSpecificationsConfigurator />
       </div>
     </main>
   );
