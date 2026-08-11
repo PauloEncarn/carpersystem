@@ -1872,11 +1872,21 @@ function Rg003ProductionControl({
             </div>
           </section>
 
-          <section className="rounded-lg border border-gray-300 bg-white p-5">
+          <section className="relative rounded-lg border border-gray-300 bg-white p-5">
+            <button
+              type="button"
+              disabled={!cycle}
+              aria-label="Registrar não conformidade genérica"
+              title="Registrar não conformidade"
+              onClick={() => setGenericNcOpen(true)}
+              className="absolute right-4 top-4 grid size-14 place-items-center border-2 border-red-200 bg-red-50 text-cicopal-red shadow-sm transition hover:border-cicopal-red hover:bg-red-100 disabled:opacity-30"
+            >
+              <AlertTriangle size={28} strokeWidth={2.4} />
+            </button>
             <p className="text-center text-xs font-bold uppercase text-gray-500">
               2 · Controle da produção
             </p>
-            <div className="mt-4 flex items-center justify-center gap-6">
+            <div className="mt-4 flex items-center justify-center">
               <button
                 type="button"
                 disabled={!releaseDone && !producing}
@@ -1895,15 +1905,6 @@ function Rg003ProductionControl({
                 ) : (
                   <Play size={42} fill="currentColor" className="ml-1" />
                 )}
-              </button>
-              <button
-                type="button"
-                disabled={!cycle}
-                aria-label="Registrar não conformidade genérica"
-                onClick={() => setGenericNcOpen(true)}
-                className="grid size-20 place-items-center border-4 border-red-200 bg-red-50 text-cicopal-red shadow-sm disabled:opacity-30"
-              >
-                <AlertTriangle size={38} strokeWidth={2.4} />
               </button>
             </div>
             <p className="mt-3 text-center text-lg font-bold text-gray-900">
