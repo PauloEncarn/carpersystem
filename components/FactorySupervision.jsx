@@ -10,6 +10,8 @@ import {
   LoaderCircle,
   Radio,
   RefreshCw,
+  Signal,
+  Sparkle,
   X,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
@@ -62,6 +64,20 @@ const activeStatuses = new Set([
   "bloqueado",
   "blocked",
 ]);
+const STATUS_VISUAL = {
+  producing: { label: "Produzindo", dot: "bg-emerald-400", badge: "bg-emerald-500 text-white", glow: "shadow-[0_0_0_1px_rgba(16,185,129,.35),0_0_28px_-4px_rgba(16,185,129,.65)]", Icon: Gauge },
+  blocked: { label: "Bloqueada", dot: "bg-rose-400", badge: "bg-rose-500 text-white", glow: "shadow-[0_0_0_1px_rgba(244,63,94,.4),0_0_28px_-4px_rgba(244,63,94,.75)]", Icon: AlertTriangle },
+  ended: { label: "Encerrada", dot: "bg-slate-400", badge: "bg-slate-600 text-white", glow: "shadow-[0_0_0_1px_rgba(100,116,139,.3)]", Icon: CheckCircle2 },
+  prep: { label: "Preparação", dot: "bg-cicopal-blue", badge: "bg-cicopal-blue text-white", glow: "shadow-[0_0_0_1px_rgba(30,34,168,.35),0_0_24px_-6px_rgba(30,34,168,.55)]", Icon: Clock3 },
+  inactive: { label: "Inativa", dot: "bg-slate-300", badge: "bg-slate-200 text-slate-600", glow: "shadow-none", Icon: Radio },
+};
+function statusVisual(status) {
+  if (["produzindo", "producing"].includes(status)) return STATUS_VISUAL.producing;
+  if (["bloqueado", "blocked"].includes(status)) return STATUS_VISUAL.blocked;
+  if (["encerrado", "ended"].includes(status)) return STATUS_VISUAL.ended;
+  if (status) return STATUS_VISUAL.prep;
+  return STATUS_VISUAL.inactive;
+}
 function localDayStart() {
   const now = new Date();
   return new Date(
@@ -79,15 +95,7 @@ function time(value) {
     : "—";
 }
 function statusLabel(status) {
-  return ["produzindo", "producing"].includes(status)
-    ? "Produzindo"
-    : ["bloqueado", "blocked"].includes(status)
-      ? "Bloqueada"
-      : ["encerrado", "ended"].includes(status)
-        ? "Encerrada"
-        : status
-          ? "Preparação"
-          : "Inativa";
+  return statusVisual(status).label;
 }
 function isOpenNc(nc) {
   return !["fechada", "fechado", "resolvida", "resolvido", "concluida", "concluído"].includes(
@@ -234,18 +242,21 @@ export function FactorySupervision({ variant = "classic" }) {
           unit: item.unidade ?? "",
         })),
       );
+  const openNcTotal = lines.reduce((total, line) => total + line.ncs.length, 0);
 
   return (
-    <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-gray-200 bg-[#e8edf1] shadow-xl">
-      <div className="absolute left-5 top-5 z-20 flex items-center gap-3 rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
-        <span className="grid size-10 place-items-center rounded-xl bg-cicopal-blue text-white">
-          <Radio size={20} />
+    <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-slate-300/60 bg-[radial-gradient(120%_90%_at_15%_0%,#f3f6f9_0%,#e6ebf0_42%,#d7dfe6_100%)] shadow-[0_50px_90px_-30px_rgba(15,23,42,.45)]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(15,23,42,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,.05)_1px,transparent_1px)] [background-size:36px_36px]" />
+      <div className="absolute left-5 top-5 z-20 flex items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 px-4 py-3 text-white shadow-xl">
+        <span className="relative grid size-10 place-items-center rounded-xl bg-gradient-to-br from-cicopal-blue to-[#141670] text-white">
+          <Radio size={19} />
+          <span className="absolute -right-1 -top-1 size-3.5 rounded-full border-2 border-slate-900 bg-emerald-400" />
         </span>
         <div>
-          <p className="text-xs font-black uppercase tracking-wider text-gray-400">
-            Planta Cicopal · dados do dia
+          <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.16em] text-slate-400">
+            <Signal size={11} className="text-emerald-400" /> Planta Cicopal · ao vivo
           </p>
-          <p className="font-black tabular-nums text-gray-950">
+          <p className="font-black tabular-nums text-white">
             {now.toLocaleTimeString("pt-BR")}{" "}
             <span className="ml-2 text-xs text-gray-500">
               atualização automática
@@ -253,6 +264,7 @@ export function FactorySupervision({ variant = "classic" }) {
           </p>
         </div>
       </div>
+      {openNcTotal ? <div className="absolute left-1/2 top-5 z-20 flex -translate-x-1/2 items-center gap-2 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3 font-black text-white shadow-xl"><AlertTriangle size={17} />{openNcTotal} NC{openNcTotal > 1 ? "s" : ""} em aberto</div> : null}
       <button
         type="button"
         onClick={refresh}
@@ -279,6 +291,7 @@ export function FactorySupervision({ variant = "classic" }) {
           />
           {lines.map((line) => {
             const focused = selectedId === line.id || hoveredId === line.id;
+            const visual = statusVisual(line.cycle?.status);
             return (
               <button
                 key={line.id}
@@ -287,11 +300,12 @@ export function FactorySupervision({ variant = "classic" }) {
                 onMouseEnter={() => setHoveredId(line.id)}
                 onMouseLeave={() => setHoveredId("")}
                 onClick={() => setSelectedId(line.id)}
-                className={`absolute rounded-[28px] border-2 transition ${focused ? "border-white bg-white/10 shadow-[0_0_0_5px_rgba(30,34,168,.45)]" : "border-transparent"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
+                className={`absolute rounded-[28px] border-2 transition-all duration-300 motion-safe:hover:-translate-y-1 ${focused ? `border-white bg-white/10 ${visual.glow}` : "border-transparent hover:border-white/40"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
               >
                 <span
-                  className={`absolute left-3 top-3 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}
+                  className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-slate-700 text-white"}`}
                 >
+                  <span className={`size-2 rounded-full ${visual.dot} ${line.active ? "animate-pulse motion-reduce:animate-none" : ""}`} />
                   {line.name} · {statusLabel(line.cycle?.status)}
                 </span>
                 {line.ncs.length ? (
@@ -326,11 +340,7 @@ export function FactorySupervision({ variant = "classic" }) {
                 </p>
                 <h3 className="text-xl font-black">Linha {hovered.name}</h3>
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-black ${hovered.active ? "bg-green-100 text-cicopal-green" : "bg-gray-100 text-gray-600"}`}
-              >
-                {statusLabel(hovered.cycle?.status)}
-              </span>
+              <StatusPill status={hovered.cycle?.status} />
             </div>
             <p className="mt-2 font-bold text-gray-600">
               {hovered.cycle?.produto ?? "Sem produção registrada hoje"}
@@ -351,8 +361,8 @@ export function FactorySupervision({ variant = "classic" }) {
                 Sem NC no ciclo
               </div>
             )}
-            <p className="mt-3 text-xs font-bold text-cicopal-blue">
-              Clique para ver registros e fotos
+            <p className="mt-3 flex items-center gap-1 text-xs font-bold text-cicopal-blue">
+              <Sparkle size={13} /> Clique para ver registros e fotos
             </p>
           </div>
         ) : null}
@@ -533,14 +543,20 @@ export function FactorySupervision({ variant = "classic" }) {
   );
 }
 
+function StatusPill({ status }) {
+  const visual = statusVisual(status);
+  const Icon = visual.Icon;
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black shadow-sm ${visual.badge}`}><Icon size={12} />{visual.label}</span>;
+}
+
 function Metric({ label, value, alert }) {
   return (
     <div
-      className={`rounded-2xl p-3 text-center ${alert ? "bg-red-50" : "bg-gray-50"}`}
+      className={`rounded-2xl border p-3 text-center shadow-sm ${alert ? "border-rose-100 bg-rose-50" : "border-slate-100 bg-slate-50"}`}
     >
-      <p className="text-[10px] font-black uppercase text-gray-400">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
       <p
-        className={`mt-1 text-xl font-black ${alert ? "text-cicopal-red" : "text-gray-950"}`}
+        className={`mt-1 text-xl font-black tabular-nums ${alert ? "text-cicopal-red" : "text-slate-950"}`}
       >
         {value}
       </p>
@@ -549,8 +565,8 @@ function Metric({ label, value, alert }) {
 }
 function Title({ icon, text }) {
   return (
-    <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-gray-600">
-      {icon}
+    <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-600">
+      <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-slate-500">{icon}</span>
       {text}
     </h3>
   );
