@@ -31,6 +31,11 @@ const lineLayout = [
     area: { left: "16%", top: "57%", width: "70%", height: "27%" },
   },
 ];
+const rgByLine = {
+  PUR: "RG.QUA.005",
+  SAL: "RG.QUA.004",
+  ROS: "RG.QUA.BA.003",
+};
 const processLabels = {
   higienizacao: "Higienização",
   produto_liberacao: "Liberação do produto",
@@ -246,7 +251,7 @@ export function FactorySupervision() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-black uppercase text-cicopal-blue">
-                  RG.QUA.BA.003
+                  {rgByLine[hovered.id]}
                 </p>
                 <h3 className="text-xl font-black">Linha {hovered.name}</h3>
               </div>
@@ -280,7 +285,8 @@ export function FactorySupervision() {
             <header className="sticky top-0 z-10 flex items-start justify-between border-b border-gray-200 bg-white/95 p-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
-                  Linha {selected.name} · {statusLabel(selected.cycle?.status)}
+                  {rgByLine[selected.id]} · Linha {selected.name} ·{" "}
+                  {statusLabel(selected.cycle?.status)}
                 </p>
                 <h2 className="mt-1 text-2xl font-black">
                   {selected.cycle?.produto ?? "Sem produção hoje"}

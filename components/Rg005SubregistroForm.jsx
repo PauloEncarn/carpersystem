@@ -2782,19 +2782,19 @@ function HigienizacaoContexto({ registro }) {
   );
 }
 
-function Rg003ProcessObjective({ registro }) {
+function Rg003ProcessObjective({ registro, lineId = "ROS" }) {
   const [cycle, setCycle] = useState(null);
   useEffect(() => {
     try {
       setCycle(
         JSON.parse(
-          window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null",
+          window.localStorage.getItem(`carper_rg003_cycle_${lineId}`) ?? "null",
         ),
       );
     } catch {
       setCycle(null);
     }
-  }, []);
+  }, [lineId]);
   const isChangeover =
     cycle?.reason === "Troca de produto" || Boolean(cycle?.previousProduct);
   const currentProduct =
@@ -3180,6 +3180,7 @@ function buildAllowedCycleHours(cycle) {
 }
 
 export function Rg005SubregistroForm({
+  lineId = "ROS",
   documentName,
   loteId,
   registro,
@@ -3195,7 +3196,10 @@ export function Rg005SubregistroForm({
   const [editMode, setEditMode] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const confirmationResolver = useRef(null);
-  const isRg003 = documentName === "RG.QUA.BA.003";
+  const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
+    documentName,
+  );
+  const cycleStorageKey = `carper_rg003_cycle_${lineId}`;
   function requestConfirmation(options) {
     return new Promise((resolve) => {
       confirmationResolver.current = resolve;
@@ -3217,9 +3221,7 @@ export function Rg005SubregistroForm({
       try {
         setCycleContext(
           repairTextDeep(
-            JSON.parse(
-              window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null",
-            ),
+            JSON.parse(window.localStorage.getItem(cycleStorageKey) ?? "null"),
           ),
         );
       } catch {
@@ -3229,7 +3231,13 @@ export function Rg005SubregistroForm({
     loadCycle();
     window.addEventListener("rg003-cycle-updated", loadCycle);
     return () => window.removeEventListener("rg003-cycle-updated", loadCycle);
-  }, [isRg003]);
+  }, [cycleStorageKey, isRg003]);
+  useEffect(() => {
+    setSavedAt("");
+    setPersistedRecord(null);
+    setEditMode(false);
+    setConfirmation(null);
+  }, [cycleContext?.id, registro?.id, subregistro?.id]);
   useEffect(() => {
     let active = true;
     setPersistedRecord(null);
@@ -3375,7 +3383,7 @@ export function Rg005SubregistroForm({
       !(payload.ncs ?? []).length
     ) {
       try {
-        const storageKey = "carper_rg003_cycle_ROS";
+        const storageKey = cycleStorageKey;
         const cycle = JSON.parse(
           window.localStorage.getItem(storageKey) ?? "null",
         );
@@ -3417,7 +3425,7 @@ export function Rg005SubregistroForm({
       !(payload.ncs ?? []).length
     ) {
       try {
-        const storageKey = "carper_rg003_cycle_ROS";
+        const storageKey = cycleStorageKey;
         const cycle = JSON.parse(
           window.localStorage.getItem(storageKey) ?? "null",
         );
@@ -3458,7 +3466,7 @@ export function Rg005SubregistroForm({
       ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)
     ) {
       try {
-        const storageKey = "carper_rg003_cycle_ROS";
+        const storageKey = cycleStorageKey;
         const cycle = JSON.parse(
           window.localStorage.getItem(storageKey) ?? "null",
         );
@@ -3506,11 +3514,12 @@ export function Rg005SubregistroForm({
     return (
       <>
         {isRg003 ? (
-          <Rg003ProcessObjective registro={effectiveRegistro} />
+          <Rg003ProcessObjective registro={effectiveRegistro} lineId={lineId} />
         ) : (
           <HigienizacaoContexto registro={effectiveRegistro} />
         )}
         <ChecklistTable
+          key={`${cycleContext?.id ?? "sem-ciclo"}-higienizacao`}
           documentName={`${documentName} - Higienizacao`}
           loteId={loteId}
           registro={effectiveRegistro}
@@ -3525,7 +3534,7 @@ export function Rg005SubregistroForm({
             )
           }
           nextStepLabel="Ir para liberação do produto"
-          stepByStep={documentName === "RG.QUA.BA.003"}
+          stepByStep={isRg003}
         />
         {!isRg003 || savedAt ? (
           <AssinaturasRegistro registro={effectiveRegistro} />
@@ -3551,6 +3560,7 @@ export function Rg005SubregistroForm({
         )}
         {isRg003 ? (
           <TabletRelease
+            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao`}
             columns={config.liberacaoProdutoColumns}
             activeHour="Pré-produção"
             registro={effectiveRegistro}

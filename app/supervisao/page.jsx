@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, BarChart3, LogOut } from "lucide-react";
 import { FactorySupervision } from "@/components/FactorySupervision";
 import { CicopalLogo } from "@/components/CicopalLogo";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -45,6 +45,12 @@ export default function SupervisaoPage() {
             <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 sm:inline">
               {loggedUser.nome}
             </span>
+            <Link
+              href="/relatorios"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"
+            >
+              <BarChart3 size={17} /> Relatórios
+            </Link>
             <Link
               href="/"
               className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"

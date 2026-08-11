@@ -6,7 +6,7 @@ import { HierarchyNavigator } from "@/components/HierarchyNavigator";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
 import { CicopalLogo } from "@/components/CicopalLogo";
-import { Factory, FileCog } from "lucide-react";
+import { BarChart3, Factory, FileCog } from "lucide-react";
 import {
   findSelection,
   getInitialSelection,
@@ -237,11 +237,16 @@ export default function HomePage() {
       }),
     );
 
-    if (selection.documentoId === "RG.QUA.BA.003") {
+    if (
+      selection.documentoId === "RG.QUA.BA.003" ||
+      selection.documentoId === "RG.QUA.005" ||
+      selection.documentoId === "RG.QUA.004"
+    ) {
       setDatabaseStatus("saving");
       setDatabaseError("");
       try {
         const result = await persistRg003Record({
+          documentCode: selection.documentoId,
           lineId: selection.linhaId,
           loteCode: activeCycle?.productionCode ?? selection.loteId,
           recordCode: selection.registroId,
@@ -302,6 +307,12 @@ export default function HomePage() {
             >
               <Factory size={17} /> Supervisão
             </Link>
+            <Link
+              href="/relatorios"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700"
+            >
+              <BarChart3 size={17} /> Relatórios
+            </Link>
             {canAccessConfigurator ? (
               <Link
                 href="/configurador"
@@ -350,6 +361,8 @@ export default function HomePage() {
         >
           {selected.registro ? (
             <Rg005SubregistroForm
+              key={`${selection.linhaId}:${selection.documentoId}:${selected.registro.id}`}
+              lineId={selection.linhaId}
               documentName={selected.documento?.nome}
               loteId={selected.lote?.id}
               registro={selected.registro}

@@ -30,6 +30,14 @@ import { repairTextDeep } from "@/lib/textEncoding";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
+function isSequentialDocument(lineId, documentId) {
+  return (
+    (lineId === "ROS" && documentId === "RG.QUA.BA.003") ||
+    (lineId === "PUR" && documentId === "RG.QUA.005") ||
+    (lineId === "SAL" && documentId === "RG.QUA.004")
+  );
+}
+
 const steps = [
   { id: 1, label: "Linha" },
   { id: 2, label: "Data" },
@@ -1413,6 +1421,7 @@ function Rg003CyclePanel({
 
 function Rg003ProductionControl({
   lineId,
+  documentCode,
   dateId,
   operatorId,
   operatorName,
@@ -1420,14 +1429,31 @@ function Rg003ProductionControl({
 }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const [cycle, setCycle] = useState(null);
-  const [product, setProduct] = useState("Rosca Leite");
+  const productOptions = {
+    ROS: ["Rosca Leite", "Rosca Coco", "Rosca Chocolate", "Rosca Tradicional"],
+    PUR: ["Pururuca Tradicional", "Pururuca Temperada"],
+    SAL: [
+      "Salgadinho Tradicional",
+      "Salgadinho Queijo",
+      "Salgadinho Churrasco",
+    ],
+  };
+  const products = productOptions[lineId] ?? [];
+  const [product, setProduct] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [ready, setReady] = useState(false);
   const [dayCycles, setDayCycles] = useState([]);
   const [syncState, setSyncState] = useState("checking");
   const [stopOpen, setStopOpen] = useState(false);
   const [stopMode, setStopMode] = useState("finish");
-  const [nextProduct, setNextProduct] = useState("Rosca Chocolate");
+  const [nextProduct, setNextProduct] = useState("");
+  const [genericNcOpen, setGenericNcOpen] = useState(false);
+  const [genericNc, setGenericNc] = useState({
+    quantidade: "",
+    descricao: "",
+    causa: "",
+    acao: "",
+  });
 
   useEffect(() => {
     let active = true;
@@ -1500,7 +1526,7 @@ function Rg003ProductionControl({
     const at = new Date().toISOString();
     let next = {
       id: `CICLO-${Date.now()}`,
-      productionCode: makeRg003ProductionCode(selectedProduct, at),
+      productionCode: makeRg003ProductionCode(selectedProduct, at, 1, lineId),
       product: selectedProduct,
       previousProduct: cycle?.product ?? "",
       reason,
@@ -1513,6 +1539,7 @@ function Rg003ProductionControl({
     try {
       const remote = await startRg003Cycle({
         lineId,
+        documentCode,
         product: selectedProduct,
         reason,
         operatorId,
@@ -1524,9 +1551,23 @@ function Rg003ProductionControl({
         setSyncState("local");
       }
     } catch {
-      setSyncState("error");
+      try {
+        const currentRemote = await loadActiveRg003Cycle(lineId);
+        if (currentRemote.cycle) {
+          next = currentRemote.cycle;
+          setProduct(currentRemote.cycle.product);
+          setSyncState("online");
+        } else {
+          setSyncState("error");
+          return false;
+        }
+      } catch {
+        setSyncState("error");
+        return false;
+      }
     }
     store(next);
+    return true;
   }
 
   async function transition(status, label, extra = {}) {
@@ -1587,6 +1628,30 @@ function Rg003ProductionControl({
     setStopOpen(false);
   }
 
+  async function registerGenericNc() {
+    if (!cycle) return;
+    const stopsProduction = genericNc.acao === "Parar produção";
+    try {
+      setSyncState("saving");
+      await persistCycleNc({
+        cycle,
+        operatorId,
+        operatorName,
+        data: genericNc,
+      });
+      await transition(
+        stopsProduction ? "blocked" : cycle.status,
+        "Não conformidade genérica registrada",
+        { activeAction: stopsProduction ? null : cycle.activeAction },
+      );
+      setGenericNcOpen(false);
+      setGenericNc({ quantidade: "", descricao: "", causa: "", acao: "" });
+      setSyncState("online");
+    } catch {
+      setSyncState("error");
+    }
+  }
+
   if (!ready)
     return <div className="min-h-72 animate-pulse rounded-lg bg-gray-100" />;
   const hygieneDone = cycle && cycle.status !== "hygiene";
@@ -1619,12 +1684,6 @@ function Rg003ProductionControl({
           : syncState === "local"
             ? "Supabase não configurado · dados somente neste tablet"
             : "Verificando conexão...";
-  const products = [
-    "Rosca Leite",
-    "Rosca Coco",
-    "Rosca Chocolate",
-    "Rosca Tradicional",
-  ];
   const selectedDayReference = dateId
     ? new Date(`${dateId}T12:00:00-03:00`)
     : new Date();
@@ -1635,7 +1694,12 @@ function Rg003ProductionControl({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-cicopal-blue">
-              RG.QUA.BA.003 · Rosca
+              {documentCode} ·{" "}
+              {lineId === "ROS"
+                ? "Rosca"
+                : lineId === "PUR"
+                  ? "Pururuca"
+                  : "Salgadinho"}
             </p>
             <h2 className="mt-1 text-2xl font-bold text-gray-950">
               {cycle?.product ?? "Nova produção"}
@@ -1643,7 +1707,12 @@ function Rg003ProductionControl({
             {cycle ? (
               <p className="mt-1 font-mono text-sm font-bold text-gray-600">
                 {cycle.productionCode ||
-                  makeRg003ProductionCode(cycle.product, cycle.startedAt)}
+                  makeRg003ProductionCode(
+                    cycle.product,
+                    cycle.startedAt,
+                    1,
+                    lineId,
+                  )}
               </p>
             ) : null}
             <p
@@ -1716,6 +1785,8 @@ function Rg003ProductionControl({
                         makeRg003ProductionCode(
                           entry.product,
                           entry.startedAt,
+                          1,
+                          lineId,
                         )}{" "}
                       ·{" "}
                       {entry.status === "ended" ? "Encerrada" : "Em andamento"}
@@ -1732,7 +1803,12 @@ function Rg003ProductionControl({
               </p>
               <p className="font-bold text-gray-950">
                 {product
-                  ? makeRg003ProductionCode(product, selectedDayReference)
+                  ? makeRg003ProductionCode(
+                      product,
+                      selectedDayReference,
+                      1,
+                      lineId,
+                    )
                   : "Selecione um produto"}
               </p>
             </div>
@@ -1754,7 +1830,12 @@ function Rg003ProductionControl({
             <p className="mb-3 text-xs font-bold uppercase text-gray-500">
               1 · Pré-requisitos ·{" "}
               {cycle.productionCode ||
-                makeRg003ProductionCode(cycle.product, cycle.startedAt)}
+                makeRg003ProductionCode(
+                  cycle.product,
+                  cycle.startedAt,
+                  1,
+                  lineId,
+                )}
             </p>
             <div className="grid gap-3 md:grid-cols-2">
               <button
@@ -1795,25 +1876,36 @@ function Rg003ProductionControl({
             <p className="text-center text-xs font-bold uppercase text-gray-500">
               2 · Controle da produção
             </p>
-            <button
-              type="button"
-              disabled={!releaseDone && !producing}
-              onClick={() =>
-                producing
-                  ? setStopOpen(true)
-                  : transition("producing", "Produção iniciada", {
-                      productionStartedAt: new Date().toISOString(),
-                      activeAction: null,
-                    })
-              }
-              className={`mx-auto mt-4 grid size-28 place-items-center rounded-full border-8 text-white shadow-md transition ${producing ? "border-red-100 bg-cicopal-red" : releaseDone ? "border-blue-100 bg-cicopal-blue" : "border-gray-200 bg-gray-300"}`}
-            >
-              {producing ? (
-                <Square size={38} fill="currentColor" />
-              ) : (
-                <Play size={42} fill="currentColor" className="ml-1" />
-              )}
-            </button>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <button
+                type="button"
+                disabled={!releaseDone && !producing}
+                onClick={() =>
+                  producing
+                    ? setStopOpen(true)
+                    : transition("producing", "Produção iniciada", {
+                        productionStartedAt: new Date().toISOString(),
+                        activeAction: null,
+                      })
+                }
+                className={`grid size-28 place-items-center rounded-full border-8 text-white shadow-md transition ${producing ? "border-red-100 bg-cicopal-red" : releaseDone ? "border-blue-100 bg-cicopal-blue" : "border-gray-200 bg-gray-300"}`}
+              >
+                {producing ? (
+                  <Square size={38} fill="currentColor" />
+                ) : (
+                  <Play size={42} fill="currentColor" className="ml-1" />
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={!cycle}
+                aria-label="Registrar não conformidade genérica"
+                onClick={() => setGenericNcOpen(true)}
+                className="grid size-20 place-items-center border-4 border-red-200 bg-red-50 text-cicopal-red shadow-sm disabled:opacity-30"
+              >
+                <AlertTriangle size={38} strokeWidth={2.4} />
+              </button>
+            </div>
             <p className="mt-3 text-center text-lg font-bold text-gray-900">
               {producing
                 ? "Parar produção"
@@ -1838,6 +1930,122 @@ function Rg003ProductionControl({
               </p>
             )}
           </section>
+
+          {genericNcOpen ? (
+            <div className="fixed inset-0 z-[100] grid place-items-center bg-black/65 p-4">
+              <section className="w-full max-w-2xl border-t-8 border-cicopal-red bg-white shadow-2xl">
+                <header className="flex items-start justify-between border-b border-gray-200 p-5">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-cicopal-red">
+                      NC genérica · {cycle.product}
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold">
+                      Registrar não conformidade
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold text-gray-500">
+                      Linha, produto, técnico, data e hora serão automáticos.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGenericNcOpen(false)}
+                    className="size-12 border border-gray-300"
+                  >
+                    <X size={22} className="mx-auto" />
+                  </button>
+                </header>
+                <div className="grid gap-4 p-5 sm:grid-cols-2">
+                  <label>
+                    <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                      Quantidade
+                    </span>
+                    <input
+                      className="min-h-14 w-full border border-gray-300 px-3"
+                      value={genericNc.quantidade}
+                      onChange={(event) =>
+                        setGenericNc((current) => ({
+                          ...current,
+                          quantidade: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                      Ação tomada
+                    </span>
+                    <select
+                      className="min-h-14 w-full border border-gray-300 bg-white px-3"
+                      value={genericNc.acao}
+                      onChange={(event) =>
+                        setGenericNc((current) => ({
+                          ...current,
+                          acao: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Selecionar</option>
+                      <option>Corrigir sem parar produção</option>
+                      <option>Segregar produto</option>
+                      <option>Parar produção</option>
+                    </select>
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                      Não conformidade
+                    </span>
+                    <textarea
+                      className="min-h-24 w-full border border-gray-300 p-3"
+                      value={genericNc.descricao}
+                      onChange={(event) =>
+                        setGenericNc((current) => ({
+                          ...current,
+                          descricao: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                      Causa
+                    </span>
+                    <textarea
+                      className="min-h-24 w-full border border-gray-300 p-3"
+                      value={genericNc.causa}
+                      onChange={(event) =>
+                        setGenericNc((current) => ({
+                          ...current,
+                          causa: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4">
+                  <button
+                    type="button"
+                    className="border border-gray-300 bg-white font-bold"
+                    onClick={() => setGenericNcOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      !genericNc.quantidade ||
+                      !genericNc.descricao ||
+                      !genericNc.causa ||
+                      !genericNc.acao
+                    }
+                    className="bg-cicopal-red font-bold text-white disabled:bg-gray-300"
+                    onClick={registerGenericNc}
+                  >
+                    Registrar NC
+                  </button>
+                </footer>
+              </section>
+            </div>
+          ) : null}
 
           <section className="rounded-lg border border-gray-300 bg-white p-4">
             <p className="mb-3 text-xs font-bold uppercase text-gray-500">
@@ -2427,6 +2635,10 @@ export function HierarchyNavigator({
   operatorName = "",
   operatorId = "",
 }) {
+  const sequentialFlow = isSequentialDocument(
+    selection.linhaId,
+    selection.documentoId,
+  );
   const [monthDate, setMonthDate] = useState(() =>
     getBaseMonth(selection, selected.linha),
   );
@@ -2483,10 +2695,6 @@ export function HierarchyNavigator({
         !documento.linkedLines?.length ||
         documento.linkedLines.includes(selection.linhaId),
     )
-    .filter(
-      (documento) =>
-        selection.linhaId !== "ROS" || documento.id === "RG.QUA.BA.003",
-    )
     .map((documento) => {
       const preenchido = selected.data?.documentos.find(
         (item) => item.id === documento.id,
@@ -2533,11 +2741,11 @@ export function HierarchyNavigator({
     (currentStep === 4 && Boolean(selected.subregistro));
 
   async function goBack() {
-    if (currentStep === 6 && selection.documentoId === "RG.QUA.BA.003") {
+    if (currentStep === 6 && sequentialFlow) {
       onStepChange(4);
       return;
     }
-    if (currentStep === 4 && selection.documentoId === "RG.QUA.BA.003") {
+    if (currentStep === 4 && sequentialFlow) {
       let activeCycle = null;
       try {
         activeCycle = JSON.parse(
@@ -2684,9 +2892,9 @@ export function HierarchyNavigator({
     } catch {
       /* usa identificador local */
     }
-    const existing =
-      processRecords.find((registro) => registro.cicloId === activeCycleId) ??
-      processRecords[0];
+    const existing = processRecords.find(
+      (registro) => registro.cicloId === activeCycleId,
+    );
     const cycleSuffix = activeCycleId.replace(/[^a-zA-Z0-9]/g, "").slice(-8);
     onSelectionChange({
       ...selection,
@@ -2714,7 +2922,7 @@ export function HierarchyNavigator({
   }
 
   useEffect(() => {
-    if (currentStep !== 5 || selection.documentoId !== "RG.QUA.BA.003") return;
+    if (currentStep !== 5 || !sequentialFlow) return;
     onStepChange(4);
   }, [currentStep, selection.documentoId, selection.subregistroId]);
 
@@ -2731,7 +2939,7 @@ export function HierarchyNavigator({
 
   return (
     <section
-      className={`audit-card p-4 ${currentStep === 6 && selection.documentoId === "RG.QUA.BA.003" ? "rg-tablet-app" : ""}`}
+      className={`audit-card p-4 ${currentStep === 6 && sequentialFlow ? "rg-tablet-app" : ""}`}
     >
       <div className="mb-4 grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1">
         <button
@@ -2898,9 +3106,10 @@ export function HierarchyNavigator({
                 <StageHeader
                   title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
                 />
-                {selection.documentoId === "RG.QUA.BA.003" ? (
+                {sequentialFlow ? (
                   <Rg003ProductionControl
                     lineId={selection.linhaId}
+                    documentCode={selection.documentoId}
                     dateId={selection.dataId}
                     operatorId={operatorId}
                     operatorName={operatorName}
@@ -2940,7 +3149,7 @@ export function HierarchyNavigator({
               </>
             ) : null}
 
-            {currentStep === 5 && selection.documentoId !== "RG.QUA.BA.003" ? (
+            {currentStep === 5 && !sequentialFlow ? (
               <>
                 <StageHeader
                   title={`Registros de ${selected.subregistro?.nome ?? "processo"}`}
@@ -2997,7 +3206,7 @@ export function HierarchyNavigator({
 
             {currentStep === 6 ? (
               <>
-                {hideDates && selection.documentoId === "RG.QUA.BA.003" ? (
+                {hideDates && sequentialFlow ? (
                   <TechnicalRg003StageNav
                     lineId={selection.linhaId}
                     currentProcessId={selection.subregistroId}
@@ -3028,13 +3237,13 @@ export function HierarchyNavigator({
               disabled={
                 currentStep === 1 ||
                 (currentStep === 4 &&
-                  selection.documentoId === "RG.QUA.BA.003" &&
+                  sequentialFlow &&
                   rg003CycleStatus === "producing")
               }
             >
               <ArrowLeft size={20} />{" "}
               {currentStep === 4 &&
-              selection.documentoId === "RG.QUA.BA.003" &&
+              sequentialFlow &&
               rg003CycleStatus === "producing"
                 ? "Produção em andamento"
                 : "Voltar"}
