@@ -27,17 +27,17 @@ const lineLayout = [
   {
     id: "PUR",
     name: "Pururuca",
-    area: { left: "17%", top: "7%", width: "69%", height: "26%" },
+    area: { left: "1%", top: "1%", width: "38%", height: "39%" },
   },
   {
     id: "SAL",
     name: "Salgadinho",
-    area: { left: "13%", top: "31%", width: "73%", height: "27%" },
+    area: { left: "25%", top: "10%", width: "70%", height: "48%" },
   },
   {
     id: "ROS",
     name: "Rosca",
-    area: { left: "16%", top: "57%", width: "70%", height: "27%" },
+    area: { left: "43%", top: "54%", width: "56%", height: "45%" },
   },
 ];
 const rgByLine = {
@@ -287,7 +287,7 @@ export function FactorySupervision({ variant = "classic" }) {
         ) : (
         <div className="relative mx-auto w-full overflow-hidden rounded-2xl shadow-2xl">
           <img
-            src="/images/fabrica-isometrica-cicopal.png"
+            src="/images/planta-classica-industrial.jpeg"
             alt="Planta da fábrica Cicopal"
             className="block h-auto w-full"
           />
