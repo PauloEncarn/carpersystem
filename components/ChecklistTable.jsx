@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Camera,
   CheckCircle2,
   Circle,
   XCircle,
@@ -26,6 +27,7 @@ function makeInitialState(groups = checklistGroups) {
         acao: "",
         disposicaoImediata: "",
         disposicaoFinal: "",
+        fotoAntes: "",
       },
     }));
 
@@ -285,7 +287,8 @@ export function ChecklistTable({
             causa: "",
             acao: "",
             disposicaoImediata: "",
-            disposicaoFinal: "",
+        disposicaoFinal: "",
+        fotoAntes: "",
           };
         }
         if (["N", "NC"].includes(patch.av1)) {
@@ -323,6 +326,7 @@ export function ChecklistTable({
         acao: row.nc.acao || "Nao informada",
         disposicaoImediata: row.nc.disposicaoImediata || "Nao informada",
         disposicaoFinal: row.nc.disposicaoFinal || "Nao informada",
+        fotoAntes: row.nc.fotoAntes || null,
         operador: registro?.operador ?? "",
         produto: registro?.produto ?? "-",
         assinaturaSupervisorAt: null,
@@ -487,6 +491,20 @@ export function ChecklistTable({
                     value={row.nc.causa}
                     onChange={(e) => updateNc("causa", e.target.value)}
                   />
+                </label>
+                <label className="sm:col-span-2">
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-600">Foto da NC encontrada</span>
+                  <span className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-300 bg-white px-4 font-black text-cicopal-red">
+                    <Camera size={22} /> {row.nc.fotoAntes ? "Foto registrada · tocar para substituir" : "Registrar evidência fotográfica"}
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => updateNc("fotoAntes", reader.result);
+                      reader.readAsDataURL(file);
+                    }} />
+                  </span>
+                  {row.nc.fotoAntes ? <img src={row.nc.fotoAntes} alt="Evidência da não conformidade" className="mt-2 max-h-52 w-full rounded-xl object-contain" /> : null}
                 </label>
                 <label className="sm:col-span-2">
                   <span className="mb-1 block text-xs font-black uppercase text-gray-600">

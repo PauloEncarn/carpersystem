@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
@@ -24,6 +25,8 @@ import {
   makeRg003ProductionCode,
   persistCycleNc,
   persistCycleTransition,
+  startCyclePause,
+  finishCyclePause,
   startRg003Cycle,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
@@ -1454,7 +1457,10 @@ function Rg003ProductionControl({
     descricao: "",
     causa: "",
     acao: "",
+    fotoAntes: "",
   });
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeData, setResumeData] = useState({ observacao: "", fotoDepois: "" });
 
   useEffect(() => {
     let active = true;
@@ -1583,7 +1589,7 @@ function Rg003ProductionControl({
     setSyncState("saving");
     try {
       const remote = await persistCycleTransition({
-        cycle,
+        cycle: next,
         status,
         description: label,
         operatorId,
@@ -1631,6 +1637,7 @@ function Rg003ProductionControl({
 
   async function registerGenericNc() {
     if (!cycle) return;
+    const pausesProduction = genericNc.acao === "Pausar produção";
     const stopsProduction = genericNc.acao === "Parar produção";
     try {
       setSyncState("saving");
@@ -1640,14 +1647,49 @@ function Rg003ProductionControl({
         operatorName,
         data: genericNc,
       });
+      let activePause = null;
+      if (pausesProduction) {
+        activePause = await startCyclePause({
+          cycleId: cycle.id,
+          operatorId,
+          reason: genericNc.descricao,
+          photoBefore: genericNc.fotoAntes,
+        });
+      }
       await transition(
-        stopsProduction ? "blocked" : cycle.status,
+        stopsProduction ? "ended" : pausesProduction ? "blocked" : cycle.status,
         "Não conformidade genérica registrada",
-        { activeAction: stopsProduction ? null : cycle.activeAction },
+        {
+          activeAction:
+            stopsProduction || pausesProduction ? null : cycle.activeAction,
+          activePause,
+        },
       );
       setGenericNcOpen(false);
-      setGenericNc({ quantidade: "", descricao: "", causa: "", acao: "" });
+      setGenericNc({ quantidade: "", descricao: "", causa: "", acao: "", fotoAntes: "" });
       setSyncState("online");
+    } catch {
+      setSyncState("error");
+    }
+  }
+
+  async function resumeProduction() {
+    if (!resumeData.observacao.trim() || !resumeData.fotoDepois) return;
+    try {
+      if (cycle.activePause?.id) {
+        await finishCyclePause({
+          pauseId: cycle.activePause.id,
+          operatorId,
+          observation: resumeData.observacao,
+          photoAfter: resumeData.fotoDepois,
+        });
+      }
+      await transition("producing", "Produção retomada após pausa", {
+        activeAction: null,
+        activePause: null,
+      });
+      setResumeOpen(false);
+      setResumeData({ observacao: "", fotoDepois: "" });
     } catch {
       setSyncState("error");
     }
@@ -1732,11 +1774,21 @@ function Rg003ProductionControl({
           </div>
           <div className="text-right">
             <p className="text-xs font-bold uppercase text-gray-400">
-              Tempo de produção
+              {cycle?.status === "hygiene"
+                ? "Tempo de higienização"
+                : cycle?.status === "awaiting_release"
+                  ? "Tempo de liberação"
+                  : "Tempo total de produção"}
             </p>
             <p className="text-3xl font-bold tabular-nums text-gray-950">
-              {formatElapsed(cycle?.productionStartedAt, now)}
+              {formatElapsed(
+                ["producing", "blocked"].includes(cycle?.status)
+                  ? cycle?.productionStartedAt
+                  : cycle?.stageStartedAt,
+                now,
+              )}
             </p>
+            {cycle?.status === "blocked" && cycle?.activePause ? <p className="mt-1 text-xs font-black uppercase text-cicopal-red">Pausada há {formatElapsed(cycle.activePause.iniciada_em, now)}</p> : null}
           </div>
         </div>
       </section>
@@ -1894,6 +1946,8 @@ function Rg003ProductionControl({
                 onClick={() =>
                   producing
                     ? setStopOpen(true)
+                    : cycle?.status === "blocked" && cycle?.activePause
+                      ? setResumeOpen(true)
                     : transition("producing", "Produção iniciada", {
                         productionStartedAt: new Date().toISOString(),
                         activeAction: null,
@@ -1911,6 +1965,8 @@ function Rg003ProductionControl({
             <p className="mt-3 text-center text-lg font-bold text-gray-900">
               {producing
                 ? "Parar produção"
+                : cycle?.status === "blocked" && cycle?.activePause
+                  ? "Retomar produção"
                 : releaseDone
                   ? "Iniciar produção"
                   : "Aguardando pré-requisitos"}
@@ -1989,6 +2045,7 @@ function Rg003ProductionControl({
                       <option value="">Selecionar</option>
                       <option>Corrigir sem parar produção</option>
                       <option>Segregar produto</option>
+                      <option>Pausar produção</option>
                       <option>Parar produção</option>
                     </select>
                   </label>
@@ -2022,6 +2079,11 @@ function Rg003ProductionControl({
                       }
                     />
                   </label>
+                  <label className="sm:col-span-2">
+                    <span className="mb-1 block text-xs font-bold uppercase text-gray-500">Foto antes da ação</span>
+                    <span className="flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-red bg-red-50 font-black text-cicopal-red"><Camera size={21} />{genericNc.fotoAntes ? "Foto registrada" : "Registrar evidência da NC"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setGenericNc((current) => ({ ...current, fotoAntes: reader.result })); reader.readAsDataURL(file); }} /></span>
+                    {genericNc.fotoAntes ? <img src={genericNc.fotoAntes} alt="Evidência antes da ação" className="mt-2 max-h-48 w-full object-contain" /> : null}
+                  </label>
                 </div>
                 <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4">
                   <button
@@ -2037,7 +2099,8 @@ function Rg003ProductionControl({
                       !genericNc.quantidade ||
                       !genericNc.descricao ||
                       !genericNc.causa ||
-                      !genericNc.acao
+                      !genericNc.acao ||
+                      !genericNc.fotoAntes
                     }
                     className="bg-cicopal-red font-bold text-white disabled:bg-gray-300"
                     onClick={registerGenericNc}
@@ -2080,6 +2143,16 @@ function Rg003ProductionControl({
           </section>
         </>
       )}
+
+      {resumeOpen ? (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/65 p-4">
+          <section className="w-full max-w-xl border-t-8 border-amber-500 bg-white shadow-2xl">
+            <header className="border-b border-gray-200 p-5"><p className="text-xs font-black uppercase text-amber-700">Retomada controlada</p><h2 className="text-2xl font-black">Retomar produção</h2><p className="mt-1 font-semibold text-gray-500">A duração da pausa será calculada automaticamente.</p></header>
+            <div className="p-5"><textarea className="min-h-28 w-full border border-gray-300 p-3" placeholder="O que foi feito durante a pausa?" value={resumeData.observacao} onChange={(event) => setResumeData((current) => ({ ...current, observacao: event.target.value }))} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 font-black text-cicopal-blue"><Camera size={22} />{resumeData.fotoDepois ? "Foto posterior registrada" : "Registrar foto antes de retomar"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setResumeData((current) => ({ ...current, fotoDepois: reader.result })); reader.readAsDataURL(file); }} /></label>{resumeData.fotoDepois ? <img src={resumeData.fotoDepois} alt="Evidência da retomada" className="mt-3 max-h-52 w-full object-contain" /> : null}</div>
+            <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" className="border border-gray-300 font-bold" onClick={() => setResumeOpen(false)}>Cancelar</button><button type="button" disabled={!resumeData.observacao.trim() || !resumeData.fotoDepois} className="bg-cicopal-green font-black text-white disabled:bg-gray-300" onClick={resumeProduction}>Retomar produção</button></footer>
+          </section>
+        </div>
+      ) : null}
 
       {stopOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">

@@ -19,7 +19,10 @@ import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
 import {
   loadRg003Record,
+  loadOpenCycleNcs,
   persistCycleTransition,
+  persistChecklistCycleNcs,
+  resolveCycleNc,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
@@ -3194,6 +3197,38 @@ function buildAllowedCycleHours(cycle) {
   return result.length ? result : fallback;
 }
 
+function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
+  const [selectedId, setSelectedId] = useState(ncs[0]?.id ?? "");
+  const [resolution, setResolution] = useState("");
+  const [photoAfter, setPhotoAfter] = useState("");
+  const [saving, setSaving] = useState(false);
+  const selected = ncs.find((item) => item.id === selectedId) ?? ncs[0];
+  async function resolve() {
+    if (!selected || !resolution.trim() || !photoAfter) return;
+    setSaving(true);
+    try {
+      if (/^[0-9a-f-]{36}$/i.test(selected.id)) {
+        await resolveCycleNc({ ncId: selected.id, operatorId, resolution, photoAfter });
+      }
+      const remaining = ncs.filter((item) => item.id !== selected.id);
+      onChange(remaining);
+      setSelectedId(remaining[0]?.id ?? "");
+      setResolution("");
+      setPhotoAfter("");
+      if (!remaining.length) await onAllResolved();
+    } finally { setSaving(false); }
+  }
+  return (
+    <section className="border-t-8 border-cicopal-red bg-white p-5 shadow-lg">
+      <div className="flex items-start gap-3"><span className="grid size-12 shrink-0 place-items-center bg-red-50 text-cicopal-red"><AlertTriangle size={26} /></span><div><p className="text-xs font-black uppercase tracking-wider text-cicopal-red">Etapa bloqueada</p><h2 className="text-2xl font-black text-gray-950">{title}</h2><p className="mt-1 font-semibold text-gray-600">Existe NC aberta em <b>{selected?.item ?? "item do checklist"}</b>. A próxima etapa será liberada somente após todas as ocorrências serem resolvidas.</p></div></div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="space-y-2">{ncs.map((nc) => <button key={nc.id} type="button" onClick={() => setSelectedId(nc.id)} className={`w-full border-l-4 p-3 text-left ${selected?.id === nc.id ? "border-l-cicopal-red bg-red-50" : "border-l-gray-300 bg-gray-50"}`}><strong className="block">{nc.item}</strong><span className="text-xs font-bold text-gray-500">Aberta há {nc.aberta_em ? Math.max(0, Math.floor((Date.now() - new Date(nc.aberta_em)) / 60000)) : 0} min</span></button>)}</div>
+        <div className="border border-gray-200 p-4"><h3 className="text-lg font-black">Resolver NC</h3><p className="mt-1 text-sm font-semibold text-gray-500">Descreva exatamente o que foi feito e registre a evidência depois da correção.</p><textarea className="mt-4 min-h-28 w-full border border-gray-300 p-3 font-semibold" placeholder="Ação executada para resolver a não conformidade" value={resolution} onChange={(event) => setResolution(event.target.value)} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue"><Camera size={22} />{photoAfter ? "Foto posterior registrada" : "Registrar foto depois da correção"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhotoAfter(reader.result); reader.readAsDataURL(file); }} /></label>{photoAfter ? <img src={photoAfter} alt="Evidência após resolução" className="mt-3 max-h-52 w-full object-contain" /> : null}<button type="button" disabled={!resolution.trim() || !photoAfter || saving} onClick={resolve} className="mt-4 min-h-14 w-full bg-cicopal-green px-5 text-lg font-black text-white disabled:bg-gray-300">{saving ? "Salvando..." : "RESOLVER NC"}</button></div>
+      </div>
+    </section>
+  );
+}
+
 export function Rg005SubregistroForm({
   lineId = "ROS",
   documentName,
@@ -3211,6 +3246,7 @@ export function Rg005SubregistroForm({
   const [editMode, setEditMode] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const [productSpecifications, setProductSpecifications] = useState([]);
+  const [openPrerequisiteNcs, setOpenPrerequisiteNcs] = useState([]);
   const confirmationResolver = useRef(null);
   const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
     documentName,
@@ -3298,6 +3334,15 @@ export function Rg005SubregistroForm({
       active = false;
     };
   }, [cycleContext?.id, isRg003, registro?.id, subregistro?.id]);
+  useEffect(() => {
+    if (!isRg003 || !cycleContext?.id || !["higienizacao", "produto_liberacao"].includes(subregistro?.id)) {
+      setOpenPrerequisiteNcs([]);
+      return;
+    }
+    loadOpenCycleNcs(cycleContext.id, subregistro.id)
+      .then(setOpenPrerequisiteNcs)
+      .catch(() => setOpenPrerequisiteNcs([]));
+  }, [cycleContext?.id, isRg003, subregistro?.id]);
   useEffect(() => {
     setEditMode(false);
   }, [activeHour, subregistro?.id]);
@@ -3429,6 +3474,24 @@ export function Rg005SubregistroForm({
     if (saveResult === false) return false;
     if (
       isRg003 &&
+      ["higienizacao", "produto_liberacao"].includes(subregistro.id) &&
+      (payload.ncs ?? []).length
+    ) {
+      let savedNcs = payload.ncs;
+      try {
+        const cycle = JSON.parse(window.localStorage.getItem(cycleStorageKey) ?? "null");
+        savedNcs = await persistChecklistCycleNcs({
+          cycle,
+          operatorId: effectiveRegistro.operadorId,
+          operatorName: effectiveRegistro.operador,
+          processType: subregistro.id,
+          ncs: payload.ncs,
+        });
+      } catch {}
+      setOpenPrerequisiteNcs(savedNcs);
+    }
+    if (
+      isRg003 &&
       subregistro.id === "higienizacao" &&
       !(payload.ncs ?? []).length
     ) {
@@ -3442,6 +3505,7 @@ export function Rg005SubregistroForm({
             ...cycle,
             status: "awaiting_release",
             stageStartedAt: new Date().toISOString(),
+            timings: { ...(cycle.timings ?? {}), hygieneMs: Math.max(0, Date.now() - new Date(cycle.stageStartedAt ?? cycle.startedAt).getTime()) },
             events: [
               ...(cycle.events ?? []),
               {
@@ -3457,7 +3521,7 @@ export function Rg005SubregistroForm({
             new CustomEvent("rg003-cycle-updated", { detail: nextCycle }),
           );
           await persistCycleTransition({
-            cycle,
+            cycle: nextCycle,
             status: "awaiting_release",
             description: "Higienização concluída conforme",
             operatorId: effectiveRegistro.operadorId,
@@ -3484,6 +3548,7 @@ export function Rg005SubregistroForm({
             ...cycle,
             status: "ready",
             stageStartedAt: new Date().toISOString(),
+            timings: { ...(cycle.timings ?? {}), releaseMs: Math.max(0, Date.now() - new Date(cycle.stageStartedAt ?? cycle.startedAt).getTime()) },
             events: [
               ...(cycle.events ?? []),
               {
@@ -3499,7 +3564,7 @@ export function Rg005SubregistroForm({
             new CustomEvent("rg003-cycle-updated", { detail: nextCycle }),
           );
           await persistCycleTransition({
-            cycle,
+            cycle: nextCycle,
             status: "ready",
             description: "Produto liberado para início",
             operatorId: effectiveRegistro.operadorId,
@@ -3560,6 +3625,34 @@ export function Rg005SubregistroForm({
     return true;
   }
 
+  async function finishPrerequisiteAfterResolution() {
+    const cycle = JSON.parse(window.localStorage.getItem(cycleStorageKey) ?? "null");
+    if (!cycle) return;
+    const hygiene = subregistro.id === "higienizacao";
+    const status = hygiene ? "awaiting_release" : "ready";
+    const description = hygiene
+      ? "Higienização liberada após resolução das NCs"
+      : "Produto liberado após resolução das NCs";
+    const nextCycle = {
+      ...cycle,
+      status,
+      stageStartedAt: new Date().toISOString(),
+      timings: {
+        ...(cycle.timings ?? {}),
+        [hygiene ? "hygieneMs" : "releaseMs"]: Math.max(
+          0,
+          Date.now() - new Date(cycle.stageStartedAt ?? cycle.startedAt).getTime(),
+        ),
+      },
+      events: [...(cycle.events ?? []), { id: `nc-resolvida-${Date.now()}`, label: description, at: new Date().toISOString(), operator: effectiveRegistro.operador }],
+    };
+    window.localStorage.setItem(cycleStorageKey, JSON.stringify(nextCycle));
+    window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+    try {
+      await persistCycleTransition({ cycle: nextCycle, status, description, operatorId: effectiveRegistro.operadorId, operatorName: effectiveRegistro.operador, activeAction: null });
+    } catch {}
+  }
+
   if (subregistro.id === "higienizacao") {
     return (
       <>
@@ -3568,7 +3661,15 @@ export function Rg005SubregistroForm({
         ) : (
           <HigienizacaoContexto registro={effectiveRegistro} />
         )}
-        <ChecklistTable
+        {openPrerequisiteNcs.length ? (
+          <NcResolutionGate
+            title="Higienização não liberada"
+            ncs={openPrerequisiteNcs}
+            operatorId={effectiveRegistro.operadorId}
+            onChange={setOpenPrerequisiteNcs}
+            onAllResolved={finishPrerequisiteAfterResolution}
+          />
+        ) : <ChecklistTable
           key={`${cycleContext?.id ?? "sem-ciclo"}-higienizacao`}
           documentName={`${documentName} - Higienizacao`}
           loteId={loteId}
@@ -3585,7 +3686,7 @@ export function Rg005SubregistroForm({
           }
           nextStepLabel="Ir para liberação do produto"
           stepByStep={isRg003}
-        />
+        />}
         {!isRg003 || savedAt ? (
           <AssinaturasRegistro registro={effectiveRegistro} />
         ) : null}
@@ -3600,7 +3701,15 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {isRg003 ? (
+        {isRg003 && openPrerequisiteNcs.length ? (
+          <NcResolutionGate
+            title="Produto não liberado"
+            ncs={openPrerequisiteNcs}
+            operatorId={effectiveRegistro.operadorId}
+            onChange={setOpenPrerequisiteNcs}
+            onAllResolved={finishPrerequisiteAfterResolution}
+          />
+        ) : isRg003 ? (
           <Rg003ProductContext cycle={cycleContext} />
         ) : (
           <ProdutoContexto
