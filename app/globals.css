@@ -780,3 +780,83 @@ button {
     animation: none;
   }
 }
+/* Camada operacional animada da supervisão da fábrica. */
+.factory-motion {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  width: min(76%, 390px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 10px 12px rgb(10 24 55 / 24%));
+}
+.factory-motion svg { display: block; width: 100%; overflow: visible; }
+.factory-machine-body { fill: #d6dbe2; stroke: #303948; stroke-width: 3; }
+.factory-machine-top { fill: #eef1f5; stroke: #303948; stroke-width: 3; }
+.factory-window { fill: #263b55; stroke: #111827; stroke-width: 2; }
+.factory-conveyor-frame { fill: #e89b18; stroke: #5d421d; stroke-width: 2; }
+.factory-belt { fill: #283443; stroke: #111827; stroke-width: 2; }
+.factory-roller { fill: #b9c1cb; stroke: #303948; stroke-width: 2; transform-box: fill-box; transform-origin: center; }
+.factory-gear { fill: #f5a900; stroke: #764d00; stroke-width: 2; transform-box: fill-box; transform-origin: center; }
+.factory-gear-mark { fill: none; stroke: #764d00; stroke-width: 3; }
+.factory-status-light { fill: #9ca3af; }
+.factory-products { fill: #e3a249; stroke: #744719; stroke-width: 2; opacity: 0; }
+.factory-worker { fill: #fff; stroke: #273246; stroke-width: 3; opacity: 0; }
+.factory-worker circle { fill: #bf794e; }
+.factory-worker-arm { fill: none; transform-box: fill-box; transform-origin: left center; }
+.factory-water, .factory-steam, .factory-lock { opacity: 0; }
+.factory-hose { fill: none; stroke: #184f85; stroke-width: 5; }
+.factory-spray { fill: none; stroke: #55c8f1; stroke-width: 4; stroke-linecap: round; }
+.factory-water circle { fill: #8edcf7; stroke: none; }
+.factory-steam { fill: none; stroke: #fff; stroke-width: 7; stroke-linecap: round; }
+.factory-lock { fill: #e30613; stroke: #7f0710; stroke-width: 3; }
+.factory-motion-label {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: -2px auto 0;
+  padding: 5px 10px;
+  background: rgb(17 24 39 / 86%);
+  color: white;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.factory-motion--cleaning .factory-water,
+.factory-motion--cleaning .factory-worker--left,
+.factory-motion--inspection .factory-worker,
+.factory-motion--production .factory-products,
+.factory-motion--production .factory-steam,
+.factory-motion--blocked .factory-lock { opacity: 1; }
+.factory-motion--cleaning .factory-status-light { fill: #36bffa; }
+.factory-motion--inspection .factory-status-light { fill: #f7c948; }
+.factory-motion--production .factory-status-light { fill: #22c55e; }
+.factory-motion--blocked .factory-status-light { fill: #e30613; }
+.factory-motion--inactive { filter: grayscale(1) opacity(.72); }
+.factory-motion--cleaning .factory-spray { animation: factory-spray 1s ease-in-out infinite alternate; }
+.factory-motion--cleaning .factory-water circle { animation: factory-drop 1.1s linear infinite; }
+.factory-motion--cleaning .factory-worker-arm { animation: factory-inspect-arm 1.4s ease-in-out infinite alternate; }
+.factory-motion--inspection .factory-worker-arm { animation: factory-inspect-arm 1.2s ease-in-out infinite alternate; }
+.factory-motion--inspection .factory-worker--right { animation: factory-worker-step 1.8s ease-in-out infinite alternate; }
+.factory-motion--production .factory-belt { animation: factory-belt-pulse .7s linear infinite alternate; }
+.factory-motion--production .factory-roller,
+.factory-motion--production .factory-gear { animation: factory-spin 1.1s linear infinite; }
+.factory-motion--production .factory-products { animation: factory-products 2.8s linear infinite; }
+.factory-motion--production .factory-steam { animation: factory-steam 2s ease-out infinite; }
+.factory-motion--production .factory-status-light,
+.factory-motion--blocked .factory-status-light { animation: factory-light .8s steps(2, end) infinite; }
+.factory-motion--blocked { animation: factory-blocked 1.4s ease-in-out infinite; }
+@keyframes factory-spin { to { transform: rotate(360deg); } }
+@keyframes factory-belt-pulse { to { fill: #42536a; } }
+@keyframes factory-products { from { transform: translateX(-34px); } to { transform: translateX(42px); } }
+@keyframes factory-steam { 0% { transform: translateY(8px); opacity: 0; } 35% { opacity: .8; } 100% { transform: translateY(-14px); opacity: 0; } }
+@keyframes factory-spray { to { transform: translateX(7px) rotate(-4deg); } }
+@keyframes factory-drop { from { transform: translateY(-4px); opacity: 1; } to { transform: translateY(18px); opacity: 0; } }
+@keyframes factory-inspect-arm { to { transform: rotate(-16deg); } }
+@keyframes factory-worker-step { to { transform: translateX(-5px); } }
+@keyframes factory-light { 50% { opacity: .25; } }
+@keyframes factory-blocked { 50% { filter: drop-shadow(0 0 14px rgb(227 6 19 / 70%)); } }
+@media (prefers-reduced-motion: reduce) {
+  .factory-motion *, .factory-motion { animation: none !important; }
+}

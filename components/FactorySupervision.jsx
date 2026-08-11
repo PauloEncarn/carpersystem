@@ -52,10 +52,15 @@ const processLabels = {
 };
 const activeStatuses = new Set([
   "higienizacao",
+  "hygiene",
   "aguardando_liberacao",
+  "awaiting_release",
   "pronto",
+  "ready",
   "produzindo",
+  "producing",
   "bloqueado",
+  "blocked",
 ]);
 function localDayStart() {
   const now = new Date();
@@ -74,11 +79,11 @@ function time(value) {
     : "—";
 }
 function statusLabel(status) {
-  return status === "produzindo"
+  return ["produzindo", "producing"].includes(status)
     ? "Produzindo"
-    : status === "bloqueado"
+    : ["bloqueado", "blocked"].includes(status)
       ? "Bloqueada"
-      : status === "encerrado"
+      : ["encerrado", "ended"].includes(status)
         ? "Encerrada"
         : status
           ? "Preparação"
@@ -249,6 +254,11 @@ export function FactorySupervision() {
                 onClick={() => setSelectedId(line.id)}
                 className={`absolute rounded-[28px] border-2 transition ${focused ? "border-white bg-white/10 shadow-[0_0_0_5px_rgba(30,34,168,.45)]" : "border-transparent"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
               >
+                <AnimatedLineActivity
+                  status={line.cycle?.status}
+                  active={line.active}
+                  lineName={line.name}
+                />
                 <span
                   className={`absolute left-3 top-3 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}
                 >
@@ -507,5 +517,86 @@ function Title({ icon, text }) {
       {icon}
       {text}
     </h3>
+  );
+}
+
+function AnimatedLineActivity({ status, active, lineName }) {
+  const mode = !active
+    ? "inactive"
+    : ["higienizacao", "hygiene"].includes(status)
+      ? "cleaning"
+      : ["aguardando_liberacao", "awaiting_release", "pronto", "ready"].includes(status)
+        ? "inspection"
+        : ["produzindo", "producing"].includes(status)
+          ? "production"
+          : ["bloqueado", "blocked"].includes(status)
+            ? "blocked"
+            : "inactive";
+  const labels = {
+    cleaning: "Máquinas em higienização",
+    inspection: "Equipe realizando liberação",
+    production: "Linha em produção",
+    blocked: "Linha bloqueada",
+    inactive: "Linha inativa",
+  };
+  return (
+    <span
+      aria-label={`${lineName}: ${labels[mode]}`}
+      className={`factory-motion factory-motion--${mode}`}
+    >
+      <svg viewBox="0 0 360 130" role="img" aria-hidden="true">
+        <g className="factory-machine">
+          <path className="factory-conveyor-frame" d="M62 88H300v15H62z" />
+          <path className="factory-belt" d="M67 80H295v13H67z" />
+          {[82, 118, 154, 190, 226, 262].map((x) => (
+            <circle key={x} className="factory-roller" cx={x} cy="99" r="7" />
+          ))}
+          <path className="factory-machine-body" d="M128 34h104v48H128z" />
+          <path className="factory-machine-top" d="m128 34 18-14h104l-18 14z" />
+          <rect className="factory-window" x="148" y="47" width="62" height="22" />
+          <circle className="factory-gear" cx="222" cy="58" r="13" />
+          <path className="factory-gear-mark" d="M222 48v20M212 58h20M215 51l14 14M229 51l-14 14" />
+          <rect className="factory-status-light" x="236" y="42" width="8" height="19" />
+        </g>
+
+        <g className="factory-products">
+          <rect x="78" y="69" width="22" height="16" rx="2" />
+          <rect x="113" y="69" width="22" height="16" rx="2" />
+          <rect x="252" y="69" width="22" height="16" rx="2" />
+        </g>
+
+        <g className="factory-worker factory-worker--left">
+          <circle cx="82" cy="38" r="9" />
+          <path d="M73 49h18l5 32H68z" />
+          <path className="factory-worker-arm" d="m89 54 24 13" />
+          <path d="m74 78-7 25M89 78l7 25" />
+        </g>
+        <g className="factory-worker factory-worker--right">
+          <circle cx="278" cy="38" r="9" />
+          <path d="M269 49h18l5 32h-28z" />
+          <path className="factory-worker-arm" d="m271 54-24 13" />
+          <path d="m270 78-7 25M285 78l7 25" />
+        </g>
+
+        <g className="factory-water">
+          <path className="factory-hose" d="M91 59c31-16 44-16 65-7" />
+          <path className="factory-spray" d="m151 48 18-10M154 54l23-2M151 60l18 9" />
+          <circle cx="177" cy="38" r="3" />
+          <circle cx="184" cy="52" r="3" />
+          <circle cx="177" cy="69" r="3" />
+        </g>
+
+        <g className="factory-steam">
+          <path d="M160 27c-12-12 10-15-1-27" />
+          <path d="M185 25c-12-12 10-15-1-27" />
+          <path d="M210 27c-12-12 10-15-1-27" />
+        </g>
+        <g className="factory-lock">
+          <rect x="166" y="43" width="30" height="28" rx="3" />
+          <path d="M173 43v-7a8 8 0 0 1 16 0v7" />
+        </g>
+      </svg>
+      <span className="factory-motion-label">{labels[mode]}</span>
+    </span>
   );
 }
