@@ -6,6 +6,7 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Gauge,
   LoaderCircle,
   Radio,
   RefreshCw,
@@ -13,6 +14,11 @@ import {
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { repairTextDeep } from "@/lib/textEncoding";
+import {
+  classifyProductValue,
+  matchSpecification,
+  specificationTone,
+} from "@/lib/productSpecifications";
 
 const lineLayout = [
   {
@@ -108,6 +114,9 @@ async function loadLiveFactory() {
   ]);
   if (fillingError) throw fillingError;
   if (ncError) throw ncError;
+  const { data: specificationRows } = await supabase
+    .from("configuracoes_produto")
+    .select("linha_id,produto,parametros");
   return repairTextDeep(
     (cycles ?? []).map((cycle) => {
       const records = (fillings ?? []).filter(
@@ -120,7 +129,12 @@ async function loadLiveFactory() {
           filledAt: item.preenchido_em,
         })),
       );
-      return { ...cycle, records, ncs: cycleNcs, photos };
+      const specifications =
+        specificationRows?.find(
+          (item) =>
+            item.linha_id === cycle.linha_id && item.produto === cycle.produto,
+        )?.parametros ?? [];
+      return { ...cycle, records, ncs: cycleNcs, photos, specifications };
     }),
   );
 }
@@ -173,6 +187,13 @@ export function FactorySupervision() {
   );
   const selected = lines.find((line) => line.id === selectedId);
   const hovered = lines.find((line) => line.id === hoveredId);
+  const selectedProductRecord = selected?.records.find(
+    (record) => record.contexto_tipo === "produto_avaliacao",
+  );
+  const selectedProductValues = [
+    ...(selectedProductRecord?.valores?.apontamentos ?? []),
+    ...(selectedProductRecord?.valores?.avaliacoes ?? []),
+  ];
 
   return (
     <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-gray-200 bg-[#e8edf1] shadow-xl">
@@ -339,6 +360,49 @@ export function FactorySupervision() {
                         : ""}
                     </figcaption>
                   </figure>
+                </section>
+              ) : null}
+              {selectedProductValues.length ? (
+                <section>
+                  <Title
+                    icon={<Gauge size={17} />}
+                    text="Últimos parâmetros do produto"
+                  />
+                  <p className="mt-1 text-xs font-bold text-gray-500">
+                    Registro das {time(selectedProductRecord?.preenchido_em)}
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {selectedProductValues.map((item, index) => {
+                      const specification = matchSpecification(
+                        selected.cycle?.specifications,
+                        item.item,
+                      );
+                      const classification =
+                        item.classificacao ??
+                        classifyProductValue(
+                          specification,
+                          item.resultado ?? item.valor,
+                        );
+                      const tone = specificationTone[classification];
+                      return (
+                        <article
+                          key={`${item.item}-${index}`}
+                          className={`border-l-4 p-3 ${tone.className}`}
+                        >
+                          <p className="text-xs font-black uppercase opacity-70">
+                            {tone.label}
+                          </p>
+                          <strong className="mt-1 block text-gray-950">
+                            {item.item}
+                          </strong>
+                          <span className="text-lg font-black">
+                            {item.resultado ?? item.valor ?? "—"}{" "}
+                            {item.unidade ?? specification?.unit ?? ""}
+                          </span>
+                        </article>
+                      );
+                    })}
+                  </div>
                 </section>
               ) : null}
               <section>

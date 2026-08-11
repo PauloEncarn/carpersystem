@@ -22,6 +22,12 @@ import {
   persistCycleTransition,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
+import {
+  classifyProductValue,
+  matchSpecification,
+  specificationTone,
+} from "@/lib/productSpecifications";
 
 const hours = Array.from(
   { length: 24 },
@@ -781,6 +787,8 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
   const [values, setValues] = useState({});
   const column = columns[index];
   const currentValue = values[column.label] ?? "";
+  const classification = classifyProductValue(column.specification, currentValue);
+  const tone = specificationTone[classification];
   function finish() {
     onSave?.({
       apontamentos: columns.map((item) => ({
@@ -788,6 +796,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
         item: item.label,
         resultado: values[item.label],
         unidade: item.unit,
+        classificacao: classifyProductValue(item.specification, values[item.label]),
       })),
       ncs: [],
     });
@@ -806,7 +815,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
       <div className="inspection-question">
         <p className="inspection-eyebrow">Parâmetro do produto</p>
         <h2>{column.label}</h2>
-        <div className={`inspection-number ${isNa ? "is-na" : ""}`}>
+        <div className={`inspection-number border-2 ${isNa ? "is-na" : ""} ${tone.className}`}>
           <input
             key={column.label}
             type="number"
@@ -825,6 +834,11 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
           />
           <span>{column.unit}</span>
         </div>
+        {currentValue ? (
+          <div className={`mt-3 border-l-4 p-3 text-center font-black ${tone.className}`}>
+            {tone.label}
+          </div>
+        ) : null}
         <button
           type="button"
           className={`inspection-na ${isNa ? "is-selected" : ""}`}
@@ -3195,6 +3209,7 @@ export function Rg005SubregistroForm({
   const [persistedRecord, setPersistedRecord] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [productSpecifications, setProductSpecifications] = useState([]);
   const confirmationResolver = useRef(null);
   const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
     documentName,
@@ -3232,6 +3247,31 @@ export function Rg005SubregistroForm({
     window.addEventListener("rg003-cycle-updated", loadCycle);
     return () => window.removeEventListener("rg003-cycle-updated", loadCycle);
   }, [cycleStorageKey, isRg003]);
+  useEffect(() => {
+    const product = cycleContext?.product ?? cycleContext?.produto;
+    if (!product) {
+      setProductSpecifications([]);
+      return;
+    }
+    try {
+      const local = JSON.parse(
+        window.localStorage.getItem("carper_product_specifications") ?? "{}",
+      );
+      setProductSpecifications(local[`${lineId}:${product}`] ?? []);
+    } catch {
+      setProductSpecifications([]);
+    }
+    if (!isSupabaseConfigured || !supabase) return;
+    supabase
+      .from("configuracoes_produto")
+      .select("parametros")
+      .eq("linha_id", lineId)
+      .eq("produto", product)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.parametros) setProductSpecifications(data.parametros);
+      });
+  }, [cycleContext?.id, cycleContext?.product, cycleContext?.produto, lineId]);
   useEffect(() => {
     setSavedAt("");
     setPersistedRecord(null);
@@ -3278,6 +3318,12 @@ export function Rg005SubregistroForm({
   }, [activeHour, allowedHours, isRg003]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
+  const configuredProductColumns = config.avaliacaoProdutoColumns.map((column) => {
+    const specification = matchSpecification(productSpecifications, column.label);
+    return specification
+      ? { ...column, unit: specification.unit || column.unit, specification }
+      : column;
+  });
   const isHourlyRg003 =
     isRg003 &&
     ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
@@ -3635,7 +3681,7 @@ export function Rg005SubregistroForm({
             </section>
             <ProductEvaluationTabletFlow
               key={activeHour}
-              columns={config.avaliacaoProdutoColumns}
+              columns={configuredProductColumns}
               machines={config.produtoMaquinas}
               gramaturas={config.produtoOptions.gramaturas}
               registro={effectiveRegistro}
@@ -3646,7 +3692,7 @@ export function Rg005SubregistroForm({
         ) : (
           <>
             <ProductEvaluationHourlyTable
-              columns={config.avaliacaoProdutoColumns}
+              columns={configuredProductColumns}
             />
             <MachineHourlySections
               title="Avaliacao por maquina"

@@ -144,27 +144,27 @@ export function ProductSpecificationsConfigurator() {
 
   return (
     <section className="space-y-5">
-      <header className="border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wider text-cicopal-red">Configuração técnica</p>
+      <header className="overflow-hidden border border-blue-950 bg-gradient-to-r from-[#171b68] via-cicopal-blue to-[#3439a8] p-6 text-white shadow-xl">
+        <p className="text-xs font-bold uppercase tracking-[.18em] text-red-300">Configuração técnica</p>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-gray-950">Especificações por produto</h2>
-            <p className="mt-1 max-w-3xl font-semibold text-gray-500">
+            <h2 className="text-3xl font-black">Especificações por produto</h2>
+            <p className="mt-1 max-w-3xl font-semibold text-blue-100">
               Os RGs e seus fluxos são controlados pelo sistema. Aqui você define somente os limites usados na avaliação de cada produto.
             </p>
           </div>
-          <button type="button" onClick={save} disabled={saving} className="inline-flex min-h-12 items-center gap-2 bg-cicopal-blue px-5 font-bold text-white disabled:opacity-50">
+          <button type="button" onClick={save} disabled={saving} className="inline-flex min-h-12 items-center gap-2 bg-white px-5 font-black text-cicopal-blue shadow-lg disabled:opacity-50">
             <Save size={19} /> {saving ? "Salvando..." : "Salvar especificações"}
           </button>
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="border border-gray-200 bg-white p-3 shadow-sm">
+        <aside className="border border-gray-200 bg-[#f7f8fc] p-4 shadow-sm">
           <p className="px-2 pb-2 text-xs font-bold uppercase text-gray-400">Linha de produção</p>
           <div className="space-y-2">
             {Object.entries(catalog).map(([id, line]) => (
-              <button key={id} type="button" onClick={() => changeLine(id)} className={`w-full border p-3 text-left ${lineId === id ? "border-cicopal-blue bg-blue-50" : "border-gray-200"}`}>
+              <button key={id} type="button" onClick={() => changeLine(id)} className={`w-full border-l-4 p-4 text-left transition ${lineId === id ? "border-l-cicopal-red border-y-cicopal-blue border-r-cicopal-blue bg-white shadow-md" : "border-gray-200 bg-transparent hover:bg-white"}`}>
                 <strong className="block text-gray-950">{line.name}</strong>
                 <span className="text-xs font-bold text-gray-500">{line.rg}</span>
               </button>
@@ -187,7 +187,7 @@ export function ProductSpecificationsConfigurator() {
             <span className="bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600">{configuredCount}/{parameters.length} configurados</span>
           </div>
 
-          <div className="grid gap-2 border-b border-gray-200 bg-gray-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 border-b border-gray-200 bg-[#f7f8fc] p-4 sm:grid-cols-2 xl:grid-cols-4">
             <Legend color="bg-green-600" title="Verde" text="Dentro da faixa ideal" />
             <Legend color="bg-amber-400" title="Amarelo" text="Atenção, próximo do limite" />
             <Legend color="bg-red-600" title="Vermelho" text="Fora do limite permitido" />
@@ -196,7 +196,7 @@ export function ProductSpecificationsConfigurator() {
 
           <div className="space-y-3 p-4">
             {parameters.map((parameter, index) => (
-              <article key={parameter.id} className="border border-gray-200 p-4">
+              <article key={parameter.id} className="border border-gray-200 bg-white p-5 shadow-[0_8px_30px_rgba(20,28,70,.06)] transition hover:border-blue-200">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid size-10 shrink-0 place-items-center bg-blue-50 text-cicopal-blue"><CircleGauge size={21} /></span>
@@ -209,10 +209,20 @@ export function ProductSpecificationsConfigurator() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <Field label="Unidade" value={parameter.unit} onChange={(unit) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, unit } : item))} text />
-                  <Field label="Limite mínimo" tone="red" value={parameter.criticalMin} onChange={(criticalMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMin } : item))} />
-                  <Field label="Ideal mínimo" tone="green" value={parameter.idealMin} onChange={(idealMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMin } : item))} />
-                  <Field label="Ideal máximo" tone="green" value={parameter.idealMax} onChange={(idealMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMax } : item))} />
-                  <Field label="Limite máximo" tone="red" value={parameter.criticalMax} onChange={(criticalMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMax } : item))} />
+                  <Field label="Vermelho abaixo de" tone="red" value={parameter.criticalMin} onChange={(criticalMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMin } : item))} />
+                  <Field label="Amarelo mínimo" tone="yellow" value={parameter.idealMin} onChange={(idealMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMin } : item))} />
+                  <Field label="Amarelo máximo" tone="yellow" value={parameter.idealMax} onChange={(idealMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMax } : item))} />
+                  <Field label="Vermelho acima de" tone="red" value={parameter.criticalMax} onChange={(criticalMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMax } : item))} />
+                </div>
+                <div className="mt-4 grid grid-cols-5 overflow-hidden text-center text-[10px] font-black uppercase sm:text-xs">
+                  <span className="bg-red-600 px-2 py-2 text-white">Vermelho</span>
+                  <span className="bg-amber-400 px-2 py-2 text-amber-950">Amarelo</span>
+                  <span className="bg-green-600 px-2 py-2 text-white">Verde</span>
+                  <span className="bg-amber-400 px-2 py-2 text-amber-950">Amarelo</span>
+                  <span className="bg-red-600 px-2 py-2 text-white">Vermelho</span>
+                </div>
+                <div className="grid grid-cols-4 text-center text-xs font-bold text-gray-500">
+                  <span>{parameter.criticalMin || "mín."}</span><span>{parameter.idealMin || "ideal mín."}</span><span>{parameter.idealMax || "ideal máx."}</span><span>{parameter.criticalMax || "máx."}</span>
                 </div>
                 <label className="mt-3 inline-flex min-h-11 items-center gap-2 border border-gray-200 bg-gray-50 px-3 font-bold text-gray-700">
                   <input type="checkbox" className="size-5" checked={parameter.allowNa} onChange={(event) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, allowNa: event.target.checked } : item))} />
@@ -236,6 +246,6 @@ function Legend({ color, title, text }) {
 }
 
 function Field({ label, value, onChange, tone = "gray", text = false }) {
-  const colors = { red: "border-red-300 bg-red-50", green: "border-green-300 bg-green-50", gray: "border-gray-300 bg-white" };
+  const colors = { red: "border-red-300 bg-red-50", yellow: "border-amber-300 bg-amber-50", green: "border-green-300 bg-green-50", gray: "border-gray-300 bg-white" };
   return <label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">{label}</span><input type={text ? "text" : "number"} step="any" className={`min-h-12 w-full border px-3 text-base font-bold outline-none focus:border-cicopal-blue ${colors[tone]}`} value={value} onChange={(event) => onChange(event.target.value)} placeholder="—" /></label>;
 }
