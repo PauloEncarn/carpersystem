@@ -3306,42 +3306,6 @@ export function HierarchyNavigator({
             ) : null}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              className="inline-flex min-h-16 min-w-40 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-lg font-bold text-gray-700 disabled:opacity-40"
-              onClick={goBack}
-              disabled={
-                currentStep === 1 ||
-                (currentStep === 4 &&
-                  sequentialFlow &&
-                  rg003CycleStatus === "producing")
-              }
-            >
-              <ArrowLeft size={20} />{" "}
-              {currentStep === 4 &&
-              sequentialFlow &&
-              rg003CycleStatus === "producing"
-                ? "Produção em andamento"
-                : "Voltar"}
-            </button>
-            {currentStep === 5 || (hideDates && currentStep === 4) ? (
-              <span className="text-sm font-bold text-gray-500">
-                {hideDates
-                  ? "Use os botões do ciclo para iniciar o preenchimento."
-                  : "Abra um card ou crie um novo registro."}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="inline-flex min-h-16 min-w-40 items-center justify-center gap-2 rounded-md bg-cicopal-blue px-4 text-lg font-bold text-white disabled:bg-gray-300 disabled:text-gray-600"
-                onClick={goForward}
-                disabled={currentStep === 6 || !canAdvance}
-              >
-                Avancar <ArrowRight size={20} />
-              </button>
-            )}
-          </div>
         </>
       )}
       <ChecklistMirrorModal

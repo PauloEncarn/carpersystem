@@ -247,7 +247,7 @@ export function FactorySupervision({ variant = "classic" }) {
   return (
     <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-slate-300/60 bg-[radial-gradient(120%_90%_at_15%_0%,#f3f6f9_0%,#e6ebf0_42%,#d7dfe6_100%)] shadow-[0_50px_90px_-30px_rgba(15,23,42,.45)]">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(15,23,42,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,.05)_1px,transparent_1px)] [background-size:36px_36px]" />
-      <div className="absolute left-5 top-5 z-20 flex items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 px-4 py-3 text-white shadow-xl">
+      <div className="absolute left-2 top-3 z-20 flex items-center gap-2 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 px-3 py-2 text-white shadow-xl md:left-5 md:top-5 md:gap-3 md:px-4 md:py-3">
         <span className="relative grid size-10 place-items-center rounded-xl bg-gradient-to-br from-cicopal-blue to-[#141670] text-white">
           <Radio size={19} />
           <span className="absolute -right-1 -top-1 size-3.5 rounded-full border-2 border-slate-900 bg-emerald-400" />
@@ -264,16 +264,18 @@ export function FactorySupervision({ variant = "classic" }) {
           </p>
         </div>
       </div>
-      {openNcTotal ? <div className="absolute left-1/2 top-5 z-20 flex -translate-x-1/2 items-center gap-2 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3 font-black text-white shadow-xl"><AlertTriangle size={17} />{openNcTotal} NC{openNcTotal > 1 ? "s" : ""} em aberto</div> : null}
+      {openNcTotal ? <div className="absolute left-1/2 top-5 z-20 hidden -translate-x-1/2 items-center gap-2 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3 font-black text-white shadow-xl lg:flex"><AlertTriangle size={17} />{openNcTotal} NC{openNcTotal > 1 ? "s" : ""} em aberto</div> : null}
       <button
         type="button"
         onClick={refresh}
-        className="absolute right-5 top-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white bg-white/90 px-4 font-bold text-gray-700 shadow-lg"
+        className="absolute right-2 top-3 z-20 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white bg-white/90 px-3 font-bold text-gray-700 shadow-lg md:right-5 md:top-5 md:px-4"
       >
         <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-        Atualizar
+        <span className="hidden sm:inline">Atualizar</span>
       </button>
       <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-24 md:p-5 md:pt-24">
+        <MobileFactoryCards lines={lines} onSelect={setSelectedId} />
+        <div className="hidden sm:block">
         {variant === "vector" ? (
           <VectorFactoryScene
             lines={lines}
@@ -283,7 +285,7 @@ export function FactorySupervision({ variant = "classic" }) {
             onHover={setHoveredId}
           />
         ) : (
-        <div className="relative mx-auto min-w-[820px] overflow-hidden rounded-2xl shadow-2xl">
+        <div className="relative mx-auto w-full overflow-hidden rounded-2xl shadow-2xl">
           <img
             src="/images/fabrica-isometrica-cicopal.png"
             alt="Planta da fábrica Cicopal"
@@ -318,6 +320,7 @@ export function FactorySupervision({ variant = "classic" }) {
           })}
         </div>
         )}
+        </div>
         {loading ? (
           <div className="absolute inset-0 z-30 grid place-items-center bg-white/55 backdrop-blur-sm">
             <span className="inline-flex items-center gap-3 rounded-2xl bg-white px-5 py-4 font-black text-cicopal-blue shadow-xl">
@@ -367,7 +370,7 @@ export function FactorySupervision({ variant = "classic" }) {
           </div>
         ) : null}
         {selected ? (
-          <aside className="absolute bottom-5 left-5 z-30 max-h-[82%] w-[min(620px,calc(100%-2.5rem))] overflow-y-auto rounded-3xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur">
+          <aside className="fixed inset-x-2 bottom-2 z-30 max-h-[88dvh] overflow-y-auto rounded-3xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur sm:absolute sm:inset-x-auto sm:bottom-5 sm:left-5 sm:max-h-[82%] sm:w-[min(620px,calc(100%-2.5rem))]">
             <header className="sticky top-0 z-10 flex items-start justify-between border-b border-gray-200 bg-white/95 p-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
@@ -543,6 +546,27 @@ export function FactorySupervision({ variant = "classic" }) {
   );
 }
 
+function MobileFactoryCards({ lines, onSelect }) {
+  return (
+    <div className="space-y-3 sm:hidden">
+      <div className="mb-4 px-1"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Resumo das linhas</p><p className="text-sm font-semibold text-slate-600">Toque em uma linha para abrir os detalhes.</p></div>
+      {lines.map((line) => {
+        const visual = statusVisual(line.cycle?.status);
+        return (
+          <button key={line.id} type="button" onClick={() => onSelect(line.id)} className={`w-full overflow-hidden rounded-2xl border bg-white text-left shadow-lg ${line.ncs.length ? "border-rose-200" : "border-slate-200"}`}>
+            <div className={`h-1.5 w-full ${visual.badge}`} />
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-cicopal-blue">{rgByLine[line.id]}</p><h3 className="text-xl font-black text-slate-950">{line.name}</h3></div><StatusPill status={line.cycle?.status} /></div>
+              <p className="mt-2 font-bold text-slate-600">{line.cycle?.produto ?? "Sem produção registrada hoje"}</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="bg-slate-50 p-2"><small className="block font-bold text-slate-400">Último</small><b>{time(line.records[0]?.preenchido_em)}</b></div><div className="bg-amber-50 p-2 text-amber-900"><small className="block font-bold opacity-60">Atenção</small><b>{line.attentionParameters.length}</b></div><div className={`p-2 ${line.ncs.length ? "bg-rose-50 text-cicopal-red" : "bg-emerald-50 text-cicopal-green"}`}><small className="block font-bold opacity-60">NC aberta</small><b>{line.ncs.length}</b></div></div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function StatusPill({ status }) {
   const visual = statusVisual(status);
   const Icon = visual.Icon;
@@ -579,7 +603,7 @@ function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover })
     ROS: { left: "12%", top: "59%", width: "46%", height: "27%" },
   };
   return (
-    <div className="vector-factory-scene relative mx-auto min-h-[690px] min-w-[920px] overflow-hidden border border-[#54717c] shadow-2xl">
+    <div className="vector-factory-scene relative mx-auto min-h-[620px] w-full overflow-hidden border border-[#54717c] shadow-2xl lg:min-h-[690px]">
       <svg className="absolute inset-0 size-full" viewBox="0 0 1200 720" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="factory-floor" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#163f4b" /><stop offset="1" stopColor="#0a2733" /></linearGradient>
