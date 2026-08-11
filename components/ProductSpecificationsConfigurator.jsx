@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CircleGauge, Plus, Save, Trash2 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
+import { makeTestSpecifications } from "@/lib/productSpecifications";
 
 const catalog = {
   ROS: {
@@ -41,19 +42,27 @@ const catalog = {
   },
 };
 
-const makeParameter = ([name, unit], index) => ({
-  id: `${name.toLowerCase().replace(/\W+/g, "-")}-${index}`,
-  name,
-  unit,
-  criticalMin: "",
-  idealMin: "",
-  idealMax: "",
-  criticalMax: "",
-  allowNa: true,
-});
-
 function initialParameters(lineId) {
-  return catalog[lineId].parameters.map(makeParameter);
+  return makeTestSpecifications(
+    catalog[lineId].parameters.map(([name, unit]) => ({ name, unit })),
+  );
+}
+
+function fillEmptyConfigurations(configurations) {
+  return Object.fromEntries(
+    Object.entries(configurations).map(([configKey, parameters]) => {
+      const lineId = configKey.split(":")[0];
+      const defaults = initialParameters(catalog[lineId] ? lineId : "ROS");
+      return [
+        configKey,
+        parameters.map((item, index) => {
+          const fallback = defaults.find((entry) => entry.name === item.name) ?? defaults[index];
+          const empty = [item.criticalMin, item.idealMin, item.idealMax, item.criticalMax].every((value) => value === "" || value == null);
+          return empty && fallback ? { ...item, ...fallback, id: item.id } : item;
+        }),
+      ];
+    }),
+  );
 }
 
 export function ProductSpecificationsConfigurator() {
@@ -69,7 +78,7 @@ export function ProductSpecificationsConfigurator() {
     const local = localStorage.getItem("carper_product_specifications");
     if (local) {
       try {
-        setConfigurations(JSON.parse(local));
+        setConfigurations(fillEmptyConfigurations(JSON.parse(local)));
       } catch {}
     }
     if (!isSupabaseConfigured || !supabase) return;
@@ -80,9 +89,9 @@ export function ProductSpecificationsConfigurator() {
         if (!data?.length) return;
         setConfigurations((current) => ({
           ...current,
-          ...Object.fromEntries(
+          ...fillEmptyConfigurations(Object.fromEntries(
             data.map((item) => [`${item.linha_id}:${item.produto}`, item.parametros]),
-          ),
+          )),
         }));
       });
   }, []);
@@ -184,7 +193,10 @@ export function ProductSpecificationsConfigurator() {
               <span className="text-xs font-bold uppercase text-cicopal-blue">{catalog[lineId].rg} · {catalog[lineId].name}</span>
               <h3 className="text-2xl font-black text-gray-950">{product}</h3>
             </div>
-            <span className="bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600">{configuredCount}/{parameters.length} configurados</span>
+            <div className="flex flex-wrap gap-2">
+              <span className="bg-amber-100 px-3 py-2 text-xs font-black uppercase text-amber-900">Dados fictícios para teste</span>
+              <span className="bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600">{configuredCount}/{parameters.length} configurados</span>
+            </div>
           </div>
 
           <div className="grid gap-3 border-b border-gray-200 bg-[#f7f8fc] p-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -207,22 +219,26 @@ export function ProductSpecificationsConfigurator() {
                   </div>
                   <button type="button" aria-label="Excluir parâmetro" className="p-2 text-gray-400 hover:text-cicopal-red" onClick={() => updateParameters(parameters.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={19} /></button>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <Field label="Unidade" value={parameter.unit} onChange={(unit) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, unit } : item))} text />
-                  <Field label="Vermelho abaixo de" tone="red" value={parameter.criticalMin} onChange={(criticalMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMin } : item))} />
-                  <Field label="Amarelo mínimo" tone="yellow" value={parameter.idealMin} onChange={(idealMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMin } : item))} />
-                  <Field label="Amarelo máximo" tone="yellow" value={parameter.idealMax} onChange={(idealMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMax } : item))} />
-                  <Field label="Vermelho acima de" tone="red" value={parameter.criticalMax} onChange={(criticalMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMax } : item))} />
+                <div className="mb-4 max-w-xs">
+                  <Field label="Unidade de medida" value={parameter.unit} onChange={(unit) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, unit } : item))} text />
                 </div>
-                <div className="mt-4 grid grid-cols-5 overflow-hidden text-center text-[10px] font-black uppercase sm:text-xs">
-                  <span className="bg-red-600 px-2 py-2 text-white">Vermelho</span>
-                  <span className="bg-amber-400 px-2 py-2 text-amber-950">Amarelo</span>
-                  <span className="bg-green-600 px-2 py-2 text-white">Verde</span>
-                  <span className="bg-amber-400 px-2 py-2 text-amber-950">Amarelo</span>
-                  <span className="bg-red-600 px-2 py-2 text-white">Vermelho</span>
-                </div>
-                <div className="grid grid-cols-4 text-center text-xs font-bold text-gray-500">
-                  <span>{parameter.criticalMin || "mín."}</span><span>{parameter.idealMin || "ideal mín."}</span><span>{parameter.idealMax || "ideal máx."}</span><span>{parameter.criticalMax || "máx."}</span>
+                <div className="space-y-2">
+                  <RangeRow color="red" title="Faixa vermelha" description={`Abaixo de ${parameter.criticalMin || "—"} ou acima de ${parameter.criticalMax || "—"} ${parameter.unit}`} fields={[
+                    ["Abaixo de", parameter.criticalMin, (criticalMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMin } : item))],
+                    ["Acima de", parameter.criticalMax, (criticalMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMax } : item))],
+                  ]} />
+                  <RangeRow color="yellow" title="Faixa amarela inferior" description="Atenção antes da faixa ideal" fields={[
+                    ["De", parameter.criticalMin, (criticalMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMin } : item))],
+                    ["Até", parameter.idealMin, (idealMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMin } : item))],
+                  ]} />
+                  <RangeRow color="green" title="Faixa verde" description="Valores dentro da especificação ideal" fields={[
+                    ["De", parameter.idealMin, (idealMin) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMin } : item))],
+                    ["Até", parameter.idealMax, (idealMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMax } : item))],
+                  ]} />
+                  <RangeRow color="yellow" title="Faixa amarela superior" description="Atenção após a faixa ideal" fields={[
+                    ["De", parameter.idealMax, (idealMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, idealMax } : item))],
+                    ["Até", parameter.criticalMax, (criticalMax) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, criticalMax } : item))],
+                  ]} />
                 </div>
                 <label className="mt-3 inline-flex min-h-11 items-center gap-2 border border-gray-200 bg-gray-50 px-3 font-bold text-gray-700">
                   <input type="checkbox" className="size-5" checked={parameter.allowNa} onChange={(event) => updateParameters(parameters.map((item, itemIndex) => itemIndex === index ? { ...item, allowNa: event.target.checked } : item))} />
@@ -230,7 +246,7 @@ export function ProductSpecificationsConfigurator() {
                 </label>
               </article>
             ))}
-            <button type="button" onClick={() => updateParameters([...parameters, makeParameter(["Novo parâmetro", ""], parameters.length)])} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border-2 border-dashed border-gray-300 font-bold text-cicopal-blue hover:border-cicopal-blue">
+            <button type="button" onClick={() => updateParameters([...parameters, ...makeTestSpecifications([{ name: "Novo parâmetro", unit: "" }]).map((item) => ({ ...item, id: `${item.id}-${Date.now()}` }))])} className="inline-flex min-h-12 w-full items-center justify-center gap-2 border-2 border-dashed border-gray-300 font-bold text-cicopal-blue hover:border-cicopal-blue">
               <Plus size={19} /> Adicionar parâmetro ao produto
             </button>
           </div>
@@ -248,4 +264,29 @@ function Legend({ color, title, text }) {
 function Field({ label, value, onChange, tone = "gray", text = false }) {
   const colors = { red: "border-red-300 bg-red-50", yellow: "border-amber-300 bg-amber-50", green: "border-green-300 bg-green-50", gray: "border-gray-300 bg-white" };
   return <label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">{label}</span><input type={text ? "text" : "number"} step="any" className={`min-h-12 w-full border px-3 text-base font-bold outline-none focus:border-cicopal-blue ${colors[tone]}`} value={value} onChange={(event) => onChange(event.target.value)} placeholder="—" /></label>;
+}
+
+function RangeRow({ color, title, description, fields }) {
+  const tones = {
+    red: "border-red-200 bg-red-50 text-red-800",
+    yellow: "border-amber-200 bg-amber-50 text-amber-900",
+    green: "border-green-200 bg-green-50 text-green-800",
+  };
+  const dots = { red: "bg-red-600", yellow: "bg-amber-400", green: "bg-green-600" };
+  return (
+    <div className={`grid gap-3 border p-3 md:grid-cols-[minmax(190px,1fr)_minmax(260px,1.2fr)] ${tones[color]}`}>
+      <div className="flex items-center gap-3">
+        <span className={`size-4 shrink-0 ${dots[color]}`} />
+        <span><strong className="block">{title}</strong><small className="font-semibold opacity-75">{description}</small></span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {fields.map(([label, value, onChange]) => (
+          <label key={label} className="flex min-h-12 items-center border border-current/20 bg-white px-3">
+            <span className="mr-2 text-xs font-black uppercase opacity-65">{label}</span>
+            <input type="number" step="any" className="min-w-0 flex-1 bg-transparent text-right text-lg font-black outline-none" value={value} onChange={(event) => onChange(event.target.value)} />
+          </label>
+        ))}
+      </div>
+    </div>
+  );
 }

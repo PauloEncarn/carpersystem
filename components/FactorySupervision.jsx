@@ -16,6 +16,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { repairTextDeep } from "@/lib/textEncoding";
 import {
   classifyProductValue,
+  makeTestSpecifications,
   matchSpecification,
   specificationTone,
 } from "@/lib/productSpecifications";
@@ -194,6 +195,14 @@ export function FactorySupervision() {
     ...(selectedProductRecord?.valores?.apontamentos ?? []),
     ...(selectedProductRecord?.valores?.avaliacoes ?? []),
   ];
+  const selectedSpecifications = selected?.cycle?.specifications?.length
+    ? selected.cycle.specifications
+    : makeTestSpecifications(
+        selectedProductValues.map((item) => ({
+          name: item.item,
+          unit: item.unidade ?? "",
+        })),
+      );
 
   return (
     <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-gray-200 bg-[#e8edf1] shadow-xl">
@@ -374,7 +383,7 @@ export function FactorySupervision() {
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {selectedProductValues.map((item, index) => {
                       const specification = matchSpecification(
-                        selected.cycle?.specifications,
+                        selectedSpecifications,
                         item.item,
                       );
                       const classification =

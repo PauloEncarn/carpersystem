@@ -25,6 +25,7 @@ import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import {
   classifyProductValue,
+  makeTestSpecifications,
   matchSpecification,
   specificationTone,
 } from "@/lib/productSpecifications";
@@ -3318,8 +3319,11 @@ export function Rg005SubregistroForm({
   }, [activeHour, allowedHours, isRg003]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentName);
+  const effectiveProductSpecifications = productSpecifications.length
+    ? productSpecifications
+    : makeTestSpecifications(config.avaliacaoProdutoColumns);
   const configuredProductColumns = config.avaliacaoProdutoColumns.map((column) => {
-    const specification = matchSpecification(productSpecifications, column.label);
+    const specification = matchSpecification(effectiveProductSpecifications, column.label);
     return specification
       ? { ...column, unit: specification.unit || column.unit, specification }
       : column;
