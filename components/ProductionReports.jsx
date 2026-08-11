@@ -118,6 +118,14 @@ function summarize(cycle, fillings, genericNcs, events) {
   const cycleGenericNcs = genericNcs.filter(
     (item) => item.ciclo_id === cycle.id,
   );
+  const embeddedNcItems = cycleFillings.flatMap((item) =>
+    (item.valores?.ncs ?? []).map((nc) => ({
+      ...nc,
+      origem: item.contexto_tipo,
+      horario: nc.horario ?? item.horario,
+      registrada_em: item.preenchido_em,
+    })),
+  );
   const photos = cycleFillings.reduce(
     (total, item) => total + (item.valores?.fotografias?.length ?? 0),
     0,
@@ -143,6 +151,7 @@ function summarize(cycle, fillings, genericNcs, events) {
       ? Math.min(100, Math.round((completedControls / expectedControls) * 100))
       : 0,
     ncCount: embeddedNcs + cycleGenericNcs.length,
+    ncs: [...cycleGenericNcs, ...embeddedNcItems],
     photos,
     operator: operator ?? "Não identificado",
   };
@@ -679,6 +688,36 @@ export function ProductionReports() {
                                     text="Liberação confirmada"
                                   />
                                 </div>
+                                {cycle.ncs.length ? (
+                                  <details className="mb-4 border border-red-200 bg-red-50">
+                                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+                                      <span className="inline-flex items-center gap-2 font-black text-cicopal-red">
+                                        <AlertTriangle size={19} /> Não conformidades da produção
+                                      </span>
+                                      <span className="bg-cicopal-red px-3 py-1 text-xs font-black text-white">
+                                        {cycle.ncs.length} ocorrência(s) · expandir
+                                      </span>
+                                    </summary>
+                                    <div className="grid gap-3 border-t border-red-200 p-3 lg:grid-cols-2">
+                                      {cycle.ncs.map((nc, index) => (
+                                        <article key={nc.id ?? index} className="border-l-4 border-cicopal-red bg-white p-4 shadow-sm">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="bg-red-100 px-2 py-1 text-xs font-black uppercase text-cicopal-red">{nc.status ?? "Aberta"}</span>
+                                            <span className="text-xs font-bold text-gray-500">{nc.registrada_em ? new Date(nc.registrada_em).toLocaleString("pt-BR") : nc.horario}</span>
+                                          </div>
+                                          <h5 className="mt-3 font-black text-gray-950">{nc.item ?? nc.descricao}</h5>
+                                          <p className="mt-1 text-sm font-semibold text-gray-600">{nc.descricao}</p>
+                                          <dl className="mt-3 grid gap-2 border-t border-gray-100 pt-3 text-sm sm:grid-cols-2">
+                                            <div><dt className="text-xs font-bold uppercase text-gray-400">Quantidade</dt><dd className="font-bold">{nc.quantidade ?? "—"}</dd></div>
+                                            <div><dt className="text-xs font-bold uppercase text-gray-400">Contexto</dt><dd className="font-bold">{nc.origem ?? "Produção"}</dd></div>
+                                            <div><dt className="text-xs font-bold uppercase text-gray-400">Causa</dt><dd className="font-bold">{nc.causa ?? "Não informada"}</dd></div>
+                                            <div><dt className="text-xs font-bold uppercase text-gray-400">Ação tomada</dt><dd className="font-bold">{nc.acao_tomada ?? nc.acao ?? "Não informada"}</dd></div>
+                                          </dl>
+                                        </article>
+                                      ))}
+                                    </div>
+                                  </details>
+                                ) : null}
                                 <h4 className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-500">
                                   Especificações hora a hora
                                 </h4>

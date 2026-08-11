@@ -2413,15 +2413,13 @@ function NcDetailModal({ nc, onClose }) {
   if (!nc) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-      <section className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-md border-t-[5px] border-cicopal-red bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
-          <h2 className="text-2xl font-bold text-cicopal-red">
-            {nc.id} - {nc.item}
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/75 px-4 py-6 backdrop-blur-sm">
+      <section className="max-h-[90vh] w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b-4 border-cicopal-red bg-gray-950 px-5 py-5 text-white">
+          <div><p className="text-xs font-black uppercase tracking-[.16em] text-red-300">Detalhe da não conformidade</p><h2 className="mt-1 text-2xl font-black">{nc.item ?? nc.descricao}</h2><p className="mt-1 font-mono text-xs text-gray-400">{nc.id}</p></div>
           <button
             type="button"
-            className="inline-flex min-h-10 w-10 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
+            className="inline-flex min-h-11 w-11 items-center justify-center bg-white/10 text-white hover:bg-white/20"
             onClick={onClose}
             aria-label="Fechar"
           >
@@ -2429,30 +2427,31 @@ function NcDetailModal({ nc, onClose }) {
           </button>
         </div>
 
-        <div className="max-h-[calc(88vh-80px)] overflow-y-auto bg-gray-50 p-4">
-          <div className="grid gap-3 md:grid-cols-3">
+        <div className="max-h-[calc(90vh-104px)] overflow-y-auto bg-[#f5f6fa] p-5">
+          <div className="mb-4 flex flex-wrap gap-2"><span className="bg-red-100 px-3 py-2 text-xs font-black uppercase text-cicopal-red">{nc.status ?? "Aberta"}</span><span className="bg-blue-50 px-3 py-2 text-xs font-black text-cicopal-blue">{nc.linhaNome ?? nc.linhaId ?? "Linha"}</span><span className="bg-white px-3 py-2 text-xs font-black text-gray-600">{nc.dataLabel ?? nc.horario}</span></div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ["Produto", nc.produto],
-              ["Horario", nc.horario],
+              ["Data e horário", nc.horario],
               ["Quantidade", nc.quantidade],
               ["Registro", nc.registroId],
               ["Etapa", nc.etapa],
               ["Aberta por", nc.operador],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-md bg-white p-3 shadow-soft">
+              <div key={label} className="border border-gray-200 bg-white p-4 shadow-sm">
                 <p className="text-xs font-bold uppercase text-gray-500">
                   {label}
                 </p>
-                <p className="font-bold text-gray-950">{value}</p>
+                <p className="mt-1 font-black text-gray-950">{value ?? "—"}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
             {[
               ["Descricao", nc.descricao],
               ["Causa raiz", nc.causa],
-              ["Acao corretiva", nc.acao],
+              ["Ação tomada", nc.acao_tomada ?? nc.acao],
               ["Disposicao imediata", nc.disposicaoImediata],
               ["Disposicao final", nc.disposicaoFinal],
               [
@@ -2462,17 +2461,17 @@ function NcDetailModal({ nc, onClose }) {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-md border border-gray-200 bg-white p-3"
+                className="border border-gray-200 bg-white p-4"
               >
                 <p className="text-xs font-bold uppercase text-gray-500">
                   {label}
                 </p>
-                <p className="mt-1 font-semibold text-gray-800">{value}</p>
+                <p className="mt-2 font-semibold leading-relaxed text-gray-800">{value ?? "Não informado"}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-white p-5 text-center">
+          <div className="mt-4 border-2 border-dashed border-gray-300 bg-white p-5 text-center">
             <p className="font-bold text-gray-700">Fotos / anexos</p>
             <p className="text-sm font-semibold text-gray-500">
               {nc.fotoPath ?? "Nenhuma foto anexada"}
@@ -2779,6 +2778,14 @@ export function HierarchyNavigator({
           : currentStep === 5
             ? `${selected.subregistro?.nome ?? "Processo"} · ${selection.documentoId}`
             : `Registro atual · ${selected.registro?.produto ?? selection.documentoId}`;
+  const navigationLabel = {
+    1: "Linhas",
+    2: `Datas · ${selected.linha?.nome ?? "Linha"}`,
+    3: `RGs · ${selectedDateLabel || selected.linha?.nome || "Linha"}`,
+    4: `Fluxo · ${selection.documentoId || "RG"}`,
+    5: `Registros · ${selected.subregistro?.nome ?? "Processo"}`,
+    6: `Preenchimento · ${selected.subregistro?.nome ?? "Registro"}`,
+  }[currentStep];
 
   const canAdvance =
     (currentStep === 1 && Boolean(selected.linha)) ||
@@ -2987,6 +2994,25 @@ export function HierarchyNavigator({
     <section
       className={`audit-card p-4 ${currentStep === 6 && sequentialFlow ? "rg-tablet-app" : ""}`}
     >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-white p-3 shadow-sm">
+        <button
+          type="button"
+          onClick={goBack}
+          disabled={currentStep === 1 || (currentStep === 4 && sequentialFlow && rg003CycleStatus === "producing")}
+          className="inline-flex min-h-12 items-center gap-2 border border-gray-200 bg-gray-50 px-4 font-black text-gray-700 disabled:opacity-35"
+        >
+          <ArrowLeft size={19} /> Voltar
+        </button>
+        <div className="min-w-0 flex-1 text-center"><p className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Navegação atual</p><p className="truncate text-lg font-black text-gray-950">{navigationLabel}</p></div>
+        <button
+          type="button"
+          onClick={goForward}
+          disabled={currentStep === 6 || !canAdvance}
+          className="inline-flex min-h-12 items-center gap-2 bg-cicopal-blue px-4 font-black text-white disabled:bg-gray-300"
+        >
+          Avançar <ArrowRight size={19} />
+        </button>
+      </div>
       <div className="mb-4 grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1">
         <button
           type="button"
