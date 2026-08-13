@@ -81,8 +81,9 @@ create policy production_subprocess_record_crud on public.subprocesso_registros 
 
 create or replace function public.registrar_apontamento_subprocesso(p_subprocesso_id uuid, p_ciclo_id uuid, p_valores jsonb, p_operador_id uuid, p_tipo text)
 returns public.subprocesso_registros language plpgsql security invoker as $$
-declare instante timestamptz:=now(); ancora timestamptz; indice integer; inicio timestamptz; fim timestamptz; resultado public.subprocesso_registros;
+declare instante timestamptz:=now(); ancora timestamptz; indice integer; inicio timestamptz; fim timestamptz; resultado public.subprocesso_registros; operador_valido uuid;
 begin
+  select id into operador_valido from public.operadores where id=p_operador_id;
   perform 1 from public.producao_subprocessos where id=p_subprocesso_id and ciclo_id=p_ciclo_id for update;
   if not found then raise exception 'Subprocesso não pertence a esta produção.'; end if;
   if p_tipo='producao' then indice:=0; inicio:=null; fim:=null;
@@ -93,7 +94,7 @@ begin
     inicio:=ancora+make_interval(hours=>indice); fim:=inicio+interval '60 minutes';
   end if;
   insert into public.subprocesso_registros(subprocesso_id,ciclo_id,chave_slot,horario_referencia,tipo,janela_indice,janela_inicio,janela_fim,valores,operador_id,preenchido_em)
-  values(p_subprocesso_id,p_ciclo_id,p_tipo||':'||indice,coalesce(inicio,instante),p_tipo,indice,inicio,fim,p_valores,p_operador_id,instante)
+  values(p_subprocesso_id,p_ciclo_id,p_tipo||':'||indice,coalesce(inicio,instante),p_tipo,indice,inicio,fim,p_valores,operador_valido,instante)
   on conflict (subprocesso_id,tipo,janela_indice) do update set valores=excluded.valores,operador_id=excluded.operador_id,preenchido_em=excluded.preenchido_em,versao=public.subprocesso_registros.versao+1
   returning * into resultado;
   return resultado;
@@ -108,8 +109,9 @@ create or replace function public.alterar_estado_subprocesso(
   p_operador_id uuid
 ) returns public.producao_subprocessos
 language plpgsql security invoker as $$
-declare atual public.producao_subprocessos; resultado public.producao_subprocessos; instante timestamptz := now();
+declare atual public.producao_subprocessos; resultado public.producao_subprocessos; instante timestamptz := now(); operador_valido uuid;
 begin
+  select id into operador_valido from public.operadores where id=p_operador_id;
   select * into atual from public.producao_subprocessos where id = p_subprocesso_id;
   if atual.id is null then raise exception 'Subprocesso nao encontrado.'; end if;
   update public.producao_subprocessos set
@@ -117,14 +119,14 @@ begin
     iniciado_em = case when p_status = 'operando' then coalesce(iniciado_em, instante) else iniciado_em end,
     encerrado_em = case when p_status = 'finalizado' then instante else encerrado_em end,
     estado_iniciado_em = instante,
-    iniciado_por = case when iniciado_em is null and p_status = 'operando' then p_operador_id else iniciado_por end,
-    atualizado_por = p_operador_id, versao = versao + 1, updated_at = instante
+    iniciado_por = case when iniciado_em is null and p_status = 'operando' then operador_valido else iniciado_por end,
+    atualizado_por = operador_valido, versao = versao + 1, updated_at = instante
   where id = p_subprocesso_id and versao = p_versao_esperada returning * into resultado;
   if resultado.id is null then
     raise exception 'CONFLICT: subprocesso alterado por outro usuario. Atualize a tela.' using errcode = '40001';
   end if;
   insert into public.subprocesso_eventos(subprocesso_id,tipo,status_anterior,status_novo,motivo,ocorrido_em,operador_id)
-  values (resultado.id,'mudanca_estado',atual.status,p_status,p_motivo,instante,p_operador_id);
+  values (resultado.id,'mudanca_estado',atual.status,p_status,p_motivo,instante,operador_valido);
   return resultado;
 end; $$;
 
@@ -132,14 +134,15 @@ grant execute on function public.alterar_estado_subprocesso(uuid,integer,text,te
 
 create or replace function public.encerrar_subprocessos_ciclo(p_ciclo_id uuid, p_operador_id uuid)
 returns void language plpgsql security invoker as $$
-declare item record; instante timestamptz := now();
+declare item record; instante timestamptz := now(); operador_valido uuid;
 begin
+  select id into operador_valido from public.operadores where id=p_operador_id;
   for item in select * from public.producao_subprocessos where ciclo_id = p_ciclo_id and status <> 'finalizado'
   loop
     update public.producao_subprocessos set status='finalizado', encerrado_em=instante,
-      estado_iniciado_em=instante, atualizado_por=p_operador_id, versao=versao+1, updated_at=instante where id=item.id;
+      estado_iniciado_em=instante, atualizado_por=operador_valido, versao=versao+1, updated_at=instante where id=item.id;
     insert into public.subprocesso_eventos(subprocesso_id,tipo,status_anterior,status_novo,motivo,ocorrido_em,operador_id)
-    values(item.id,'encerramento_producao',item.status,'finalizado','Encerramento da produção principal',instante,p_operador_id);
+    values(item.id,'encerramento_producao',item.status,'finalizado','Encerramento da produção principal',instante,operador_valido);
   end loop;
 end; $$;
 grant execute on function public.encerrar_subprocessos_ciclo(uuid,uuid) to anon, authenticated;
