@@ -25,12 +25,15 @@ import {
   makeRg003ProductionCode,
   persistCycleNc,
   persistCycleTransition,
+  resolveCycleNc,
   startCyclePause,
   finishCyclePause,
   startRg003Cycle,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
+import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
+import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -1613,6 +1616,11 @@ function Rg003ProductionControl({
 
   async function stopProduction() {
     if (stopMode === "change") {
+      const ended = await transition("ended", "Produção encerrada para troca de produto", {
+        productionEndedAt: new Date().toISOString(), activeAction: null,
+      });
+      if (!ended) return;
+      await finishCycleSubprocesses(cycle.id, operatorId);
       await prepare("Troca de produto", nextProduct);
     } else if (stopMode === "cancel") {
       const saved = await transition(
@@ -1629,6 +1637,7 @@ function Rg003ProductionControl({
         activeAction: null,
       });
       if (!saved) return;
+      await finishCycleSubprocesses(cycle.id, operatorId);
       store(null);
       setProduct("");
     }
@@ -1641,7 +1650,7 @@ function Rg003ProductionControl({
     const stopsProduction = genericNc.acao === "Parar produção";
     try {
       setSyncState("saving");
-      await persistCycleNc({
+      const persistedNc = await persistCycleNc({
         cycle,
         operatorId,
         operatorName,
@@ -1655,6 +1664,7 @@ function Rg003ProductionControl({
           reason: genericNc.descricao,
           photoBefore: genericNc.fotoAntes,
         });
+        activePause = { ...activePause, ncId: persistedNc?.id ?? null };
       }
       await transition(
         stopsProduction ? "ended" : pausesProduction ? "blocked" : cycle.status,
@@ -1663,6 +1673,12 @@ function Rg003ProductionControl({
           activeAction:
             stopsProduction || pausesProduction ? null : cycle.activeAction,
           activePause,
+          ...(stopsProduction
+            ? {
+                productionEndedAt: new Date().toISOString(),
+                activePause: null,
+              }
+            : {}),
         },
       );
       setGenericNcOpen(false);
@@ -1681,6 +1697,14 @@ function Rg003ProductionControl({
           pauseId: cycle.activePause.id,
           operatorId,
           observation: resumeData.observacao,
+          photoAfter: resumeData.fotoDepois,
+        });
+      }
+      if (cycle.activePause?.ncId) {
+        await resolveCycleNc({
+          ncId: cycle.activePause.ncId,
+          operatorId,
+          resolution: resumeData.observacao,
           photoAfter: resumeData.fotoDepois,
         });
       }
@@ -1714,7 +1738,23 @@ function Rg003ProductionControl({
           ? "Pronto para iniciar"
           : cycle.status === "blocked"
             ? "Produção bloqueada"
-            : "Produção em andamento";
+            : cycle.status === "ended"
+              ? "Produção encerrada"
+              : "Produção em andamento";
+  const productionClockRunning =
+    ["producing", "blocked"].includes(cycle?.status) &&
+    Boolean(cycle?.productionStartedAt);
+  const clockStartedAt = cycle?.status === "hygiene"
+    ? cycle?.stageStartedAt
+    : cycle?.status === "awaiting_release"
+      ? cycle?.stageStartedAt
+      : productionClockRunning || cycle?.status === "ended"
+        ? cycle?.productionStartedAt
+        : null;
+  const clockNow =
+    cycle?.status === "ended" && (cycle?.productionEndedAt || cycle?.endedAt)
+      ? new Date(cycle.productionEndedAt ?? cycle.endedAt)
+      : now;
   const syncText =
     syncState === "online"
       ? cycle
@@ -1778,15 +1818,12 @@ function Rg003ProductionControl({
                 ? "Tempo de higienização"
                 : cycle?.status === "awaiting_release"
                   ? "Tempo de liberação"
-                  : "Tempo total de produção"}
+                  : cycle?.status === "ready"
+                    ? "Produção ainda não iniciada"
+                    : "Tempo total de produção"}
             </p>
             <p className="text-3xl font-bold tabular-nums text-gray-950">
-              {formatElapsed(
-                ["producing", "blocked"].includes(cycle?.status)
-                  ? cycle?.productionStartedAt
-                  : cycle?.stageStartedAt,
-                now,
-              )}
+              {formatElapsed(clockStartedAt, clockNow)}
             </p>
             {cycle?.status === "blocked" && cycle?.activePause ? <p className="mt-1 text-xs font-black uppercase text-cicopal-red">Pausada há {formatElapsed(cycle.activePause.iniciada_em, now)}</p> : null}
           </div>
@@ -2045,8 +2082,8 @@ function Rg003ProductionControl({
                       <option value="">Selecionar</option>
                       <option>Corrigir sem parar produção</option>
                       <option>Segregar produto</option>
-                      <option>Pausar produção</option>
-                      <option>Parar produção</option>
+                      {producing ? <option>Pausar produção</option> : null}
+                      {producing ? <option>Parar produção</option> : null}
                     </select>
                   </label>
                   <label className="sm:col-span-2">
@@ -2141,6 +2178,9 @@ function Rg003ProductionControl({
               ))}
             </div>
           </section>
+          {lineId === "ROS" ? (
+            <ProductionProcessFlow cycle={cycle} operatorId={operatorId} />
+          ) : null}
         </>
       )}
 

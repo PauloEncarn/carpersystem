@@ -102,7 +102,7 @@ function fillingDetails(filling) {
   ];
 }
 
-function summarize(cycle, fillings, genericNcs, events) {
+function summarize(cycle, fillings, genericNcs, events, hygieneRounds = [], subprocesses = []) {
   const cycleFillings = fillings.filter((item) => item.ciclo_id === cycle.id);
   const expectedHours = expectedHourCount(cycle);
   const expectedControls = expectedHours * hourlyTypes.size;
@@ -131,6 +131,7 @@ function summarize(cycle, fillings, genericNcs, events) {
     0,
   );
   const cycleEvents = events.filter((item) => item.ciclo_id === cycle.id);
+  const cycleHygieneRounds = hygieneRounds.filter((item) => item.ciclo_id === cycle.id);
   const operator = [...cycleEvents]
     .reverse()
     .find((item) => item.dados?.operador_nome)?.dados?.operador_nome;
@@ -140,7 +141,9 @@ function summarize(cycle, fillings, genericNcs, events) {
     fillings: cycleFillings,
     hygiene: cycleFillings.some(
       (item) => item.contexto_tipo === "higienizacao",
-    ),
+    ) || cycleHygieneRounds.some((item) => item.status === "aprovada"),
+    hygieneRounds: cycleHygieneRounds,
+    subprocesses: subprocesses.filter((item) => item.ciclo_id === cycle.id),
     release: cycleFillings.some(
       (item) => item.contexto_tipo === "produto_liberacao",
     ),
@@ -197,7 +200,7 @@ export function ProductionReports() {
         setData([]);
         return;
       }
-      const [fillingsResult, ncsResult, eventsResult] = await Promise.all([
+      const [fillingsResult, ncsResult, eventsResult, hygieneResult, subprocessResult] = await Promise.all([
         supabase
           .from("preenchimentos")
           .select(
@@ -212,10 +215,22 @@ export function ProductionReports() {
           .from("eventos_ciclo")
           .select("ciclo_id,tipo,descricao,ocorrido_em,operador_id,dados")
           .in("ciclo_id", ids),
+        supabase
+          .from("higienizacao_rodadas")
+          .select("*")
+          .in("ciclo_id", ids)
+          .order("numero"),
+        supabase
+          .from("producao_subprocessos")
+          .select("id,ciclo_id,nome,status,iniciado_em,encerrado_em,estado_iniciado_em")
+          .in("ciclo_id", ids)
+          .order("ordem"),
       ]);
       if (fillingsResult.error) throw fillingsResult.error;
       if (ncsResult.error) throw ncsResult.error;
       if (eventsResult.error) throw eventsResult.error;
+      if (hygieneResult.error && !["42P01", "PGRST205"].includes(hygieneResult.error.code)) throw hygieneResult.error;
+      if (subprocessResult.error && !["42P01", "PGRST205"].includes(subprocessResult.error.code)) throw subprocessResult.error;
       setData(
         repairTextDeep(
           (cycles ?? []).map((cycle) =>
@@ -224,6 +239,8 @@ export function ProductionReports() {
               fillingsResult.data ?? [],
               ncsResult.data ?? [],
               eventsResult.data ?? [],
+              hygieneResult.data ?? [],
+              subprocessResult.data ?? [],
             ),
           ),
         ),
@@ -688,6 +705,29 @@ export function ProductionReports() {
                                     text="Liberação confirmada"
                                   />
                                 </div>
+                                {cycle.hygieneRounds?.length ? (
+                                  <details className="mb-4 border border-blue-200 bg-blue-50">
+                                    <summary className="cursor-pointer p-4 font-black text-cicopal-blue">Histórico da higienização · {cycle.hygieneRounds.length} rodada(s)</summary>
+                                    <div className="grid gap-2 border-t border-blue-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                                      {cycle.hygieneRounds.map((round) => (
+                                        <article key={round.id} className="border-l-4 border-cicopal-blue bg-white p-3">
+                                          <strong>Rodada {round.numero}</strong>
+                                          <span className="mt-1 block text-xs font-black uppercase text-gray-500">{round.status.replaceAll("_", " ")}</span>
+                                          <p className="mt-2 text-xs font-semibold text-gray-600">Operação: {duration(round.execucao_iniciada_em, round.enviada_inspecao_em)}</p>
+                                          <p className="text-xs font-semibold text-gray-600">Espera/inspeção: {round.inspecao_encerrada_em ? duration(round.enviada_inspecao_em, round.inspecao_encerrada_em) : "em andamento"}</p>
+                                        </article>
+                                      ))}
+                                    </div>
+                                  </details>
+                                ) : null}
+                                {cycle.subprocesses?.length ? (
+                                  <details className="mb-4 border border-gray-200 bg-gray-50">
+                                    <summary className="cursor-pointer p-4 font-black text-gray-800">Processo produtivo · {cycle.subprocesses.length} subprocessos</summary>
+                                    <div className="grid gap-2 border-t border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                                      {cycle.subprocesses.map((process) => <article key={process.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{process.nome}</strong><span className="mt-1 block text-xs font-black uppercase text-gray-500">{process.status.replaceAll("_", " ")}</span><p className="mt-2 text-xs font-semibold text-gray-600">Tempo no estado: {duration(process.estado_iniciado_em, process.encerrado_em)}</p></article>)}
+                                    </div>
+                                  </details>
+                                ) : null}
                                 {cycle.ncs.length ? (
                                   <details className="mb-4 border border-red-200 bg-red-50">
                                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">

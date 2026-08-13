@@ -27,17 +27,17 @@ const lineLayout = [
   {
     id: "PUR",
     name: "Pururuca",
-    area: { left: "1%", top: "1%", width: "38%", height: "39%" },
+    area: { left: "17%", top: "7%", width: "69%", height: "26%" },
   },
   {
     id: "SAL",
     name: "Salgadinho",
-    area: { left: "25%", top: "10%", width: "70%", height: "48%" },
+    area: { left: "13%", top: "31%", width: "73%", height: "27%" },
   },
   {
     id: "ROS",
     name: "Rosca",
-    area: { left: "43%", top: "54%", width: "56%", height: "45%" },
+    area: { left: "16%", top: "57%", width: "70%", height: "27%" },
   },
 ];
 const rgByLine = {
@@ -134,6 +134,8 @@ async function loadLiveFactory() {
   const [
     { data: fillings, error: fillingError },
     { data: ncs, error: ncError },
+    { data: hygieneRounds, error: hygieneError },
+    { data: subprocesses, error: subprocessError },
   ] = await Promise.all([
     supabase
       .from("preenchimentos")
@@ -147,9 +149,21 @@ async function loadLiveFactory() {
       .in("ciclo_id", cycleIds)
       .gte("registrada_em", start)
       .order("registrada_em", { ascending: false }),
+    supabase
+      .from("higienizacao_rodadas")
+      .select("ciclo_id,numero,status,enviada_inspecao_em,inspecao_encerrada_em")
+      .in("ciclo_id", cycleIds)
+      .order("numero", { ascending: false }),
+    supabase
+      .from("producao_subprocessos")
+      .select("ciclo_id,nome,status,estado_iniciado_em")
+      .in("ciclo_id", cycleIds)
+      .order("ordem"),
   ]);
   if (fillingError) throw fillingError;
   if (ncError) throw ncError;
+  if (hygieneError && !["42P01", "PGRST205"].includes(hygieneError.code)) throw hygieneError;
+  if (subprocessError && !["42P01", "PGRST205"].includes(subprocessError.code)) throw subprocessError;
   const { data: specificationRows } = await supabase
     .from("configuracoes_produto")
     .select("linha_id,produto,parametros");
@@ -170,7 +184,9 @@ async function loadLiveFactory() {
           (item) =>
             item.linha_id === cycle.linha_id && item.produto === cycle.produto,
         )?.parametros ?? [];
-      return { ...cycle, records, ncs: cycleNcs, photos, specifications };
+      const hygieneRound = (hygieneRounds ?? []).find((item) => item.ciclo_id === cycle.id) ?? null;
+      const productionProcesses = (subprocesses ?? []).filter((item) => item.ciclo_id === cycle.id);
+      return { ...cycle, records, ncs: cycleNcs, photos, specifications, hygieneRound, productionProcesses };
     }),
   );
 }
@@ -287,7 +303,7 @@ export function FactorySupervision({ variant = "classic" }) {
         ) : (
         <div className="relative mx-auto w-full overflow-hidden rounded-2xl shadow-2xl">
           <img
-            src="/images/planta-classica-industrial.jpeg"
+            src="/images/fabrica-isometrica-cicopal.png"
             alt="Planta da fábrica Cicopal"
             className="block h-auto w-full"
           />
@@ -348,6 +364,12 @@ export function FactorySupervision({ variant = "classic" }) {
             <p className="mt-2 font-bold text-gray-600">
               {hovered.cycle?.produto ?? "Sem produção registrada hoje"}
             </p>
+            {hovered.cycle?.hygieneRound ? (
+              <div className="mt-3 border-l-4 border-cicopal-blue bg-blue-50 p-3 text-sm font-black text-cicopal-blue">
+                Higienização · rodada {hovered.cycle.hygieneRound.numero} · {hovered.cycle.hygieneRound.status.replaceAll("_", " ")}
+              </div>
+            ) : null}
+            {hovered.cycle?.productionProcesses?.length ? <div className="mt-3 grid grid-cols-2 gap-1">{hovered.cycle.productionProcesses.map((process) => <span key={process.nome} className={`px-2 py-1 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}>{process.nome} · {process.status.replaceAll("_", " ")}</span>)}</div> : null}
             {hovered.attentionParameters.length ? (
               <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 font-black text-amber-900">
                 {hovered.attentionParameters.length} parâmetro(s) em atenção

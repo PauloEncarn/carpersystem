@@ -5,6 +5,10 @@
 begin;
 
 truncate table
+  public.subprocesso_registros,
+  public.subprocesso_eventos,
+  public.producao_subprocessos,
+  public.higienizacao_rodadas,
   public.ciclo_pausas,
   public.ciclo_nao_conformidades,
   public.eventos_ciclo,
@@ -19,4 +23,3 @@ truncate table
 restart identity;
 
 commit;
-

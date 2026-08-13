@@ -19,10 +19,13 @@ import { ChecklistTable } from "@/components/ChecklistTable";
 import { getRgDocumentConfig } from "@/lib/rgDocumentConfigs";
 import {
   loadRg003Record,
+  loadHygieneRounds,
   loadOpenCycleNcs,
+  inspectHygieneRound,
   persistCycleTransition,
   persistChecklistCycleNcs,
   resolveCycleNc,
+  submitOperationalHygieneRound,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
@@ -1013,24 +1016,43 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
   );
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState({});
+  const [ncDetails, setNcDetails] = useState({});
+  const finishingRef = useRef(false);
   const item = items[index];
   if (!item) return null;
   const key = `${item.machine}|${item.column}`;
-  function finish() {
+  const currentNc = ncDetails[key] ?? {};
+  const currentComplete = Boolean(values[key]) &&
+    (!["N", "NC"].includes(values[key]) || Boolean(
+      currentNc.fotoAntes && currentNc.causa?.trim() && currentNc.acao?.trim(),
+    ));
+  async function finish() {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     const apontamentos = Object.entries(values).map(([itemKey, resultado]) => {
       const [maquina, parametro] = itemKey.split("|");
       return { horario: activeHour, maquina, item: parametro, resultado };
     });
     const ncs = apontamentos
       .filter((entry) => ["N", "NC"].includes(entry.resultado))
-      .map((entry, ncIndex) => ({
+      .map((entry, ncIndex) => {
+        const detail = ncDetails[`${entry.maquina}|${entry.item}`] ?? {};
+        return ({
         id: `MAQ-NC-${ncIndex + 1}`,
         item: `${entry.maquina} - ${entry.item}`,
         horario: activeHour,
         status: "Aberta",
         descricao: `${entry.item} marcado como N em ${entry.maquina}`,
-      }));
-    onSave?.({ apontamentos, ncs });
+        causa: detail.causa,
+        acao: detail.acao,
+        fotoAntes: detail.fotoAntes,
+      });
+      });
+    try {
+      await onSave?.({ apontamentos, ncs });
+    } finally {
+      finishingRef.current = false;
+    }
   }
   return (
     <section className="inspection-focus">
@@ -1060,10 +1082,23 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
             setValues((current) => ({ ...current, [key]: value }))
           }
           onConfirm={() => {
+            if (!currentComplete) return;
             if (index < items.length - 1) setIndex((current) => current + 1);
             else finish();
           }}
         />
+        {["N", "NC"].includes(values[key]) ? (
+          <div className="mt-4 border border-red-200 bg-red-50 p-4 text-left">
+            <p className="font-black text-cicopal-red">Detalhes obrigatórios da NC</p>
+            <textarea className="mt-3 min-h-20 w-full border border-red-200 bg-white p-3 font-semibold" placeholder="Causa encontrada" value={currentNc.causa ?? ""} onChange={(event) => setNcDetails((current) => ({ ...current, [key]: { ...current[key], causa: event.target.value } }))} />
+            <textarea className="mt-3 min-h-20 w-full border border-red-200 bg-white p-3 font-semibold" placeholder="Ação tomada" value={currentNc.acao ?? ""} onChange={(event) => setNcDetails((current) => ({ ...current, [key]: { ...current[key], acao: event.target.value } }))} />
+            <label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-red-300 bg-white px-3 font-black text-cicopal-red">
+              <Camera size={21} /> {currentNc.fotoAntes ? "Foto registrada" : "Registrar foto antes da ação"}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setNcDetails((current) => ({ ...current, [key]: { ...current[key], fotoAntes: reader.result } })); reader.readAsDataURL(file); }} />
+            </label>
+            {currentNc.fotoAntes ? <img src={currentNc.fotoAntes} alt="Evidência da NC" className="mt-3 max-h-48 w-full object-contain" /> : null}
+          </div>
+        ) : null}
         <footer>
           <button
             type="button"
@@ -1075,7 +1110,7 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
           {index === items.length - 1 ? (
             <button
               type="button"
-              disabled={!values[key]}
+              disabled={!currentComplete}
               className="primary"
               onClick={finish}
             >
@@ -1084,7 +1119,7 @@ function MachineEvaluationWizard({ title, machines, activeHour, onSave }) {
           ) : (
             <button
               type="button"
-              disabled={!values[key]}
+              disabled={!currentComplete}
               className="primary"
               onClick={() => setIndex((value) => value + 1)}
             >
@@ -1349,8 +1384,9 @@ function ProductEvaluationTabletFlow({
   registro,
   activeHour,
   onSave,
+  initialConfiguration,
 }) {
-  const storageKey = `rg003-product-machines-${registro?.id ?? "current"}`;
+  const storageKey = `rg003-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
   const [activeCount, setActiveCount] = useState("");
   const [machineGrams, setMachineGrams] = useState({});
   const [configured, setConfigured] = useState(false);
@@ -1362,15 +1398,16 @@ function ProductEvaluationTabletFlow({
       const saved = JSON.parse(
         window.localStorage.getItem(storageKey) ?? "null",
       );
-      if (saved?.quantidade) {
-        setActiveCount(String(saved.quantidade));
-        setMachineGrams(saved.gramaturas ?? {});
+      const configuration = saved?.quantidade ? saved : initialConfiguration;
+      if (configuration?.quantidade) {
+        setActiveCount(String(configuration.quantidade));
+        setMachineGrams(configuration.gramaturas ?? {});
         setConfigured(true);
       }
     } catch {
       /* inicia uma configuração limpa */
     }
-  }, [storageKey]);
+  }, [initialConfiguration, storageKey]);
   const activeMachines = machines.slice(0, Number(activeCount || 0));
   const allGramsDefined =
     activeMachines.length > 0 &&
@@ -1610,8 +1647,9 @@ function ProcessEvaluationTabletFlow({
   registro,
   activeHour,
   onSave,
+  initialConfiguration,
 }) {
-  const storageKey = `rg003-process-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
+  const storageKey = `rg003-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
   const [activeCount, setActiveCount] = useState("");
   const [machineGrams, setMachineGrams] = useState({});
   const [configured, setConfigured] = useState(false);
@@ -1622,15 +1660,16 @@ function ProcessEvaluationTabletFlow({
       const saved = JSON.parse(
         window.localStorage.getItem(storageKey) ?? "null",
       );
-      if (saved?.quantidade) {
-        setActiveCount(String(saved.quantidade));
-        setMachineGrams(saved.gramaturas ?? {});
+      const configuration = saved?.quantidade ? saved : initialConfiguration;
+      if (configuration?.quantidade) {
+        setActiveCount(String(configuration.quantidade));
+        setMachineGrams(configuration.gramaturas ?? {});
         setConfigured(true);
       }
     } catch {
       /* configuração será solicitada novamente */
     }
-  }, [storageKey]);
+  }, [initialConfiguration, storageKey]);
   const activeMachines = machines.slice(0, Number(activeCount || 0));
   const currentMachine = activeMachines.find(
     (machine) => machine.label === selectedMachine,
@@ -3158,8 +3197,7 @@ function buildAllowedCycleHours(cycle) {
       String(item.label ?? "")
         .toLowerCase()
         .includes("produção iniciada"),
-    )?.at ??
-    cycle?.startedAt;
+    )?.at;
   if (!productionStart) return fallback;
   const start = new Date(productionStart);
   if (!Number.isFinite(start.getTime())) return fallback;
@@ -3247,6 +3285,8 @@ export function Rg005SubregistroForm({
   const [confirmation, setConfirmation] = useState(null);
   const [productSpecifications, setProductSpecifications] = useState([]);
   const [openPrerequisiteNcs, setOpenPrerequisiteNcs] = useState([]);
+  const [hygieneRounds, setHygieneRounds] = useState([]);
+  const [hygieneLoading, setHygieneLoading] = useState(false);
   const confirmationResolver = useRef(null);
   const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
     documentName,
@@ -3344,6 +3384,19 @@ export function Rg005SubregistroForm({
       .catch(() => setOpenPrerequisiteNcs([]));
   }, [cycleContext?.id, isRg003, subregistro?.id]);
   useEffect(() => {
+    let active = true;
+    if (!isRg003 || subregistro?.id !== "higienizacao" || !cycleContext?.id) {
+      setHygieneRounds([]);
+      return;
+    }
+    setHygieneLoading(true);
+    loadHygieneRounds(cycleContext.id)
+      .then((rows) => { if (active) setHygieneRounds(rows); })
+      .catch(() => { if (active) setHygieneRounds([]); })
+      .finally(() => { if (active) setHygieneLoading(false); });
+    return () => { active = false; };
+  }, [cycleContext?.id, isRg003, subregistro?.id]);
+  useEffect(() => {
     setEditMode(false);
   }, [activeHour, subregistro?.id]);
   const allowedHours = useMemo(
@@ -3409,7 +3462,11 @@ export function Rg005SubregistroForm({
   const recentPhotos = [...persistedFillings]
     .reverse()
     .flatMap((item) => item.subregistro?.fotografias ?? []);
-  if (isRg003 && !isHourlyRg003 && persistedRecord && !editMode)
+  const latestMachineConfiguration = [...persistedFillings]
+    .reverse()
+    .find((item) => item.subregistro?.configuracaoMaquinas)
+    ?.subregistro?.configuracaoMaquinas;
+  if (isRg003 && !isHourlyRg003 && subregistro.id !== "higienizacao" && persistedRecord && !editMode)
     return (
       <PersistedRg003Summary
         data={persistedRecord}
@@ -3418,6 +3475,7 @@ export function Rg005SubregistroForm({
     );
   const effectiveRegistro = {
     ...registro,
+    cicloId: cycleContext?.id ?? registro?.cicloId,
     operador: loggedUser?.nome ?? registro?.operador ?? "",
     operadorId: loggedUser?.id ?? registro?.operadorId,
     turno: loggedUser?.turno ?? registro?.turno ?? "",
@@ -3426,6 +3484,89 @@ export function Rg005SubregistroForm({
         ? registro.dataRegistro
         : registroDataHora,
   };
+  const canInspectHygiene = Boolean(
+    loggedUser?.permissoes?.includes("registro:validar") ||
+    ["qualidade", "tecnico", "admin"].includes(loggedUser?.perfil?.codigo),
+  );
+  const latestHygieneRound = hygieneRounds.at(-1) ?? null;
+
+  async function refreshHygieneWorkflow() {
+    if (!cycleContext?.id) return;
+    const [rounds, openNcs] = await Promise.all([
+      loadHygieneRounds(cycleContext.id),
+      loadOpenCycleNcs(cycleContext.id, "higienizacao"),
+    ]);
+    setHygieneRounds(rounds);
+    setOpenPrerequisiteNcs(openNcs);
+  }
+
+  async function saveOperationalHygiene(payload) {
+    if (!(await requestConfirmation({
+      title: "Enviar higienização para inspeção?",
+      description: "O checklist da Operação será encerrado e ficará aguardando a verificação independente da Qualidade.",
+      confirmLabel: "Enviar para Qualidade",
+    }))) return false;
+    const result = await onSave?.({
+      registro: { ...effectiveRegistro, status: "Gravado" },
+      subregistro: { ...subregistro, ...payload, status: "Aguardando qualidade" },
+    });
+    if (result === false) return false;
+    await submitOperationalHygieneRound({
+      cycle: cycleContext,
+      operatorId: effectiveRegistro.operadorId,
+      payload,
+      previousRoundId: latestHygieneRound?.id ?? null,
+    });
+    await refreshHygieneWorkflow();
+    return true;
+  }
+
+  async function saveQualityInspection(payload) {
+    if (!(await requestConfirmation({
+      title: (payload.ncs ?? []).length ? "Confirmar reprovação da higienização?" : "Aprovar higienização?",
+      description: (payload.ncs ?? []).length
+        ? "A rodada será devolvida para correção e a próxima etapa continuará bloqueada."
+        : "A Higienização será liberada e a etapa de Liberação do Produto ficará disponível.",
+      confirmLabel: (payload.ncs ?? []).length ? "Devolver para correção" : "Aprovar higienização",
+    }))) return false;
+    const inspected = await inspectHygieneRound({
+      round: latestHygieneRound,
+      operatorId: effectiveRegistro.operadorId,
+      payload,
+    });
+    if ((payload.ncs ?? []).length) {
+      await persistChecklistCycleNcs({
+        cycle: cycleContext,
+        operatorId: effectiveRegistro.operadorId,
+        operatorName: effectiveRegistro.operador,
+        processType: "higienizacao",
+        ncs: payload.ncs.map((nc) => ({ ...nc, rodadaId: inspected?.id, rodada: inspected?.numero })),
+      });
+      await refreshHygieneWorkflow();
+      return true;
+    }
+    const nextCycle = {
+      ...cycleContext,
+      status: "awaiting_release",
+      stageStartedAt: new Date().toISOString(),
+      timings: {
+        ...(cycleContext.timings ?? {}),
+        hygieneMs: Math.max(0, Date.now() - new Date(cycleContext.stageStartedAt ?? cycleContext.startedAt).getTime()),
+      },
+    };
+    window.localStorage.setItem(cycleStorageKey, JSON.stringify(nextCycle));
+    window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+    await persistCycleTransition({
+      cycle: nextCycle,
+      status: "awaiting_release",
+      description: `Higienização aprovada pela Qualidade na rodada ${inspected?.numero ?? latestHygieneRound?.numero}`,
+      operatorId: effectiveRegistro.operadorId,
+      operatorName: effectiveRegistro.operador,
+      activeAction: null,
+    });
+    await refreshHygieneWorkflow();
+    return true;
+  }
 
   async function saveProcesso(payload = {}) {
     if (
@@ -3472,6 +3613,19 @@ export function Rg005SubregistroForm({
       },
     });
     if (saveResult === false) return false;
+    if (
+      isHourlyRg003 &&
+      cycleContext?.id &&
+      (payload.ncs ?? []).length
+    ) {
+      await persistChecklistCycleNcs({
+        cycle: cycleContext,
+        operatorId: effectiveRegistro.operadorId,
+        operatorName: effectiveRegistro.operador,
+        processType: subregistro.id,
+        ncs: payload.ncs,
+      });
+    }
     if (
       isRg003 &&
       ["higienizacao", "produto_liberacao"].includes(subregistro.id) &&
@@ -3654,6 +3808,16 @@ export function Rg005SubregistroForm({
   }
 
   if (subregistro.id === "higienizacao") {
+    const waitingQuality = latestHygieneRound?.status === "aguardando_qualidade";
+    const correcting = latestHygieneRound?.status === "em_correcao";
+    const approved = latestHygieneRound?.status === "aprovada";
+    const workflowMessage = waitingQuality
+      ? "A execução foi concluída e está aguardando a inspeção da Qualidade."
+      : correcting
+        ? "A Qualidade encontrou itens não conformes. Corrija as NCs e envie para reinspeção."
+        : approved
+          ? "Higienização aprovada pela Qualidade."
+          : "A Operação deve executar e registrar a higienização antes da inspeção.";
     return (
       <>
         {isRg003 ? (
@@ -3661,32 +3825,62 @@ export function Rg005SubregistroForm({
         ) : (
           <HigienizacaoContexto registro={effectiveRegistro} />
         )}
-        {openPrerequisiteNcs.length ? (
+        {isRg003 ? (
+          <section className="mb-4 border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Higienização em duas etapas</p><h2 className="mt-1 text-xl font-black text-gray-950">{latestHygieneRound ? `Rodada ${latestHygieneRound.numero}` : "Execução inicial"}</h2><p className="mt-1 font-semibold text-gray-600">{workflowMessage}</p></div>
+              <span className={`px-3 py-2 text-xs font-black uppercase ${approved ? "bg-green-100 text-cicopal-green" : correcting ? "bg-red-100 text-cicopal-red" : waitingQuality ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-cicopal-blue"}`}>{approved ? "Aprovada" : correcting ? "Em correção" : waitingQuality ? "Aguardando Qualidade" : "Operação"}</span>
+            </div>
+            {hygieneRounds.length ? <div className="mt-4 flex gap-2 overflow-x-auto border-t border-gray-100 pt-3">{hygieneRounds.map((round) => <span key={round.id} className={`min-w-max border-l-4 px-3 py-2 text-xs font-bold ${round.status === "aprovada" ? "border-l-cicopal-green bg-green-50" : round.status === "em_correcao" ? "border-l-cicopal-red bg-red-50" : "border-l-amber-500 bg-amber-50"}`}>Rodada {round.numero} · {round.status.replaceAll("_", " ")}</span>)}</div> : null}
+          </section>
+        ) : null}
+        {hygieneLoading ? <div className="min-h-40 animate-pulse bg-gray-100" /> : correcting && openPrerequisiteNcs.length && !canInspectHygiene ? (
           <NcResolutionGate
             title="Higienização não liberada"
             ncs={openPrerequisiteNcs}
             operatorId={effectiveRegistro.operadorId}
             onChange={setOpenPrerequisiteNcs}
-            onAllResolved={finishPrerequisiteAfterResolution}
+            onAllResolved={async () => {
+              await submitOperationalHygieneRound({
+                cycle: cycleContext,
+                operatorId: effectiveRegistro.operadorId,
+                payload: { tipo: "correcao", rodadaCorrigida: latestHygieneRound.numero, corrigidaEm: new Date().toISOString() },
+                previousRoundId: latestHygieneRound.id,
+              });
+              await refreshHygieneWorkflow();
+            }}
           />
-        ) : <ChecklistTable
-          key={`${cycleContext?.id ?? "sem-ciclo"}-higienizacao`}
+        ) : correcting && canInspectHygiene ? (
+          <section className="border-l-8 border-cicopal-red bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Aguardando correção pela Operação</h3><p className="mt-2 font-semibold text-gray-600">Após todas as NCs serem tratadas com ação e foto posterior, uma nova rodada aparecerá para reinspeção.</p></section>
+        ) : waitingQuality && canInspectHygiene ? <ChecklistTable
+          key={`${latestHygieneRound.id}-qualidade`}
+          documentName={`${documentName} - Inspeção da qualidade`}
+          loteId={loteId}
+          registro={effectiveRegistro}
+          subregistro={{ ...subregistro, avaliacoes: [] }}
+          groups={config.checklistGroups}
+          onSave={saveQualityInspection}
+          stepByStep
+          flowTitle={`Inspeção da Qualidade · Rodada ${latestHygieneRound.numero}`}
+          successTitle="Inspeção da Qualidade registrada"
+          confirmationLabel="Confirmar inspeção"
+        /> : waitingQuality ? (
+          <section className="border-l-8 border-amber-500 bg-white p-6 text-center shadow-sm"><Clock size={42} className="mx-auto text-amber-600" /><h3 className="mt-3 text-xl font-black">Aguardando a Qualidade</h3><p className="mt-2 font-semibold text-gray-600">Seu checklist foi preservado. A próxima etapa será liberada somente após a aprovação.</p></section>
+        ) : approved ? (
+          <section className="border-l-8 border-cicopal-green bg-white p-6 text-center shadow-sm"><CheckCircle2 size={46} className="mx-auto text-cicopal-green" /><h3 className="mt-3 text-2xl font-black">Higienização liberada</h3><p className="mt-2 font-semibold text-gray-600">Aprovada pela Qualidade na rodada {latestHygieneRound.numero}.</p></section>
+        ) : !canInspectHygiene ? <ChecklistTable
+          key={`${cycleContext?.id ?? "sem-ciclo"}-higienizacao-operacao`}
           documentName={`${documentName} - Higienizacao`}
           loteId={loteId}
           registro={effectiveRegistro}
           subregistro={subregistro}
           groups={config.checklistGroups}
-          onSave={saveProcesso}
-          onNextStep={() =>
-            window.dispatchEvent(
-              new CustomEvent("rg003-advance-process", {
-                detail: { processId: "produto_liberacao" },
-              }),
-            )
-          }
-          nextStepLabel="Ir para liberação do produto"
+          onSave={saveOperationalHygiene}
           stepByStep={isRg003}
-        />}
+          flowTitle="Execução da higienização · Operação"
+          successTitle="Higienização enviada para a Qualidade"
+          confirmationLabel="Enviar para inspeção"
+        /> : <section className="border-l-8 border-cicopal-blue bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Aguardando execução pela Operação</h3><p className="mt-2 font-semibold text-gray-600">A inspeção ficará disponível quando o operador concluir o primeiro checklist.</p></section>}
         {!isRg003 || savedAt ? (
           <AssinaturasRegistro registro={effectiveRegistro} />
         ) : null}
@@ -3800,6 +3994,7 @@ export function Rg005SubregistroForm({
               registro={effectiveRegistro}
               activeHour={activeHourLabel}
               onSave={saveProcesso}
+              initialConfiguration={latestMachineConfiguration}
             />
           </div>
         ) : (
@@ -3854,6 +4049,7 @@ export function Rg005SubregistroForm({
             registro={effectiveRegistro}
             activeHour={activeHourLabel}
             onSave={saveProcesso}
+            initialConfiguration={latestMachineConfiguration}
           />
         ) : (
           <MachineHourlySections

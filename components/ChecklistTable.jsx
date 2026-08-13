@@ -251,6 +251,9 @@ export function ChecklistTable({
   onNextStep,
   nextStepLabel = "Ir para a próxima etapa",
   stepByStep = false,
+  flowTitle = "Higienização · RG 003",
+  successTitle = "Higienização gravada com sucesso",
+  confirmationLabel = "Confirmar registro",
 }) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
   const [savedAt, setSavedAt] = useState("");
@@ -299,7 +302,19 @@ export function ChecklistTable({
     );
   }
 
+  function isRowComplete(row) {
+    if (!row?.av1) return false;
+    if (!["N", "NC"].includes(row.av1)) return true;
+    return Boolean(
+      row.nc?.fotoAntes &&
+        row.nc?.causa?.trim() &&
+        row.nc?.acao?.trim() &&
+        row.nc?.disposicaoImediata,
+    );
+  }
+
   async function saveChecklist() {
+    if (rows.some((row) => !isRowComplete(row))) return;
     const avaliacoes = rows
       .filter((row) => row.av1 || row.av2)
       .map((row) => ({
@@ -354,7 +369,7 @@ export function ChecklistTable({
             Registro confirmado
           </p>
           <h2 className="mt-1 text-2xl font-bold text-gray-950">
-            Higienização gravada com sucesso
+            {successTitle}
           </h2>
           <p className="mt-2 font-semibold text-gray-500">
             Confirmada às {savedAt}. Para alterar as respostas, abra novamente o
@@ -391,7 +406,6 @@ export function ChecklistTable({
       choiceTapRef.current = { value, at: now };
       if (isSecondTap && ["C", "NA"].includes(value)) {
         if (activeIndex < rows.length - 1) setActiveIndex((index) => index + 1);
-        else saveChecklist();
       }
     }
     return (
@@ -403,7 +417,7 @@ export function ChecklistTable({
                 {row?.group}
               </p>
               <h2 className="mt-1 text-xl font-bold text-gray-950">
-                Higienização · RG 003
+                {flowTitle}
               </h2>
             </div>
             <span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold text-gray-600">
@@ -533,17 +547,17 @@ export function ChecklistTable({
           {activeIndex === rows.length - 1 ? (
             <button
               type="button"
-              disabled={!row?.av1}
+              disabled={!isRowComplete(row)}
               className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300"
               onClick={saveChecklist}
             >
               <CheckCircle2 size={22} />
-              Confirmar registro
+              {confirmationLabel}
             </button>
           ) : (
             <button
               type="button"
-              disabled={!row?.av1}
+              disabled={!isRowComplete(row)}
               className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300"
               onClick={() =>
                 setActiveIndex((index) => Math.min(rows.length - 1, index + 1))
