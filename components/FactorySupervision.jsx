@@ -97,6 +97,14 @@ function time(value) {
 function statusLabel(status) {
   return statusVisual(status).label;
 }
+function processLiveValue(process) {
+  const values = process?.latestRecord?.valores ?? {};
+  if (process?.codigo === "corte_fio") return `${Number(values.cortes_minuto || 0).toLocaleString("pt-BR")} cortes/min · ${(Number(values.kg_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg/min`;
+  if (process?.codigo === "empacotamento") return `${(Number(values.pacotes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pacotes/min`;
+  if (process?.codigo === "encaixotamento") return `${(Number(values.total_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} caixas/min`;
+  if (process?.codigo === "forno") return `Umidade ${values.umidade ?? "—"}% · ${values.zona_1_real ?? "—"}°C na Z1`;
+  return Object.values(values)[0] ? `Lote ${Object.values(values)[0]}` : "Sem apontamento";
+}
 function isOpenNc(nc) {
   return !["fechada", "fechado", "resolvida", "resolvido", "concluida", "concluído"].includes(
     String(nc?.status ?? "aberta").toLocaleLowerCase("pt-BR"),
@@ -136,6 +144,7 @@ async function loadLiveFactory() {
     { data: ncs, error: ncError },
     { data: hygieneRounds, error: hygieneError },
     { data: subprocesses, error: subprocessError },
+    { data: subprocessRecords, error: subprocessRecordError },
   ] = await Promise.all([
     supabase
       .from("preenchimentos")
@@ -156,14 +165,20 @@ async function loadLiveFactory() {
       .order("numero", { ascending: false }),
     supabase
       .from("producao_subprocessos")
-      .select("ciclo_id,nome,status,estado_iniciado_em")
+      .select("id,ciclo_id,codigo,nome,status,estado_iniciado_em")
       .in("ciclo_id", cycleIds)
       .order("ordem"),
+    supabase
+      .from("subprocesso_registros")
+      .select("subprocesso_id,ciclo_id,horario_referencia,janela_inicio,janela_fim,valores,preenchido_em")
+      .in("ciclo_id", cycleIds)
+      .order("horario_referencia", { ascending: false }),
   ]);
   if (fillingError) throw fillingError;
   if (ncError) throw ncError;
   if (hygieneError && !["42P01", "PGRST205"].includes(hygieneError.code)) throw hygieneError;
   if (subprocessError && !["42P01", "PGRST205"].includes(subprocessError.code)) throw subprocessError;
+  if (subprocessRecordError && !["42P01", "42703", "PGRST205"].includes(subprocessRecordError.code)) throw subprocessRecordError;
   const { data: specificationRows } = await supabase
     .from("configuracoes_produto")
     .select("linha_id,produto,parametros");
@@ -185,7 +200,7 @@ async function loadLiveFactory() {
             item.linha_id === cycle.linha_id && item.produto === cycle.produto,
         )?.parametros ?? [];
       const hygieneRound = (hygieneRounds ?? []).find((item) => item.ciclo_id === cycle.id) ?? null;
-      const productionProcesses = (subprocesses ?? []).filter((item) => item.ciclo_id === cycle.id);
+      const productionProcesses = (subprocesses ?? []).filter((item) => item.ciclo_id === cycle.id).map((process) => ({ ...process, latestRecord: (subprocessRecords ?? []).find((record) => record.subprocesso_id === process.id) ?? null }));
       return { ...cycle, records, ncs: cycleNcs, photos, specifications, hygieneRound, productionProcesses };
     }),
   );
@@ -369,7 +384,7 @@ export function FactorySupervision({ variant = "classic" }) {
                 Higienização · rodada {hovered.cycle.hygieneRound.numero} · {hovered.cycle.hygieneRound.status.replaceAll("_", " ")}
               </div>
             ) : null}
-            {hovered.cycle?.productionProcesses?.length ? <div className="mt-3 grid grid-cols-2 gap-1">{hovered.cycle.productionProcesses.map((process) => <span key={process.nome} className={`px-2 py-1 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}>{process.nome} · {process.status.replaceAll("_", " ")}</span>)}</div> : null}
+            {hovered.cycle?.productionProcesses?.length ? <div className="mt-3 grid grid-cols-2 gap-1">{hovered.cycle.productionProcesses.map((process) => <span key={process.nome} className={`px-2 py-2 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}><b className="block">{process.nome} · {process.status.replaceAll("_", " ")}</b><small className="mt-1 block normal-case">{processLiveValue(process)}</small></span>)}</div> : null}
             {hovered.attentionParameters.length ? (
               <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 font-black text-amber-900">
                 {hovered.attentionParameters.length} parâmetro(s) em atenção

@@ -38,12 +38,31 @@ create table if not exists public.subprocesso_registros (
   ciclo_id uuid not null references public.ciclos_producao(id) on delete restrict,
   chave_slot text not null,
   horario_referencia timestamptz not null,
+  tipo text not null default 'horario' check (tipo in ('producao','horario')),
+  janela_indice integer not null default 0,
+  janela_inicio timestamptz,
+  janela_fim timestamptz,
   valores jsonb not null default '{}'::jsonb,
   operador_id uuid references public.operadores(id) on delete set null,
   preenchido_em timestamptz not null default now(),
   versao integer not null default 1,
   unique (subprocesso_id, chave_slot)
 );
+
+alter table public.subprocesso_registros add column if not exists tipo text not null default 'horario';
+alter table public.subprocesso_registros add column if not exists janela_indice integer not null default 0;
+alter table public.subprocesso_registros add column if not exists janela_inicio timestamptz;
+alter table public.subprocesso_registros add column if not exists janela_fim timestamptz;
+with ordenados as (
+  select id, row_number() over (partition by subprocesso_id order by horario_referencia, id) - 1 as novo_indice
+  from public.subprocesso_registros
+)
+update public.subprocesso_registros registro set
+  janela_indice=ordenados.novo_indice,
+  janela_inicio=coalesce(registro.janela_inicio,registro.horario_referencia),
+  janela_fim=coalesce(registro.janela_fim,registro.horario_referencia+interval '60 minutes')
+from ordenados where registro.id=ordenados.id and registro.tipo='horario';
+create unique index if not exists subprocesso_registros_janela_uidx on public.subprocesso_registros(subprocesso_id, tipo, janela_indice);
 
 create index if not exists producao_subprocessos_ciclo_idx on public.producao_subprocessos(ciclo_id, ordem);
 create index if not exists subprocesso_eventos_processo_idx on public.subprocesso_eventos(subprocesso_id, ocorrido_em desc);
@@ -59,6 +78,27 @@ drop policy if exists production_subprocess_event_crud on public.subprocesso_eve
 create policy production_subprocess_event_crud on public.subprocesso_eventos for all to anon, authenticated using (true) with check (true);
 drop policy if exists production_subprocess_record_crud on public.subprocesso_registros;
 create policy production_subprocess_record_crud on public.subprocesso_registros for all to anon, authenticated using (true) with check (true);
+
+create or replace function public.registrar_apontamento_subprocesso(p_subprocesso_id uuid, p_ciclo_id uuid, p_valores jsonb, p_operador_id uuid, p_tipo text)
+returns public.subprocesso_registros language plpgsql security invoker as $$
+declare instante timestamptz:=now(); ancora timestamptz; indice integer; inicio timestamptz; fim timestamptz; resultado public.subprocesso_registros;
+begin
+  perform 1 from public.producao_subprocessos where id=p_subprocesso_id and ciclo_id=p_ciclo_id for update;
+  if not found then raise exception 'Subprocesso não pertence a esta produção.'; end if;
+  if p_tipo='producao' then indice:=0; inicio:=null; fim:=null;
+  else
+    select min(janela_inicio) into ancora from public.subprocesso_registros where subprocesso_id=p_subprocesso_id and tipo='horario';
+    ancora:=coalesce(ancora,instante);
+    indice:=greatest(0,floor(extract(epoch from (instante-ancora))/3600)::integer);
+    inicio:=ancora+make_interval(hours=>indice); fim:=inicio+interval '60 minutes';
+  end if;
+  insert into public.subprocesso_registros(subprocesso_id,ciclo_id,chave_slot,horario_referencia,tipo,janela_indice,janela_inicio,janela_fim,valores,operador_id,preenchido_em)
+  values(p_subprocesso_id,p_ciclo_id,p_tipo||':'||indice,coalesce(inicio,instante),p_tipo,indice,inicio,fim,p_valores,p_operador_id,instante)
+  on conflict (subprocesso_id,tipo,janela_indice) do update set valores=excluded.valores,operador_id=excluded.operador_id,preenchido_em=excluded.preenchido_em,versao=public.subprocesso_registros.versao+1
+  returning * into resultado;
+  return resultado;
+end; $$;
+grant execute on function public.registrar_apontamento_subprocesso(uuid,uuid,jsonb,uuid,text) to anon, authenticated;
 
 create or replace function public.alterar_estado_subprocesso(
   p_subprocesso_id uuid,
