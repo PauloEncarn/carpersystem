@@ -1433,6 +1433,7 @@ function Rg003ProductionControl({
   operatorId,
   operatorName,
   onOpenProcess,
+  operatorOnly = false,
 }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const [cycle, setCycle] = useState(null);
@@ -1770,6 +1771,10 @@ function Rg003ProductionControl({
   const selectedDayReference = dateId
     ? new Date(`${dateId}T12:00:00-03:00`)
     : new Date();
+
+  if (operatorOnly && cycle) {
+    return <div className="mx-auto max-w-3xl space-y-4"><section className="border-t-4 border-cicopal-blue bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-cicopal-blue">{documentCode} · higienização operacional</p><h2 className="mt-1 text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-500">{cycle.productionCode}</p><div className="mt-5 border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-gray-500">Etapa disponível para o operador</p><button type="button" onClick={() => onOpenProcess("higienizacao")} className={`mt-3 min-h-24 w-full border-2 p-4 text-left ${hygieneDone ? "border-green-400 bg-green-50 text-green-800" : "border-cicopal-blue bg-white text-cicopal-blue"}`}><b className="block text-xl">{hygieneDone ? "Higienização enviada" : "Realizar higienização"}</b><span className="mt-1 block font-semibold">{hygieneDone ? "Toque para visualizar o registro realizado." : "Preencha a execução e envie para inspeção da Qualidade."}</span></button></div><p className="mt-4 text-sm font-semibold text-gray-500">As etapas de inspeção, liberação e avaliação são visualizadas pelo perfil da Qualidade.</p></section></div>;
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -2719,6 +2724,23 @@ function CentralNc({ ncs, onDetail, contextLabel = "Todas as linhas", loading = 
   );
 }
 
+function ProductionOperationsRg({ operatorId }) {
+  const [cycle, setCycle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    const load = () => loadActiveRg003Cycle("ROS").then((result) => { if (!active) return; const remoteCycle = result.cycle ?? JSON.parse(window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null"); setCycle(remoteCycle); setError(""); setLoading(false); }).catch(() => { if (active) { setError("Não foi possível localizar a produção ativa de Rosca."); setLoading(false); } });
+    load();
+    const sync = () => load();
+    window.addEventListener("rg003-cycle-updated", sync);
+    return () => { active = false; window.removeEventListener("rg003-cycle-updated", sync); };
+  }, []);
+  if (loading) return <div className="min-h-64 animate-pulse bg-gray-100" />;
+  if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}</section>;
+  return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">RG.PROD.ROS.001 · produção vinculada</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} /></div>;
+}
+
 export function HierarchyNavigator({
   tree,
   selection,
@@ -2730,6 +2752,7 @@ export function HierarchyNavigator({
   hideDates = false,
   operatorName = "",
   operatorId = "",
+  profileCode = "",
 }) {
   const sequentialFlow = isSequentialDocument(
     selection.linhaId,
@@ -3296,7 +3319,9 @@ export function HierarchyNavigator({
                 <StageHeader
                   title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
                 />
-                {sequentialFlow ? (
+                {selection.documentoId === "RG.PROD.ROS.001" ? (
+                  <ProductionOperationsRg operatorId={operatorId} />
+                ) : sequentialFlow ? (
                   <Rg003ProductionControl
                     lineId={selection.linhaId}
                     documentCode={selection.documentoId}
@@ -3304,6 +3329,7 @@ export function HierarchyNavigator({
                     operatorId={operatorId}
                     operatorName={operatorName}
                     onOpenProcess={abrirRegistroTecnico}
+                    operatorOnly={profileCode === "tecnico" || profileCode === "operador"}
                   />
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

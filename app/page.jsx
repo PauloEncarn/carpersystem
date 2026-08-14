@@ -358,6 +358,7 @@ export default function HomePage() {
           hideDates={isTechnicalProfile}
           operatorName={loggedUser.nome}
           operatorId={loggedUser.id}
+          profileCode={loggedUser?.perfil?.codigo ?? ""}
         >
           {selected.registro ? (
             <Rg005SubregistroForm
