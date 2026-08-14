@@ -102,6 +102,9 @@ begin
     ancora:=coalesce(ancora,instante);
     indice:=greatest(0,floor(extract(epoch from (instante-ancora))/3600)::integer);
     inicio:=ancora+make_interval(hours=>indice); fim:=inicio+interval '60 minutes';
+    if exists(select 1 from public.subprocesso_registros where subprocesso_id=p_subprocesso_id and tipo='horario' and janela_indice=indice) then
+      raise exception 'Este apontamento horário já foi confirmado e não pode ser alterado.' using errcode='23505';
+    end if;
   end if;
   insert into public.subprocesso_registros(subprocesso_id,ciclo_id,chave_slot,horario_referencia,tipo,janela_indice,janela_inicio,janela_fim,valores,operador_id,preenchido_em)
   values(p_subprocesso_id,p_ciclo_id,p_tipo||':'||indice,coalesce(inicio,instante),p_tipo,indice,inicio,fim,p_valores,operador_valido,instante)

@@ -3329,7 +3329,7 @@ export function HierarchyNavigator({
                     operatorId={operatorId}
                     operatorName={operatorName}
                     onOpenProcess={abrirRegistroTecnico}
-                    operatorOnly={profileCode === "tecnico" || profileCode === "operador"}
+                    operatorOnly={profileCode === "operador"}
                   />
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

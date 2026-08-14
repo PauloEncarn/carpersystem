@@ -65,14 +65,45 @@ const activeStatuses = new Set([
   "blocked",
 ]);
 const STATUS_VISUAL = {
-  producing: { label: "Produzindo", dot: "bg-emerald-400", badge: "bg-emerald-500 text-white", glow: "shadow-[0_0_0_1px_rgba(16,185,129,.35),0_0_28px_-4px_rgba(16,185,129,.65)]", Icon: Gauge },
-  blocked: { label: "Bloqueada", dot: "bg-rose-400", badge: "bg-rose-500 text-white", glow: "shadow-[0_0_0_1px_rgba(244,63,94,.4),0_0_28px_-4px_rgba(244,63,94,.75)]", Icon: AlertTriangle },
-  ended: { label: "Encerrada", dot: "bg-slate-400", badge: "bg-slate-600 text-white", glow: "shadow-[0_0_0_1px_rgba(100,116,139,.3)]", Icon: CheckCircle2 },
-  prep: { label: "Preparação", dot: "bg-cicopal-blue", badge: "bg-cicopal-blue text-white", glow: "shadow-[0_0_0_1px_rgba(30,34,168,.35),0_0_24px_-6px_rgba(30,34,168,.55)]", Icon: Clock3 },
-  inactive: { label: "Inativa", dot: "bg-slate-300", badge: "bg-slate-200 text-slate-600", glow: "shadow-none", Icon: Radio },
+  producing: {
+    label: "Produzindo",
+    dot: "bg-emerald-400",
+    badge: "bg-emerald-500 text-white",
+    glow: "shadow-[0_0_0_1px_rgba(16,185,129,.35),0_0_28px_-4px_rgba(16,185,129,.65)]",
+    Icon: Gauge,
+  },
+  blocked: {
+    label: "Bloqueada",
+    dot: "bg-rose-400",
+    badge: "bg-rose-500 text-white",
+    glow: "shadow-[0_0_0_1px_rgba(244,63,94,.4),0_0_28px_-4px_rgba(244,63,94,.75)]",
+    Icon: AlertTriangle,
+  },
+  ended: {
+    label: "Encerrada",
+    dot: "bg-slate-400",
+    badge: "bg-slate-600 text-white",
+    glow: "shadow-[0_0_0_1px_rgba(100,116,139,.3)]",
+    Icon: CheckCircle2,
+  },
+  prep: {
+    label: "Preparação",
+    dot: "bg-cicopal-blue",
+    badge: "bg-cicopal-blue text-white",
+    glow: "shadow-[0_0_0_1px_rgba(30,34,168,.35),0_0_24px_-6px_rgba(30,34,168,.55)]",
+    Icon: Clock3,
+  },
+  inactive: {
+    label: "Inativa",
+    dot: "bg-slate-300",
+    badge: "bg-slate-200 text-slate-600",
+    glow: "shadow-none",
+    Icon: Radio,
+  },
 };
 function statusVisual(status) {
-  if (["produzindo", "producing"].includes(status)) return STATUS_VISUAL.producing;
+  if (["produzindo", "producing"].includes(status))
+    return STATUS_VISUAL.producing;
   if (["bloqueado", "blocked"].includes(status)) return STATUS_VISUAL.blocked;
   if (["encerrado", "ended"].includes(status)) return STATUS_VISUAL.ended;
   if (status) return STATUS_VISUAL.prep;
@@ -99,30 +130,180 @@ function statusLabel(status) {
 }
 function processLiveValue(process) {
   const values = process?.latestRecord?.valores ?? {};
-  if (process?.codigo === "corte_fio") return `${Number(values.cortes_minuto || 0).toLocaleString("pt-BR")} cortes/min · ${(Number(values.kg_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg/min`;
-  if (process?.codigo === "empacotamento") return `${(Number(values.pacotes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pacotes/min`;
-  if (process?.codigo === "encaixotamento") return `${(Number(values.total_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} caixas/min`;
-  if (process?.codigo === "forno") return `Umidade ${values.umidade ?? "—"}% · ${values.zona_1_real ?? "—"}°C na Z1`;
-  return Object.values(values)[0] ? `Lote ${Object.values(values)[0]}` : "Sem apontamento";
+  if (process?.codigo === "corte_fio")
+    return `${Number(values.cortes_minuto || 0).toLocaleString("pt-BR")} cortes/min · ${(Number(values.kg_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg/min`;
+  if (process?.codigo === "empacotamento")
+    return `${(Number(values.pacotes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pacotes/min`;
+  if (process?.codigo === "encaixotamento")
+    return `${(Number(values.total_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} caixas/min`;
+  if (process?.codigo === "forno")
+    return `Umidade ${values.umidade ?? "—"}% · ${values.zona_1_real ?? "—"}°C na Z1`;
+  return Object.values(values)[0]
+    ? `Lote ${Object.values(values)[0]}`
+    : "Sem apontamento";
 }
-function isOpenNc(nc) {
-  return !["fechada", "fechado", "resolvida", "resolvido", "concluida", "concluído"].includes(
-    String(nc?.status ?? "aberta").toLocaleLowerCase("pt-BR"),
+const controlMetric = {
+  corte_fio: {
+    key: "kg_hora",
+    label: "Produção projetada",
+    unit: "kg/min",
+    divisor: 60,
+  },
+  forno: { key: "umidade", label: "Umidade", unit: "%", divisor: 1 },
+  empacotamento: {
+    key: "pacotes_hora",
+    label: "Pacotes projetados",
+    unit: "pacotes/min",
+    divisor: 60,
+  },
+  encaixotamento: {
+    key: "total_hora",
+    label: "Caixas projetadas",
+    unit: "caixas/min",
+    divisor: 60,
+  },
+};
+function ControlChart({ process, now }) {
+  const metric = controlMetric[process.codigo];
+  if (!metric) return null;
+  const history = [...(process.recordHistory ?? [])].sort(
+    (a, b) => new Date(a.horario_referencia) - new Date(b.horario_referencia),
+  );
+  const samples = [
+    { label: "Início", value: 0 },
+    ...history.map((record) => ({
+      label: time(record.horario_referencia),
+      value: (Number(record.valores?.[metric.key]) || 0) / metric.divisor,
+    })),
+  ];
+  const max = Math.max(1, ...samples.map((item) => item.value));
+  const points = samples
+    .map(
+      (item, index) =>
+        `${30 + (index * 500) / Math.max(1, samples.length - 1)},${155 - (item.value / max) * 120}`,
+    )
+    .join(" ");
+  const latest = history.at(-1);
+  const rate = samples.at(-1)?.value ?? 0;
+  const elapsedMinutes = latest
+    ? Math.max(
+        0,
+        Math.min(
+          60,
+          (now - new Date(latest.janela_inicio ?? latest.horario_referencia)) /
+            60000,
+        ),
+      )
+    : 0;
+  return (
+    <article className="border bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase text-gray-500">
+            {process.nome}
+          </p>
+          <h4 className="font-black text-cicopal-blue">{metric.label}</h4>
+        </div>
+        <b className="text-xl">
+          {rate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}{" "}
+          <small>{metric.unit}</small>
+        </b>
+      </div>
+      <svg
+        viewBox="0 0 560 185"
+        className="mt-2 w-full"
+        role="img"
+        aria-label={`Gráfico de ${metric.label}`}
+      >
+        <line x1="30" y1="155" x2="530" y2="155" stroke="#cbd5e1" />
+        <line x1="30" y1="25" x2="30" y2="155" stroke="#cbd5e1" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#202476"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
+        {samples.map((item, index) => {
+          const x = 30 + (index * 500) / Math.max(1, samples.length - 1);
+          const y = 155 - (item.value / max) * 120;
+          return (
+            <g key={`${item.label}-${index}`}>
+              <circle cx={x} cy={y} r="5" fill="#e30613" />
+              <text
+                x={x}
+                y="178"
+                textAnchor="middle"
+                fontSize="10"
+                fill="#64748b"
+              >
+                {item.label}
+              </text>
+              <text
+                x={x}
+                y={Math.max(15, y - 9)}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="700"
+              >
+                {item.value.toLocaleString("pt-BR", {
+                  maximumFractionDigits: 1,
+                })}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 text-white">
+        <span>
+          <small className="block text-slate-400">ESTIMADO DESDE ZERO</small>
+          <b>
+            {(rate * elapsedMinutes).toLocaleString("pt-BR", {
+              maximumFractionDigits: 1,
+            })}{" "}
+            {metric.unit.replace("/min", "")}
+          </b>
+        </span>
+        <span>
+          <small className="block text-slate-400">MINUTOS DECORRIDOS</small>
+          <b>{Math.floor(elapsedMinutes)} min</b>
+        </span>
+      </div>
+    </article>
   );
 }
+function isOpenNc(nc) {
+  return ![
+    "fechada",
+    "fechado",
+    "resolvida",
+    "resolvido",
+    "concluida",
+    "concluído",
+  ].includes(String(nc?.status ?? "aberta").toLocaleLowerCase("pt-BR"));
+}
 function productAttention(records, specifications) {
-  const record = records.find((item) => item.contexto_tipo === "produto_avaliacao");
+  const record = records.find(
+    (item) => item.contexto_tipo === "produto_avaliacao",
+  );
   const values = [
     ...(record?.valores?.apontamentos ?? []),
     ...(record?.valores?.avaliacoes ?? []),
   ];
   const effectiveSpecifications = specifications?.length
     ? specifications
-    : makeTestSpecifications(values.map((item) => ({ name: item.item, unit: item.unidade })));
+    : makeTestSpecifications(
+        values.map((item) => ({ name: item.item, unit: item.unidade })),
+      );
   return values
     .map((item) => {
-      const specification = matchSpecification(effectiveSpecifications, item.item);
-      const classification = item.classificacao ?? classifyProductValue(specification, item.resultado ?? item.valor);
+      const specification = matchSpecification(
+        effectiveSpecifications,
+        item.item,
+      );
+      const classification =
+        item.classificacao ??
+        classifyProductValue(specification, item.resultado ?? item.valor);
       return { ...item, specification, classification };
     })
     .filter((item) => ["yellow", "red"].includes(item.classification));
@@ -160,7 +341,9 @@ async function loadLiveFactory() {
       .order("registrada_em", { ascending: false }),
     supabase
       .from("higienizacao_rodadas")
-      .select("ciclo_id,numero,status,enviada_inspecao_em,inspecao_encerrada_em")
+      .select(
+        "ciclo_id,numero,status,enviada_inspecao_em,inspecao_encerrada_em",
+      )
       .in("ciclo_id", cycleIds)
       .order("numero", { ascending: false }),
     supabase
@@ -170,15 +353,23 @@ async function loadLiveFactory() {
       .order("ordem"),
     supabase
       .from("subprocesso_registros")
-      .select("subprocesso_id,ciclo_id,horario_referencia,janela_inicio,janela_fim,valores,preenchido_em")
+      .select(
+        "subprocesso_id,ciclo_id,horario_referencia,janela_inicio,janela_fim,valores,preenchido_em",
+      )
       .in("ciclo_id", cycleIds)
       .order("horario_referencia", { ascending: false }),
   ]);
   if (fillingError) throw fillingError;
   if (ncError) throw ncError;
-  if (hygieneError && !["42P01", "PGRST205"].includes(hygieneError.code)) throw hygieneError;
-  if (subprocessError && !["42P01", "PGRST205"].includes(subprocessError.code)) throw subprocessError;
-  if (subprocessRecordError && !["42P01", "42703", "PGRST205"].includes(subprocessRecordError.code)) throw subprocessRecordError;
+  if (hygieneError && !["42P01", "PGRST205"].includes(hygieneError.code))
+    throw hygieneError;
+  if (subprocessError && !["42P01", "PGRST205"].includes(subprocessError.code))
+    throw subprocessError;
+  if (
+    subprocessRecordError &&
+    !["42P01", "42703", "PGRST205"].includes(subprocessRecordError.code)
+  )
+    throw subprocessRecordError;
   const { data: specificationRows } = await supabase
     .from("configuracoes_produto")
     .select("linha_id,produto,parametros");
@@ -199,9 +390,30 @@ async function loadLiveFactory() {
           (item) =>
             item.linha_id === cycle.linha_id && item.produto === cycle.produto,
         )?.parametros ?? [];
-      const hygieneRound = (hygieneRounds ?? []).find((item) => item.ciclo_id === cycle.id) ?? null;
-      const productionProcesses = (subprocesses ?? []).filter((item) => item.ciclo_id === cycle.id).map((process) => ({ ...process, latestRecord: (subprocessRecords ?? []).find((record) => record.subprocesso_id === process.id) ?? null }));
-      return { ...cycle, records, ncs: cycleNcs, photos, specifications, hygieneRound, productionProcesses };
+      const hygieneRound =
+        (hygieneRounds ?? []).find((item) => item.ciclo_id === cycle.id) ??
+        null;
+      const productionProcesses = (subprocesses ?? [])
+        .filter((item) => item.ciclo_id === cycle.id)
+        .map((process) => {
+          const recordHistory = (subprocessRecords ?? []).filter(
+            (record) => record.subprocesso_id === process.id,
+          );
+          return {
+            ...process,
+            recordHistory,
+            latestRecord: recordHistory[0] ?? null,
+          };
+        });
+      return {
+        ...cycle,
+        records,
+        ncs: cycleNcs,
+        photos,
+        specifications,
+        hygieneRound,
+        productionProcesses,
+      };
     }),
   );
 }
@@ -277,7 +489,10 @@ export function FactorySupervision({ variant = "classic" }) {
 
   return (
     <section className="relative min-h-[calc(100vh-112px)] overflow-hidden rounded-[28px] border border-slate-300/60 bg-[radial-gradient(120%_90%_at_15%_0%,#f3f6f9_0%,#e6ebf0_42%,#d7dfe6_100%)] shadow-[0_50px_90px_-30px_rgba(15,23,42,.45)]">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(15,23,42,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,.05)_1px,transparent_1px)] [background-size:36px_36px]" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(15,23,42,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,.05)_1px,transparent_1px)] [background-size:36px_36px]"
+      />
       <div className="absolute left-2 top-3 z-20 flex items-center gap-2 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-800 px-3 py-2 text-white shadow-xl md:left-5 md:top-5 md:gap-3 md:px-4 md:py-3">
         <span className="relative grid size-10 place-items-center rounded-xl bg-gradient-to-br from-cicopal-blue to-[#141670] text-white">
           <Radio size={19} />
@@ -285,7 +500,8 @@ export function FactorySupervision({ variant = "classic" }) {
         </span>
         <div>
           <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.16em] text-slate-400">
-            <Signal size={11} className="text-emerald-400" /> Planta Cicopal · ao vivo
+            <Signal size={11} className="text-emerald-400" /> Planta Cicopal ·
+            ao vivo
           </p>
           <p className="font-black tabular-nums text-white">
             {now.toLocaleTimeString("pt-BR")}{" "}
@@ -295,7 +511,12 @@ export function FactorySupervision({ variant = "classic" }) {
           </p>
         </div>
       </div>
-      {openNcTotal ? <div className="absolute left-1/2 top-5 z-20 hidden -translate-x-1/2 items-center gap-2 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3 font-black text-white shadow-xl lg:flex"><AlertTriangle size={17} />{openNcTotal} NC{openNcTotal > 1 ? "s" : ""} em aberto</div> : null}
+      {openNcTotal ? (
+        <div className="absolute left-1/2 top-5 z-20 hidden -translate-x-1/2 items-center gap-2 rounded-2xl bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3 font-black text-white shadow-xl lg:flex">
+          <AlertTriangle size={17} />
+          {openNcTotal} NC{openNcTotal > 1 ? "s" : ""} em aberto
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={refresh}
@@ -307,50 +528,52 @@ export function FactorySupervision({ variant = "classic" }) {
       <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-24 md:p-5 md:pt-24">
         <MobileFactoryCards lines={lines} onSelect={setSelectedId} />
         <div className="hidden sm:block">
-        {variant === "vector" ? (
-          <VectorFactoryScene
-            lines={lines}
-            selectedId={selectedId}
-            hoveredId={hoveredId}
-            onSelect={setSelectedId}
-            onHover={setHoveredId}
-          />
-        ) : (
-        <div className="relative mx-auto w-full overflow-hidden rounded-2xl shadow-2xl">
-          <img
-            src="/images/fabrica-isometrica-cicopal.png"
-            alt="Planta da fábrica Cicopal"
-            className="block h-auto w-full"
-          />
-          {lines.map((line) => {
-            const focused = selectedId === line.id || hoveredId === line.id;
-            const visual = statusVisual(line.cycle?.status);
-            return (
-              <button
-                key={line.id}
-                type="button"
-                style={line.area}
-                onMouseEnter={() => setHoveredId(line.id)}
-                onMouseLeave={() => setHoveredId("")}
-                onClick={() => setSelectedId(line.id)}
-                className={`absolute rounded-[28px] border-2 transition-all duration-300 motion-safe:hover:-translate-y-1 ${focused ? `border-white bg-white/10 ${visual.glow}` : "border-transparent hover:border-white/40"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
-              >
-                <span
-                  className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-slate-700 text-white"}`}
-                >
-                  <span className={`size-2 rounded-full ${visual.dot} ${line.active ? "animate-pulse motion-reduce:animate-none" : ""}`} />
-                  {line.name} · {statusLabel(line.cycle?.status)}
-                </span>
-                {line.ncs.length ? (
-                  <span className="absolute right-3 top-3 rounded-full bg-cicopal-red px-3 py-2 text-xs font-black text-white shadow-lg">
-                    {line.ncs.length} NC
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-        )}
+          {variant === "vector" ? (
+            <VectorFactoryScene
+              lines={lines}
+              selectedId={selectedId}
+              hoveredId={hoveredId}
+              onSelect={setSelectedId}
+              onHover={setHoveredId}
+            />
+          ) : (
+            <div className="relative mx-auto w-full overflow-hidden rounded-2xl shadow-2xl">
+              <img
+                src="/images/fabrica-isometrica-cicopal.png"
+                alt="Planta da fábrica Cicopal"
+                className="block h-auto w-full"
+              />
+              {lines.map((line) => {
+                const focused = selectedId === line.id || hoveredId === line.id;
+                const visual = statusVisual(line.cycle?.status);
+                return (
+                  <button
+                    key={line.id}
+                    type="button"
+                    style={line.area}
+                    onMouseEnter={() => setHoveredId(line.id)}
+                    onMouseLeave={() => setHoveredId("")}
+                    onClick={() => setSelectedId(line.id)}
+                    className={`absolute rounded-[28px] border-2 transition-all duration-300 motion-safe:hover:-translate-y-1 ${focused ? `border-white bg-white/10 ${visual.glow}` : "border-transparent hover:border-white/40"} ${!line.active ? "factory-inactive-hotspot" : ""}`}
+                  >
+                    <span
+                      className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-slate-700 text-white"}`}
+                    >
+                      <span
+                        className={`size-2 rounded-full ${visual.dot} ${line.active ? "animate-pulse motion-reduce:animate-none" : ""}`}
+                      />
+                      {line.name} · {statusLabel(line.cycle?.status)}
+                    </span>
+                    {line.ncs.length ? (
+                      <span className="absolute right-3 top-3 rounded-full bg-cicopal-red px-3 py-2 text-xs font-black text-white shadow-lg">
+                        {line.ncs.length} NC
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         {loading ? (
           <div className="absolute inset-0 z-30 grid place-items-center bg-white/55 backdrop-blur-sm">
@@ -381,10 +604,27 @@ export function FactorySupervision({ variant = "classic" }) {
             </p>
             {hovered.cycle?.hygieneRound ? (
               <div className="mt-3 border-l-4 border-cicopal-blue bg-blue-50 p-3 text-sm font-black text-cicopal-blue">
-                Higienização · rodada {hovered.cycle.hygieneRound.numero} · {hovered.cycle.hygieneRound.status.replaceAll("_", " ")}
+                Higienização · rodada {hovered.cycle.hygieneRound.numero} ·{" "}
+                {hovered.cycle.hygieneRound.status.replaceAll("_", " ")}
               </div>
             ) : null}
-            {hovered.cycle?.productionProcesses?.length ? <div className="mt-3 grid grid-cols-2 gap-1">{hovered.cycle.productionProcesses.map((process) => <span key={process.nome} className={`px-2 py-2 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}><b className="block">{process.nome} · {process.status.replaceAll("_", " ")}</b><small className="mt-1 block normal-case">{processLiveValue(process)}</small></span>)}</div> : null}
+            {hovered.cycle?.productionProcesses?.length ? (
+              <div className="mt-3 grid grid-cols-2 gap-1">
+                {hovered.cycle.productionProcesses.map((process) => (
+                  <span
+                    key={process.nome}
+                    className={`px-2 py-2 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}
+                  >
+                    <b className="block">
+                      {process.nome} · {process.status.replaceAll("_", " ")}
+                    </b>
+                    <small className="mt-1 block normal-case">
+                      {processLiveValue(process)}
+                    </small>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {hovered.attentionParameters.length ? (
               <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 font-black text-amber-900">
                 {hovered.attentionParameters.length} parâmetro(s) em atenção
@@ -446,6 +686,29 @@ export function FactorySupervision({ variant = "classic" }) {
                   alert={selected.ncs.length > 0}
                 />
               </div>
+              {selected.cycle?.productionProcesses?.some(
+                (process) => controlMetric[process.codigo],
+              ) ? (
+                <section>
+                  <Title
+                    icon={<Gauge size={17} />}
+                    text="Gráficos de controle da produção"
+                  />
+                  <p className="mt-1 text-xs font-bold text-gray-500">
+                    Cada série começa em zero e evolui conforme os apontamentos
+                    confirmados.
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {selected.cycle.productionProcesses.map((process) => (
+                      <ControlChart
+                        key={process.id}
+                        process={process}
+                        now={now}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               {selected.photos[0] ? (
                 <section>
                   <Title
@@ -586,16 +849,59 @@ export function FactorySupervision({ variant = "classic" }) {
 function MobileFactoryCards({ lines, onSelect }) {
   return (
     <div className="space-y-3 sm:hidden">
-      <div className="mb-4 px-1"><p className="text-xs font-black uppercase tracking-wider text-slate-500">Resumo das linhas</p><p className="text-sm font-semibold text-slate-600">Toque em uma linha para abrir os detalhes.</p></div>
+      <div className="mb-4 px-1">
+        <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+          Resumo das linhas
+        </p>
+        <p className="text-sm font-semibold text-slate-600">
+          Toque em uma linha para abrir os detalhes.
+        </p>
+      </div>
       {lines.map((line) => {
         const visual = statusVisual(line.cycle?.status);
         return (
-          <button key={line.id} type="button" onClick={() => onSelect(line.id)} className={`w-full overflow-hidden rounded-2xl border bg-white text-left shadow-lg ${line.ncs.length ? "border-rose-200" : "border-slate-200"}`}>
+          <button
+            key={line.id}
+            type="button"
+            onClick={() => onSelect(line.id)}
+            className={`w-full overflow-hidden rounded-2xl border bg-white text-left shadow-lg ${line.ncs.length ? "border-rose-200" : "border-slate-200"}`}
+          >
             <div className={`h-1.5 w-full ${visual.badge}`} />
             <div className="p-4">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-cicopal-blue">{rgByLine[line.id]}</p><h3 className="text-xl font-black text-slate-950">{line.name}</h3></div><StatusPill status={line.cycle?.status} /></div>
-              <p className="mt-2 font-bold text-slate-600">{line.cycle?.produto ?? "Sem produção registrada hoje"}</p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="bg-slate-50 p-2"><small className="block font-bold text-slate-400">Último</small><b>{time(line.records[0]?.preenchido_em)}</b></div><div className="bg-amber-50 p-2 text-amber-900"><small className="block font-bold opacity-60">Atenção</small><b>{line.attentionParameters.length}</b></div><div className={`p-2 ${line.ncs.length ? "bg-rose-50 text-cicopal-red" : "bg-emerald-50 text-cicopal-green"}`}><small className="block font-bold opacity-60">NC aberta</small><b>{line.ncs.length}</b></div></div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase text-cicopal-blue">
+                    {rgByLine[line.id]}
+                  </p>
+                  <h3 className="text-xl font-black text-slate-950">
+                    {line.name}
+                  </h3>
+                </div>
+                <StatusPill status={line.cycle?.status} />
+              </div>
+              <p className="mt-2 font-bold text-slate-600">
+                {line.cycle?.produto ?? "Sem produção registrada hoje"}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-50 p-2">
+                  <small className="block font-bold text-slate-400">
+                    Último
+                  </small>
+                  <b>{time(line.records[0]?.preenchido_em)}</b>
+                </div>
+                <div className="bg-amber-50 p-2 text-amber-900">
+                  <small className="block font-bold opacity-60">Atenção</small>
+                  <b>{line.attentionParameters.length}</b>
+                </div>
+                <div
+                  className={`p-2 ${line.ncs.length ? "bg-rose-50 text-cicopal-red" : "bg-emerald-50 text-cicopal-green"}`}
+                >
+                  <small className="block font-bold opacity-60">
+                    NC aberta
+                  </small>
+                  <b>{line.ncs.length}</b>
+                </div>
+              </div>
             </div>
           </button>
         );
@@ -607,7 +913,14 @@ function MobileFactoryCards({ lines, onSelect }) {
 function StatusPill({ status }) {
   const visual = statusVisual(status);
   const Icon = visual.Icon;
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black shadow-sm ${visual.badge}`}><Icon size={12} />{visual.label}</span>;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black shadow-sm ${visual.badge}`}
+    >
+      <Icon size={12} />
+      {visual.label}
+    </span>
+  );
 }
 
 function Metric({ label, value, alert }) {
@@ -615,7 +928,9 @@ function Metric({ label, value, alert }) {
     <div
       className={`rounded-2xl border p-3 text-center shadow-sm ${alert ? "border-rose-100 bg-rose-50" : "border-slate-100 bg-slate-50"}`}
     >
-      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
       <p
         className={`mt-1 text-xl font-black tabular-nums ${alert ? "text-cicopal-red" : "text-slate-950"}`}
       >
@@ -627,13 +942,21 @@ function Metric({ label, value, alert }) {
 function Title({ icon, text }) {
   return (
     <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-600">
-      <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-slate-500">{icon}</span>
+      <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-slate-500">
+        {icon}
+      </span>
       {text}
     </h3>
   );
 }
 
-function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover }) {
+function VectorFactoryScene({
+  lines,
+  selectedId,
+  hoveredId,
+  onSelect,
+  onHover,
+}) {
   const positions = {
     PUR: { left: "5%", top: "17%", width: "43%", height: "27%" },
     SAL: { left: "52%", top: "37%", width: "43%", height: "27%" },
@@ -641,26 +964,92 @@ function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover })
   };
   return (
     <div className="vector-factory-scene vector-factory-scene--bright relative mx-auto min-h-[650px] w-full overflow-hidden border border-slate-200 shadow-2xl lg:min-h-[760px]">
-      <svg className="absolute inset-0 size-full" viewBox="0 0 1200 720" preserveAspectRatio="none" aria-hidden="true">
+      <svg
+        className="absolute inset-0 size-full"
+        viewBox="0 0 1200 720"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
         <defs>
-          <linearGradient id="factory-floor" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#163f4b" /><stop offset="1" stopColor="#0a2733" /></linearGradient>
-          <pattern id="floor-grid" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M55 0H0v55" fill="none" stroke="#82aab3" strokeOpacity=".2" strokeWidth="2" /></pattern>
+          <linearGradient id="factory-floor" x1="0" y1="0" x2="1" y2="1">
+            <stop stopColor="#163f4b" />
+            <stop offset="1" stopColor="#0a2733" />
+          </linearGradient>
+          <pattern
+            id="floor-grid"
+            width="55"
+            height="55"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M55 0H0v55"
+              fill="none"
+              stroke="#82aab3"
+              strokeOpacity=".2"
+              strokeWidth="2"
+            />
+          </pattern>
         </defs>
         <path d="M0 0h1200v720H0z" fill="#18869a" />
         <path d="M0 112 240 0h960v128L0 362z" fill="#f4d39a" />
-        <path d="M0 112v250l1200-234V0H240z" fill="none" stroke="#e9f0e9" strokeWidth="16" />
-        {[180, 390, 600, 810, 1020].map((x) => <path key={x} d={`M${x} 30v250`} stroke="#e9f0e9" strokeWidth="10" opacity=".85" />)}
+        <path
+          d="M0 112v250l1200-234V0H240z"
+          fill="none"
+          stroke="#e9f0e9"
+          strokeWidth="16"
+        />
+        {[180, 390, 600, 810, 1020].map((x) => (
+          <path
+            key={x}
+            d={`M${x} 30v250`}
+            stroke="#e9f0e9"
+            strokeWidth="10"
+            opacity=".85"
+          />
+        ))}
         <path d="M0 362 1200 128v592H0z" fill="url(#factory-floor)" />
         <path d="M0 362 1200 128v592H0z" fill="url(#floor-grid)" />
-        <path d="m90 590 820-164 220 90-820 164z" fill="none" stroke="#f2b721" strokeWidth="9" strokeDasharray="22 14" opacity=".75" />
-        <path d="M870 720v-98h330v98" fill="#dfe7e8" stroke="#46636c" strokeWidth="10" />
+        <path
+          d="m90 590 820-164 220 90-820 164z"
+          fill="none"
+          stroke="#f2b721"
+          strokeWidth="9"
+          strokeDasharray="22 14"
+          opacity=".75"
+        />
+        <path
+          d="M870 720v-98h330v98"
+          fill="#dfe7e8"
+          stroke="#46636c"
+          strokeWidth="10"
+        />
         <path d="M900 690h260" stroke="#e45b66" strokeWidth="28" />
-        <rect x="925" y="625" width="76" height="44" fill="#244e64" stroke="#132f3c" strokeWidth="5" />
-        <rect x="1020" y="625" width="76" height="44" fill="#244e64" stroke="#132f3c" strokeWidth="5" />
+        <rect
+          x="925"
+          y="625"
+          width="76"
+          height="44"
+          fill="#244e64"
+          stroke="#132f3c"
+          strokeWidth="5"
+        />
+        <rect
+          x="1020"
+          y="625"
+          width="76"
+          height="44"
+          fill="#244e64"
+          stroke="#132f3c"
+          strokeWidth="5"
+        />
       </svg>
       <div className="absolute left-6 top-5 border-l-4 border-cicopal-red bg-white/90 px-4 py-3 shadow-lg">
-        <p className="text-xs font-black uppercase tracking-[.18em] text-cicopal-blue">Planta vetorial</p>
-        <strong className="text-xl text-gray-950">Área de produção Cicopal</strong>
+        <p className="text-xs font-black uppercase tracking-[.18em] text-cicopal-blue">
+          Planta vetorial
+        </p>
+        <strong className="text-xl text-gray-950">
+          Área de produção Cicopal
+        </strong>
       </div>
       {lines.map((line) => {
         const focused = selectedId === line.id || hoveredId === line.id;
@@ -674,11 +1063,21 @@ function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover })
             onClick={() => onSelect(line.id)}
             className={`vector-line-station absolute border bg-white/90 transition duration-300 ${focused ? "-translate-y-1 border-cicopal-blue shadow-[0_22px_45px_rgba(15,23,42,.28)]" : "border-white/80 shadow-[0_14px_30px_rgba(15,23,42,.18)]"}`}
           >
-            <AnimatedLineActivity status={line.cycle?.status} active={line.active} lineName={line.name} />
-            <span className={`absolute left-3 top-3 px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}>
+            <AnimatedLineActivity
+              status={line.cycle?.status}
+              active={line.active}
+              lineName={line.name}
+            />
+            <span
+              className={`absolute left-3 top-3 px-3 py-2 text-xs font-black shadow-lg ${line.active ? "bg-white text-cicopal-blue" : "bg-gray-700 text-white"}`}
+            >
               {line.name} · {statusLabel(line.cycle?.status)}
             </span>
-            {line.ncs.length ? <span className="absolute right-3 top-3 bg-cicopal-red px-3 py-2 text-xs font-black text-white shadow-lg">{line.ncs.length} NC</span> : null}
+            {line.ncs.length ? (
+              <span className="absolute right-3 top-3 bg-cicopal-red px-3 py-2 text-xs font-black text-white shadow-lg">
+                {line.ncs.length} NC
+              </span>
+            ) : null}
           </button>
         );
       })}
@@ -691,7 +1090,12 @@ function AnimatedLineActivity({ status, active, lineName }) {
     ? "inactive"
     : ["higienizacao", "hygiene"].includes(status)
       ? "cleaning"
-      : ["aguardando_liberacao", "awaiting_release", "pronto", "ready"].includes(status)
+      : [
+            "aguardando_liberacao",
+            "awaiting_release",
+            "pronto",
+            "ready",
+          ].includes(status)
         ? "inspection"
         : ["produzindo", "producing"].includes(status)
           ? "production"
@@ -719,10 +1123,25 @@ function AnimatedLineActivity({ status, active, lineName }) {
           ))}
           <path className="factory-machine-body" d="M128 34h104v48H128z" />
           <path className="factory-machine-top" d="m128 34 18-14h104l-18 14z" />
-          <rect className="factory-window" x="148" y="47" width="62" height="22" />
+          <rect
+            className="factory-window"
+            x="148"
+            y="47"
+            width="62"
+            height="22"
+          />
           <circle className="factory-gear" cx="222" cy="58" r="13" />
-          <path className="factory-gear-mark" d="M222 48v20M212 58h20M215 51l14 14M229 51l-14 14" />
-          <rect className="factory-status-light" x="236" y="42" width="8" height="19" />
+          <path
+            className="factory-gear-mark"
+            d="M222 48v20M212 58h20M215 51l14 14M229 51l-14 14"
+          />
+          <rect
+            className="factory-status-light"
+            x="236"
+            y="42"
+            width="8"
+            height="19"
+          />
         </g>
 
         <g className="factory-products">
@@ -746,7 +1165,10 @@ function AnimatedLineActivity({ status, active, lineName }) {
 
         <g className="factory-water">
           <path className="factory-hose" d="M91 59c31-16 44-16 65-7" />
-          <path className="factory-spray" d="m151 48 18-10M154 54l23-2M151 60l18 9" />
+          <path
+            className="factory-spray"
+            d="m151 48 18-10M154 54l23-2M151 60l18 9"
+          />
           <circle cx="177" cy="38" r="3" />
           <circle cx="184" cy="52" r="3" />
           <circle cx="177" cy="69" r="3" />
