@@ -312,13 +312,15 @@ function productAttention(records, specifications) {
 async function loadLiveFactory() {
   if (!isSupabaseConfigured || !supabase) return [];
   const start = localDayStart();
+  const lookback = new Date(new Date(start).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: cycles, error: cycleError } = await supabase
     .from("ciclos_producao")
     .select("*")
-    .gte("iniciado_em", start)
+    .gte("iniciado_em", lookback)
     .order("iniciado_em", { ascending: false });
   if (cycleError) throw cycleError;
-  const cycleIds = (cycles ?? []).map((item) => item.id);
+  const relevantCycles = (cycles ?? []).filter((cycle) => !cycle.encerrado_em || new Date(cycle.iniciado_em) >= new Date(start));
+  const cycleIds = relevantCycles.map((item) => item.id);
   if (!cycleIds.length) return [];
   const [
     { data: fillings, error: fillingError },
@@ -374,7 +376,7 @@ async function loadLiveFactory() {
     .from("configuracoes_produto")
     .select("linha_id,produto,parametros");
   return repairTextDeep(
-    (cycles ?? []).map((cycle) => {
+    relevantCycles.map((cycle) => {
       const records = (fillings ?? []).filter(
         (item) => item.ciclo_id === cycle.id,
       );
