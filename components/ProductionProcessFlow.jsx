@@ -19,6 +19,8 @@ import {
   ROSCA_SUBPROCESSES,
   saveSubprocessRecord,
 } from "@/lib/productionProcessPersistence";
+import { ProductionTraceabilitySetup } from "@/components/ProductionTraceabilitySetup";
+import { interruptWholeProduction, rectifyHourlyRecord, resumeWholeProduction, saveFixedHourlyRecord } from "@/lib/productionTraceabilityPersistence";
 
 const labels = {
   nao_iniciado: "Aguardando",
@@ -53,12 +55,16 @@ function localRows(cycleId) {
   }));
 }
 
-export function ProductionProcessFlow({ cycle, operatorId }) {
+export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const [rows, setRows] = useState([]);
+  const [traceability, setTraceability] = useState(null);
   const [records, setRecords] = useState([]);
   const [remote, setRemote] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [selectedCode, setSelectedCode] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [rectifying, setRectifying] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState("");
   const [values, setValues] = useState({});
   const [fieldIndex, setFieldIndex] = useState(0);
   const [review, setReview] = useState(false);
@@ -110,6 +116,13 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
           ? "warning"
           : "ok";
   const latestSelected = selectedCode ? recordsFor(selectedCode)[0] : null;
+  const hasFinishedBatch = Boolean(traceability?.batches?.some((batch) => batch.status === "finalizada"));
+  const canInterrupt = ["qualidade", "admin"].includes(profileCode);
+  const openInterruption = traceability?.interruptions?.find((item) => !item.encerrada_em);
+  const fixedSlots = useMemo(() => {
+    const start = new Date(cycle.productionStartedAt); start.setMinutes(0,0,0); if (start < new Date(cycle.productionStartedAt)) start.setHours(start.getHours()+1);
+    const end = new Date(now); end.setMinutes(0,0,0); const slots=[]; for(let cursor=new Date(start);cursor<=end;cursor=new Date(cursor.getTime()+3600000)) slots.push(cursor.toISOString()); return slots;
+  }, [cycle.productionStartedAt, now.getHours()]);
 
   useEffect(() => {
     if (!cycle?.id) return;
@@ -135,22 +148,22 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
   }, [cycle?.id, operatorId]);
 
   function isUnlocked(code) {
-    if (code === "automacao") return true;
-    if (code === "masseira") return Boolean(automationLot);
-    return Boolean(mixerLot);
+    if (["automacao","masseira"].includes(code)) return true;
+    return hasFinishedBatch;
   }
   function openProcess(code) {
     if (!isUnlocked(code)) return;
     const cfg = ROSCA_SUBPROCESSES.find((item) => item.code === code);
     const existing = recordsFor(code)[0];
-    const filledWindow =
-      cfg?.frequency === "hourly" &&
-      activeWindow &&
-      existing?.janela_indice === activeWindow.janela_indice;
+    const processRecords=recordsFor(code); const pending=fixedSlots.find((slot)=>!processRecords.some((record)=>record.horario_previsto===slot));
+    const filledWindow = cfg?.frequency === "hourly" && !pending && Boolean(existing);
     const sameWindow = cfg?.frequency === "lot" || filledWindow;
     setSelectedCode(code);
+    setScheduledAt(pending ?? existing?.horario_previsto ?? "");
     setValues(sameWindow ? (existing?.valores ?? {}) : {});
     setViewOnly(Boolean(filledWindow));
+    setRectifying(false);
+    setCorrectionReason("");
     setFieldIndex(0);
     setReview(false);
     setReason("");
@@ -166,6 +179,18 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
   }
   async function setStatus(status) {
     if (!selected || saving) return;
+    if (status === "operando" && openInterruption) {
+      if (!canInterrupt) return setMessage("Somente a Qualidade pode retomar a produção.");
+      setSaving(true);
+      try {
+        await resumeWholeProduction({ cycleId: cycle.id, observation: reason || "Retomada confirmada pela Qualidade", userId: operatorId });
+        setRows((all) => all.map((item) => item.status === "pausado" ? { ...item, status: "operando", estado_iniciado_em: new Date().toISOString() } : item));
+        setTraceability((current) => ({ ...current, interruptions: current.interruptions.map((item) => item.id === openInterruption.id ? { ...item, encerrada_em: new Date().toISOString() } : item) }));
+        setMessage("Produção e subprocessos retomados.");
+      } catch (error) { setMessage(error?.message ?? "Não foi possível retomar."); }
+      finally { setSaving(false); }
+      return;
+    }
     if (["pausado", "parado"].includes(status) && !reason.trim())
       return setMessage("Informe o motivo da interrupção.");
     setSaving(true);
@@ -202,6 +227,8 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
   async function confirm() {
     if (config.parameters.some((item) => !validValue(values[item.key])))
       return setMessage("Há informações pendentes.");
+    if (rectifying && correctionReason.trim().length < 5)
+      return setMessage("Explique o motivo da retificação.");
     setSaving(true);
     setMessage("");
     try {
@@ -227,7 +254,7 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
         );
       }
       const saved = remote
-        ? await saveSubprocessRecord({
+        ? rectifying ? await rectifyHourlyRecord({ recordId: latestSelected.id, values, reason: correctionReason, userId: operatorId }) : config.frequency === "hourly" ? await saveFixedHourlyRecord({ processId: process.id, cycleId: cycle.id, scheduledAt, values, batchId: traceability?.batches?.find((batch)=>batch.status==="finalizada")?.id ?? null, userId: operatorId }) : await saveSubprocessRecord({
             process,
             cycleId: cycle.id,
             values,
@@ -265,6 +292,8 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
       ]);
       setMessage("Apontamento confirmado e vinculado à produção.");
       setReview(false);
+      setRectifying(false);
+      setCorrectionReason("");
     } catch (error) {
       setMessage(error?.message ?? "Não foi possível confirmar.");
     } finally {
@@ -288,6 +317,8 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
       </section>
     );
   return (
+    <div className="space-y-4">
+    <ProductionTraceabilitySetup cycle={cycle} operatorId={operatorId} onChange={setTraceability} />
     <section className="border border-gray-300 bg-white p-4 sm:p-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -327,8 +358,8 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
         )}
       </header>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[280px_1fr]">
-        <section>
+      <div className="mt-6 grid gap-5">
+        <section className="hidden">
           <p className="mb-2 text-xs font-black uppercase text-gray-500">
             1 · Preparação dos lotes
           </p>
@@ -376,6 +407,7 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
             {ROSCA_SUBPROCESSES.slice(2).map((item) => {
               const row = rowByCode(item.code);
               const latest = recordsFor(item.code)[0];
+              const pendingCount = fixedSlots.filter((slot) => !recordsFor(item.code).some((record) => record.horario_previsto === slot)).length;
               const filledCurrent =
                 activeWindow &&
                 latest?.janela_indice === activeWindow.janela_indice;
@@ -398,7 +430,7 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                     <span
                       className={`px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}
                     >
-                      {filledCurrent ? "Confirmado" : "Próximo pendente"}
+                      {pendingCount ? `${pendingCount} pendente(s)` : "Em dia"}
                     </span>
                   </div>
                   <p className="mt-1 text-sm font-semibold text-gray-500">
@@ -426,7 +458,7 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                 <p className="text-xs font-black uppercase text-cicopal-blue">
                   {config.frequency === "lot"
                     ? "Lote vigente na produção"
-                    : `Leitura da janela ${activeWindow ? `${fmt(activeWindow.janela_inicio)}–${fmt(activeWindow.janela_fim)}` : "inicial"}`}
+                    : `Horário de referência ${scheduledAt ? new Date(scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"}`}
                 </p>
                 <h3 className="text-2xl font-black">{config.name}</h3>
               </div>
@@ -462,9 +494,9 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                     ))}
                   </div>
                   <p className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3 font-bold text-cicopal-blue">
-                    Este resultado não pode ser alterado. A próxima leitura será
-                    liberada ao final da janela.
+                    O original está protegido. Para corrigir, faça uma retificação auditada.
                   </p>
+                  <button type="button" onClick={()=>{setViewOnly(false);setRectifying(true);setReview(false);}} className="mt-3 min-h-14 w-full border-2 border-amber-500 bg-amber-50 font-black text-amber-900">Retificar este registro</button>
                 </section>
               ) : !review ? (
                 <>
@@ -488,7 +520,9 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                     </p>
                   ) : null}
                   <div className="mt-7">
-                    {parameter.type === "automation-lot" ? (
+                    {parameter.type === "options" ? (
+                      <div className="grid grid-cols-3 gap-3">{parameter.options.map((option)=><button key={option} type="button" onClick={()=>setValues((all)=>({...all,[parameter.key]:option}))} className={`min-h-20 border-2 text-2xl font-black ${values[parameter.key]===option?option==="NC"?"border-red-600 bg-red-50 text-red-700":option==="NA"?"border-gray-500 bg-gray-100":"border-green-600 bg-green-50 text-green-700":"border-gray-200"}`}>{option}</button>)}</div>
+                    ) : parameter.type === "automation-lot" ? (
                       <div className="grid gap-2">
                         {automationLots.map((lot) => (
                           <button
@@ -595,6 +629,7 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                       </button>
                     ))}
                   </div>
+                  {rectifying ? <label className="mt-4 block"><span className="mb-1 block text-xs font-black uppercase text-amber-800">Justificativa obrigatória da retificação</span><textarea value={correctionReason} onChange={(event)=>setCorrectionReason(event.target.value)} className="min-h-24 w-full border-2 border-amber-400 p-3" placeholder="Explique por que o valor original precisa ser corrigido" /></label> : null}
                   {config.liveMetrics?.length ? (
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       {config.liveMetrics.map((metric) => (
@@ -641,11 +676,12 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
                       Operando
                     </button>
                     <button
+                      disabled={!canInterrupt}
                       onClick={() => setInterruptOpen(true)}
-                      className="min-h-12 bg-red-600 font-black text-white"
+                      className="min-h-12 bg-red-600 font-black text-white disabled:bg-gray-300"
                     >
                       <Pause className="mx-auto" size={17} />
-                      Interromper operação
+                      {canInterrupt ? "Interromper produção" : "Interrupção · Qualidade"}
                     </button>
                   </div>
                 </div>
@@ -753,7 +789,9 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
               <button
                 disabled={!reason.trim() || saving}
                 onClick={async () => {
-                  await setStatus("pausado");
+                  const interruption = await interruptWholeProduction({ cycleId: cycle.id, originProcessId: selected?.id, classification: reason.toLowerCase().includes("program") ? "pausa" : "parada", reason, userId: operatorId });
+                  setTraceability((current)=>({...current,interruptions:[interruption,...(current?.interruptions??[])]}));
+                  setRows((all) => all.map((item) => ["nao_iniciado", "finalizado"].includes(item.status) ? item : { ...item, status: "pausado", estado_iniciado_em: new Date().toISOString() }));
                   setInterruptOpen(false);
                 }}
                 className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300"
@@ -765,5 +803,6 @@ export function ProductionProcessFlow({ cycle, operatorId }) {
         </div>
       ) : null}
     </section>
+    </div>
   );
 }

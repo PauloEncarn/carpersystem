@@ -131,11 +131,11 @@ function statusLabel(status) {
 function processLiveValue(process) {
   const values = process?.latestRecord?.valores ?? {};
   if (process?.codigo === "corte_fio")
-    return `${Number(values.cortes_minuto || 0).toLocaleString("pt-BR")} cortes/min · ${(Number(values.kg_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg/min`;
+    return `${(Number(values.cortes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} cortes/min`;
   if (process?.codigo === "empacotamento")
-    return `${(Number(values.pacotes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pacotes/min`;
+    return `${[1, 2, 3, 4].reduce((total, index) => total + Number(values[`maq_${index}_pacotes_min`] || 0), 0).toLocaleString("pt-BR")} pacotes/min`;
   if (process?.codigo === "encaixotamento")
-    return `${(Number(values.total_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} caixas/min`;
+    return `${Number(values.caixas_min || 0).toLocaleString("pt-BR")} caixas/min`;
   if (process?.codigo === "forno")
     return `Umidade ${values.umidade ?? "—"}% · ${values.zona_1_real ?? "—"}°C na Z1`;
   return Object.values(values)[0]
@@ -144,23 +144,23 @@ function processLiveValue(process) {
 }
 const controlMetric = {
   corte_fio: {
-    key: "kg_hora",
-    label: "Produção projetada",
-    unit: "kg/min",
+    key: "cortes_hora",
+    label: "Cortes projetados",
+    unit: "cortes/min",
     divisor: 60,
   },
   forno: { key: "umidade", label: "Umidade", unit: "%", divisor: 1 },
   empacotamento: {
-    key: "pacotes_hora",
-    label: "Pacotes projetados",
+    key: "maq_1_pacotes_min",
+    label: "Pacotes · máquina 1",
     unit: "pacotes/min",
-    divisor: 60,
+    divisor: 1,
   },
   encaixotamento: {
-    key: "total_hora",
-    label: "Caixas projetadas",
+    key: "caixas_min",
+    label: "Caixas",
     unit: "caixas/min",
-    divisor: 60,
+    divisor: 1,
   },
 };
 function ControlChart({ process, now }) {

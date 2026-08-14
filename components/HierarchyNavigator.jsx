@@ -1434,6 +1434,7 @@ function Rg003ProductionControl({
   operatorName,
   onOpenProcess,
   operatorOnly = false,
+  profileCode = "",
 }) {
   const storageKey = `carper_rg003_cycle_${lineId}`;
   const [cycle, setCycle] = useState(null);
@@ -2184,7 +2185,7 @@ function Rg003ProductionControl({
             </div>
           </section>
           {lineId === "ROS" ? (
-            <ProductionProcessFlow cycle={cycle} operatorId={operatorId} />
+            <ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} />
           ) : null}
         </>
       )}
@@ -2724,7 +2725,7 @@ function CentralNc({ ncs, onDetail, contextLabel = "Todas as linhas", loading = 
   );
 }
 
-function ProductionOperationsRg({ operatorId }) {
+function ProductionOperationsRg({ operatorId, profileCode }) {
   const [cycle, setCycle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2738,7 +2739,7 @@ function ProductionOperationsRg({ operatorId }) {
   }, []);
   if (loading) return <div className="min-h-64 animate-pulse bg-gray-100" />;
   if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}</section>;
-  return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">RG.PROD.ROS.001 · produção vinculada</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} /></div>;
+  return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">RG.PROD.ROS.001 · produção vinculada</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} /></div>;
 }
 
 export function HierarchyNavigator({
@@ -3320,7 +3321,7 @@ export function HierarchyNavigator({
                   title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
                 />
                 {selection.documentoId === "RG.PROD.ROS.001" ? (
-                  <ProductionOperationsRg operatorId={operatorId} />
+                  <ProductionOperationsRg operatorId={operatorId} profileCode={profileCode} />
                 ) : sequentialFlow ? (
                   <Rg003ProductionControl
                     lineId={selection.linhaId}
@@ -3330,6 +3331,7 @@ export function HierarchyNavigator({
                     operatorName={operatorName}
                     onOpenProcess={abrirRegistroTecnico}
                     operatorOnly={profileCode === "operador"}
+                    profileCode={profileCode}
                   />
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
