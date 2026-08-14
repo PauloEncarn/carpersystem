@@ -102,7 +102,20 @@ function fillingDetails(filling) {
   ];
 }
 
-function summarize(cycle, fillings, genericNcs, events, hygieneRounds = [], subprocesses = []) {
+function summarize(
+  cycle,
+  fillings,
+  genericNcs,
+  events,
+  hygieneRounds = [],
+  subprocesses = [],
+  automationLots = [],
+  batches = [],
+  batchInputs = [],
+  processRecords = [],
+  interruptions = [],
+  inputs = [],
+) {
   const cycleFillings = fillings.filter((item) => item.ciclo_id === cycle.id);
   const expectedHours = expectedHourCount(cycle);
   const expectedControls = expectedHours * hourlyTypes.size;
@@ -135,6 +148,17 @@ function summarize(cycle, fillings, genericNcs, events, hygieneRounds = [], subp
   const operator = [...cycleEvents]
     .reverse()
     .find((item) => item.dados?.operador_nome)?.dados?.operador_nome;
+  const cycleBatches = batches
+    .filter((item) => item.ciclo_id === cycle.id)
+    .map((batch) => ({
+      ...batch,
+      inputs: batchInputs
+        .filter((item) => item.batelada_id === batch.id)
+        .map((item) => ({
+          ...item,
+          input: inputs.find((input) => input.id === item.insumo_id),
+        })),
+    }));
   return {
     ...cycle,
     line: lines[cycle.linha_id] ?? { name: cycle.linha_id, rg: "—" },
@@ -144,6 +168,15 @@ function summarize(cycle, fillings, genericNcs, events, hygieneRounds = [], subp
     ) || cycleHygieneRounds.some((item) => item.status === "aprovada"),
     hygieneRounds: cycleHygieneRounds,
     subprocesses: subprocesses.filter((item) => item.ciclo_id === cycle.id),
+    automationLots: automationLots
+      .filter((item) => item.ciclo_id === cycle.id)
+      .map((item) => ({
+        ...item,
+        input: inputs.find((input) => input.id === item.insumo_id),
+      })),
+    batches: cycleBatches,
+    processRecords: processRecords.filter((item) => item.ciclo_id === cycle.id),
+    interruptions: interruptions.filter((item) => item.ciclo_id === cycle.id),
     release: cycleFillings.some(
       (item) => item.contexto_tipo === "produto_liberacao",
     ),
@@ -162,6 +195,22 @@ function summarize(cycle, fillings, genericNcs, events, hygieneRounds = [], subp
 
 function csvCell(value) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function fieldLabel(value) {
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function processRecordGroups(cycle) {
+  const processes = new Map(cycle.subprocesses.map((item) => [item.id, item.nome]));
+  return [...cycle.processRecords.reduce((groups, record) => {
+    const name = processes.get(record.subprocesso_id) ?? "Subprocesso";
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(record);
+    return groups;
+  }, new Map()).entries()];
 }
 
 export function ProductionReports() {
@@ -200,7 +249,19 @@ export function ProductionReports() {
         setData([]);
         return;
       }
-      const [fillingsResult, ncsResult, eventsResult, hygieneResult, subprocessResult] = await Promise.all([
+      const [
+        fillingsResult,
+        ncsResult,
+        eventsResult,
+        hygieneResult,
+        subprocessResult,
+        automationResult,
+        batchesResult,
+        batchInputsResult,
+        processRecordsResult,
+        interruptionsResult,
+        inputsResult,
+      ] = await Promise.all([
         supabase
           .from("preenchimentos")
           .select(
@@ -225,12 +286,26 @@ export function ProductionReports() {
           .select("id,ciclo_id,nome,status,iniciado_em,encerrado_em,estado_iniciado_em")
           .in("ciclo_id", ids)
           .order("ordem"),
+        supabase.from("automacao_lotes").select("*").in("ciclo_id", ids),
+        supabase.from("bateladas").select("*").in("ciclo_id", ids).order("numero"),
+        supabase.from("batelada_insumos").select("*"),
+        supabase
+          .from("subprocesso_registros")
+          .select("id,subprocesso_id,ciclo_id,horario_previsto,preenchido_em,status_prazo,valores,retificado")
+          .in("ciclo_id", ids)
+          .not("horario_previsto", "is", null)
+          .order("horario_previsto"),
+        supabase.from("producao_interrupcoes").select("*").in("ciclo_id", ids).order("iniciada_em"),
+        supabase.from("insumos").select("id,codigo,nome"),
       ]);
       if (fillingsResult.error) throw fillingsResult.error;
       if (ncsResult.error) throw ncsResult.error;
       if (eventsResult.error) throw eventsResult.error;
       if (hygieneResult.error && !["42P01", "PGRST205"].includes(hygieneResult.error.code)) throw hygieneResult.error;
       if (subprocessResult.error && !["42P01", "PGRST205"].includes(subprocessResult.error.code)) throw subprocessResult.error;
+      for (const result of [automationResult, batchesResult, batchInputsResult, processRecordsResult, interruptionsResult, inputsResult]) {
+        if (result.error && !["42P01", "PGRST205"].includes(result.error.code)) throw result.error;
+      }
       setData(
         repairTextDeep(
           (cycles ?? []).map((cycle) =>
@@ -241,6 +316,12 @@ export function ProductionReports() {
               eventsResult.data ?? [],
               hygieneResult.data ?? [],
               subprocessResult.data ?? [],
+              automationResult.data ?? [],
+              batchesResult.data ?? [],
+              batchInputsResult.data ?? [],
+              processRecordsResult.data ?? [],
+              interruptionsResult.data ?? [],
+              inputsResult.data ?? [],
             ),
           ),
         ),
@@ -725,6 +806,79 @@ export function ProductionReports() {
                                     <summary className="cursor-pointer p-4 font-black text-gray-800">Processo produtivo · {cycle.subprocesses.length} subprocessos</summary>
                                     <div className="grid gap-2 border-t border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
                                       {cycle.subprocesses.map((process) => <article key={process.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{process.nome}</strong><span className="mt-1 block text-xs font-black uppercase text-gray-500">{process.status.replaceAll("_", " ")}</span><p className="mt-2 text-xs font-semibold text-gray-600">Tempo no estado: {duration(process.estado_iniciado_em, process.encerrado_em)}</p></article>)}
+                                    </div>
+                                  </details>
+                                ) : null}
+                                {(cycle.automationLots.length || cycle.batches.length) ? (
+                                  <details open className="mb-4 border border-blue-200 bg-blue-50">
+                                    <summary className="cursor-pointer p-4 font-black text-cicopal-blue">
+                                      Rastreabilidade de insumos e bateladas
+                                    </summary>
+                                    <div className="grid gap-4 border-t border-blue-200 p-4 lg:grid-cols-2">
+                                      <section>
+                                        <h5 className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Lotes definidos na automação</h5>
+                                        <div className="space-y-2">
+                                          {cycle.automationLots.map((lot) => (
+                                            <article key={lot.id} className="border-l-4 border-cicopal-blue bg-white p-3">
+                                              <strong>{lot.input?.nome ?? "Insumo"}</strong>
+                                              <p className="text-sm font-semibold text-gray-600">Lote {lot.lote_fornecedor} · {lot.fornecedor}</p>
+                                              <p className="text-xs font-bold text-gray-500">Validade: {new Date(`${lot.validade}T12:00:00`).toLocaleDateString("pt-BR")}</p>
+                                            </article>
+                                          ))}
+                                        </div>
+                                      </section>
+                                      <section>
+                                        <h5 className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Controle de bateladas</h5>
+                                        <div className="space-y-2">
+                                          {cycle.batches.map((batch) => (
+                                            <details key={batch.id} className="border border-gray-200 bg-white">
+                                              <summary className="cursor-pointer p-3 font-black">Batelada {batch.numero} · {batch.status.replaceAll("_", " ")}</summary>
+                                              <div className="border-t border-gray-100 p-3 text-sm">
+                                                <p className="mb-2 font-semibold text-gray-600">{new Date(batch.iniciada_em).toLocaleString("pt-BR")} — {batch.finalizada_em ? new Date(batch.finalizada_em).toLocaleString("pt-BR") : "em andamento"}</p>
+                                                {batch.inputs.map((item) => <p key={item.id}><strong>{item.input?.nome ?? "Insumo"}:</strong> lote {item.lote_fornecedor} · {item.quantidade_utilizada ?? "—"} {item.unidade}</p>)}
+                                              </div>
+                                            </details>
+                                          ))}
+                                        </div>
+                                      </section>
+                                    </div>
+                                  </details>
+                                ) : null}
+                                {cycle.processRecords.length ? (
+                                  <details open className="mb-4 border border-gray-300 bg-white">
+                                    <summary className="cursor-pointer bg-gray-950 p-4 font-black text-white">
+                                      Apontamentos dos subprocessos · {cycle.processRecords.length} registros
+                                    </summary>
+                                    <div className="space-y-3 bg-gray-100 p-3">
+                                      {processRecordGroups(cycle).map(([name, records]) => (
+                                        <details key={name} className="border border-gray-200 bg-white">
+                                          <summary className="flex cursor-pointer items-center justify-between p-4 font-black">
+                                            <span>{name}</span><span className="text-sm text-gray-500">{records.length} horário(s)</span>
+                                          </summary>
+                                          <div className="grid gap-3 border-t border-gray-200 p-3 lg:grid-cols-3">
+                                            {records.map((record) => (
+                                              <article key={record.id} className="border-l-4 border-cicopal-blue bg-gray-50 p-3">
+                                                <div className="flex items-center justify-between gap-2">
+                                                  <strong className="tabular-nums">{new Date(record.horario_previsto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</strong>
+                                                  <span className={record.status_prazo === "atrasado" ? "text-xs font-black text-cicopal-red" : "text-xs font-black text-cicopal-green"}>{record.status_prazo === "atrasado" ? "ATRASADO" : "NO PRAZO"}</span>
+                                                </div>
+                                                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                                                  {Object.entries(record.valores ?? {}).map(([key, value]) => <div key={key}><dt className="text-xs font-bold text-gray-400">{fieldLabel(key)}</dt><dd className="font-black text-gray-800">{String(value)}</dd></div>)}
+                                                </dl>
+                                                <p className="mt-3 border-t border-gray-200 pt-2 text-xs font-semibold text-gray-500">Preenchido em {new Date(record.preenchido_em).toLocaleString("pt-BR")}{record.retificado ? " · retificado" : ""}</p>
+                                              </article>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      ))}
+                                    </div>
+                                  </details>
+                                ) : null}
+                                {cycle.interruptions.length ? (
+                                  <details className="mb-4 border border-amber-300 bg-amber-50">
+                                    <summary className="cursor-pointer p-4 font-black text-amber-900">Interrupções · {cycle.interruptions.length}</summary>
+                                    <div className="space-y-2 border-t border-amber-200 p-3">
+                                      {cycle.interruptions.map((item) => <article key={item.id} className="bg-white p-3"><strong className="uppercase text-amber-800">{item.classificacao}</strong><p className="font-bold">{item.motivo}</p><p className="text-sm text-gray-600">{new Date(item.iniciada_em).toLocaleString("pt-BR")} · duração {duration(item.iniciada_em, item.encerrada_em)}</p>{item.observacao_retomada ? <p className="mt-1 text-sm font-semibold text-gray-600">Retomada: {item.observacao_retomada}</p> : null}</article>)}
                                     </div>
                                   </details>
                                 ) : null}

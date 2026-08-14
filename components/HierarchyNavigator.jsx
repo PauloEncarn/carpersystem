@@ -1426,6 +1426,15 @@ function Rg003CyclePanel({
   );
 }
 
+function CycleReadOnlyField({ label, value }) {
+  return (
+    <div className="border-l-4 border-cicopal-blue bg-gray-50 p-4">
+      <p className="text-xs font-black uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="mt-1 font-black text-gray-900">{value}</p>
+    </div>
+  );
+}
+
 function Rg003ProductionControl({
   lineId,
   documentCode,
@@ -1452,6 +1461,7 @@ function Rg003ProductionControl({
   const [now, setNow] = useState(() => new Date());
   const [ready, setReady] = useState(false);
   const [dayCycles, setDayCycles] = useState([]);
+  const [viewedCycle, setViewedCycle] = useState(null);
   const [syncState, setSyncState] = useState("checking");
   const [stopOpen, setStopOpen] = useState(false);
   const [stopMode, setStopMode] = useState("finish");
@@ -1836,6 +1846,51 @@ function Rg003ProductionControl({
         </div>
       </section>
 
+      <section className="border border-gray-300 bg-white">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Histórico operacional</p>
+            <h3 className="mt-1 text-xl font-bold text-gray-950">Produções deste dia</h3>
+            <p className="mt-1 text-sm font-semibold text-gray-500">
+              Consulte uma produção já iniciada sem alterar seus registros.
+            </p>
+          </div>
+          <span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-black text-gray-700">
+            {dayCycles.length} produção(ões)
+          </span>
+        </header>
+        {dayCycles.length ? (
+          <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+            {[...dayCycles].reverse().map((entry) => {
+              const isCurrent = cycle?.id === entry.id;
+              const ended = entry.status === "ended";
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setViewedCycle(entry)}
+                  className={`min-h-28 border-2 p-4 text-left transition active:scale-[.99] ${isCurrent ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-white hover:border-blue-300"}`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span>
+                      <strong className="block text-lg text-gray-950">{entry.product}</strong>
+                      <span className="mt-1 block font-mono text-xs font-bold text-gray-500">{entry.productionCode}</span>
+                    </span>
+                    <ChevronRight className="shrink-0 text-cicopal-blue" />
+                  </span>
+                  <span className="mt-3 flex items-center justify-between gap-2 text-xs font-black">
+                    <span className={ended ? "text-gray-500" : "text-cicopal-green"}>{ended ? "ENCERRADA" : isCurrent ? "ATUAL" : "EM ANDAMENTO"}</span>
+                    <span className="text-gray-500">{new Date(entry.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="p-6 text-center font-semibold text-gray-500">Nenhuma produção iniciada nesta data.</p>
+        )}
+      </section>
+
       {!cycle ? (
         <section className="rounded-lg border border-gray-300 bg-white p-5">
           <div className="mb-4">
@@ -2196,6 +2251,36 @@ function Rg003ProductionControl({
             <header className="border-b border-gray-200 p-5"><p className="text-xs font-black uppercase text-amber-700">Retomada controlada</p><h2 className="text-2xl font-black">Retomar produção</h2><p className="mt-1 font-semibold text-gray-500">A duração da pausa será calculada automaticamente.</p></header>
             <div className="p-5"><textarea className="min-h-28 w-full border border-gray-300 p-3" placeholder="O que foi feito durante a pausa?" value={resumeData.observacao} onChange={(event) => setResumeData((current) => ({ ...current, observacao: event.target.value }))} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 font-black text-cicopal-blue"><Camera size={22} />{resumeData.fotoDepois ? "Foto posterior registrada" : "Registrar foto antes de retomar"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setResumeData((current) => ({ ...current, fotoDepois: reader.result })); reader.readAsDataURL(file); }} /></label>{resumeData.fotoDepois ? <img src={resumeData.fotoDepois} alt="Evidência da retomada" className="mt-3 max-h-52 w-full object-contain" /> : null}</div>
             <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4"><button type="button" className="border border-gray-300 font-bold" onClick={() => setResumeOpen(false)}>Cancelar</button><button type="button" disabled={!resumeData.observacao.trim() || !resumeData.fotoDepois} className="bg-cicopal-green font-black text-white disabled:bg-gray-300" onClick={resumeProduction}>Retomar produção</button></footer>
+          </section>
+        </div>
+      ) : null}
+
+      {viewedCycle ? (
+        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/65 p-4">
+          <section className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border-t-8 border-cicopal-blue bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-4 border-b border-gray-200 p-5">
+              <div>
+                <p className="text-xs font-black uppercase text-cicopal-blue">Visualização somente leitura</p>
+                <h2 className="mt-1 text-2xl font-black text-gray-950">{viewedCycle.product}</h2>
+                <p className="mt-1 font-mono text-sm font-bold text-gray-500">{viewedCycle.productionCode}</p>
+              </div>
+              <button type="button" onClick={() => setViewedCycle(null)} className="grid size-12 shrink-0 place-items-center border border-gray-300"><X size={22} /></button>
+            </header>
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              <CycleReadOnlyField label="Situação" value={viewedCycle.status === "ended" ? "Produção encerrada" : viewedCycle.id === cycle?.id ? "Produção atual" : "Em andamento"} />
+              <CycleReadOnlyField label="Motivo do início" value={viewedCycle.reason || "Início de produção"} />
+              <CycleReadOnlyField label="Início da preparação" value={new Date(viewedCycle.startedAt).toLocaleString("pt-BR")} />
+              <CycleReadOnlyField label="Início da produção" value={viewedCycle.productionStartedAt ? new Date(viewedCycle.productionStartedAt).toLocaleString("pt-BR") : "Ainda não iniciada"} />
+              <CycleReadOnlyField label="Encerramento" value={viewedCycle.productionEndedAt || viewedCycle.endedAt ? new Date(viewedCycle.productionEndedAt ?? viewedCycle.endedAt).toLocaleString("pt-BR") : "Em andamento"} />
+              <CycleReadOnlyField label="Tempo de produção" value={formatElapsed(viewedCycle.productionStartedAt, viewedCycle.productionEndedAt || viewedCycle.endedAt ? new Date(viewedCycle.productionEndedAt ?? viewedCycle.endedAt) : now)} />
+            </div>
+            <div className="border-t border-gray-200 p-5">
+              <p className="mb-3 text-sm font-semibold text-gray-600">Para consultar lotes, bateladas, registros hora a hora, NCs e interrupções, abra o relatório completo.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => setViewedCycle(null)} className="min-h-14 border border-gray-300 bg-white font-bold text-gray-700">Fechar</button>
+                <a href="/relatorios" className="flex min-h-14 items-center justify-center gap-2 bg-cicopal-blue px-4 text-center font-black text-white"><FileText size={19} /> Ver relatório completo</a>
+              </div>
+            </div>
           </section>
         </div>
       ) : null}
