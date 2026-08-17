@@ -434,13 +434,6 @@ export function ChecklistTable({
         active: row?.group === group.title,
       };
     });
-    const activeFrontItem = fronts.find((front) => front.active);
-    const activeFront =
-      activeFrontItem?.frontNumber ?? fronts.findIndex((front) => front.active) + 1;
-    const totalFronts = Math.max(
-      fronts.length,
-      ...fronts.map((front) => front.frontNumber ?? 0),
-    );
     const updateNc = (field, value) =>
       updateRow(activeIndex, { nc: { ...(row?.nc ?? {}), [field]: value } });
     function choose(value) {
@@ -478,11 +471,11 @@ export function ChecklistTable({
             />
           </div>
           <p className="mt-2 text-xs font-semibold text-gray-500">
-            Frente {activeFront} de {totalFronts} · item {groupPosition} de {groupRows.length}
+            Item {groupPosition} de {groupRows.length} nesta seção
           </p>
         </header>
-        <nav className="checklist-fronts" aria-label="Frentes da higienização">
-          {fronts.map((front, index) => (
+        <nav className="checklist-fronts" aria-label="Seções da higienização">
+          {fronts.map((front) => (
             <button
               key={front.id}
               type="button"
@@ -490,9 +483,8 @@ export function ChecklistTable({
               onClick={() => front.firstIndex >= 0 && setActiveIndex(front.firstIndex)}
               className={`min-h-20 border-2 p-3 text-left ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : front.available ? "border-gray-300 bg-white text-gray-800" : "border-gray-200 bg-gray-100 text-gray-400"}`}
             >
-              <span className="text-xs font-black uppercase">Frente {front.frontNumber ?? index + 1}</span>
-              <strong className="mt-1 block text-sm md:text-base">{front.title}</strong>
-              <span className="mt-1 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · finalize a frente anterior" : ""}</span>
+              <strong className="block text-sm uppercase md:text-base">{front.title}</strong>
+              <span className="mt-2 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · conclua a seção anterior" : ""}</span>
             </button>
           ))}
         </nav>

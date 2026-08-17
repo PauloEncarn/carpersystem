@@ -1873,19 +1873,16 @@ function Rg003ProductionControl({
         </div>
       </section>
 
-      <section className="border border-gray-300 bg-white">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+      <details className="group border border-gray-300 bg-white">
+        <summary className="flex min-h-16 cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Histórico operacional</p>
-            <h3 className="mt-1 text-xl font-bold text-gray-950">Produções deste dia</h3>
-            <p className="mt-1 text-sm font-semibold text-gray-500">
-              Consulte uma produção já iniciada sem alterar seus registros.
-            </p>
+            <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Histórico do dia</p>
+            <h3 className="mt-1 text-lg font-bold text-gray-950">Ver produções anteriores</h3>
           </div>
-          <span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-black text-gray-700">
-            {dayCycles.length} produção(ões)
+          <span className="inline-flex items-center gap-2 border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-black text-gray-700">
+            {dayCycles.length} <ChevronRight className="transition group-open:rotate-90" size={18} />
           </span>
-        </header>
+        </summary>
         {dayCycles.length ? (
           <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
             {[...dayCycles].reverse().map((entry) => {
@@ -1916,7 +1913,7 @@ function Rg003ProductionControl({
         ) : (
           <p className="p-6 text-center font-semibold text-gray-500">Nenhuma produção iniciada nesta data.</p>
         )}
-      </section>
+      </details>
 
       {!cycle ? (
         <section className="rounded-lg border border-gray-300 bg-white p-5">
@@ -2004,9 +2001,10 @@ function Rg003ProductionControl({
         </section>
       ) : (
         <>
-          <section className="rounded-lg border border-gray-300 bg-white p-4">
-            <p className="mb-3 text-xs font-bold uppercase text-gray-500">
-              1 · Pré-requisitos ·{" "}
+          <section className="border border-gray-300 bg-white p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase text-gray-500">
+              Preparação da linha ·{" "}
               {cycle.productionCode ||
                 makeRg003ProductionCode(
                   cycle.product,
@@ -2014,12 +2012,12 @@ function Rg003ProductionControl({
                   1,
                   lineId,
                 )}
-            </p>
+            </p><span className="text-xs font-black text-gray-500">{Number(hygieneDone) + Number(releaseDone)}/2</span></div>
             <div className="grid gap-3 md:grid-cols-2">
               <button
                 type="button"
                 onClick={() => onOpenProcess("higienizacao")}
-                className={`min-h-24 rounded-md border-2 p-4 text-left ${hygieneDone ? "border-green-300 bg-green-50 text-cicopal-green" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}
+                className={`min-h-20 border-l-4 p-4 text-left ${hygieneDone ? "border-cicopal-green bg-green-50 text-cicopal-green" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}
               >
                 <span className="block text-lg font-bold">
                   {hygieneDone ? "✓ Higienização confirmada" : "Higienização"}
@@ -2034,7 +2032,7 @@ function Rg003ProductionControl({
                 type="button"
                 disabled={!hygieneDone}
                 onClick={() => onOpenProcess("produto_liberacao")}
-                className={`min-h-24 rounded-md border-2 p-4 text-left ${releaseDone ? "border-green-300 bg-green-50 text-cicopal-green" : hygieneDone ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+                className={`min-h-20 border-l-4 p-4 text-left ${releaseDone ? "border-cicopal-green bg-green-50 text-cicopal-green" : hygieneDone ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-300 bg-gray-100 text-gray-400"}`}
               >
                 <span className="block text-lg font-bold">
                   {releaseDone ? "✓ Produto liberado" : "Liberação do produto"}
@@ -2050,19 +2048,19 @@ function Rg003ProductionControl({
             </div>
           </section>
 
-          <section className="relative rounded-lg border border-gray-300 bg-white p-5">
+          <section className="relative overflow-hidden bg-slate-950 p-5 text-white shadow-lg md:p-7">
             <button
               type="button"
               disabled={!cycle}
               aria-label="Registrar não conformidade genérica"
               title="Registrar não conformidade"
               onClick={() => setGenericNcOpen(true)}
-              className="absolute right-4 top-4 grid size-14 place-items-center border-2 border-red-200 bg-red-50 text-cicopal-red shadow-sm transition hover:border-cicopal-red hover:bg-red-100 disabled:opacity-30"
+              className="absolute right-4 top-4 grid size-14 place-items-center border-2 border-red-400 bg-red-600 text-white shadow-sm transition hover:bg-red-700 disabled:opacity-30"
             >
               <AlertTriangle size={28} strokeWidth={2.4} />
             </button>
-            <p className="text-center text-xs font-bold uppercase text-gray-500">
-              2 · Controle da produção
+            <p className="text-center text-xs font-bold uppercase tracking-[.18em] text-blue-200">
+              Comando principal
             </p>
             <div className="mt-4 flex items-center justify-center">
               <button
@@ -2087,7 +2085,7 @@ function Rg003ProductionControl({
                 )}
               </button>
             </div>
-            <p className="mt-3 text-center text-lg font-bold text-gray-900">
+            <p className="mt-3 text-center text-xl font-bold text-white">
               {producing
                 ? "Parar produção"
                 : cycle?.status === "blocked" && cycle?.activePause
@@ -2099,7 +2097,7 @@ function Rg003ProductionControl({
             {canCancelPreparation ? (
               <button
                 type="button"
-                className="mx-auto mt-4 flex min-h-12 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-5 font-bold text-gray-700"
+                className="mx-auto mt-4 flex min-h-12 items-center justify-center gap-2 border border-slate-600 bg-slate-900 px-5 font-bold text-white"
                 onClick={() => {
                   setStopMode("cancel");
                   setStopOpen(true);
@@ -2108,7 +2106,7 @@ function Rg003ProductionControl({
                 <ArrowLeft size={18} /> Voltar aos produtos
               </button>
             ) : (
-              <p className="mt-4 text-center text-xs font-semibold text-gray-500">
+              <p className="mt-4 text-center text-xs font-semibold text-slate-300">
                 Com a produção iniciada, utilize o botão vermelho para parar.
               </p>
             )}
@@ -2237,9 +2235,9 @@ function Rg003ProductionControl({
             </div>
           ) : null}
 
-          <section className="rounded-lg border border-gray-300 bg-white p-4">
+          <section className="border border-gray-300 bg-white p-4">
             <p className="mb-3 text-xs font-bold uppercase text-gray-500">
-              3 · Controles durante a produção
+              Tarefas da produção
             </p>
             <div className="grid gap-3 md:grid-cols-3">
               {[
@@ -2252,7 +2250,7 @@ function Rg003ProductionControl({
                   type="button"
                   disabled={!producing}
                   onClick={() => beginHourly(type, label, id)}
-                  className={`min-h-20 rounded-md border-2 p-3 font-bold ${producing ? "border-cicopal-blue bg-white text-cicopal-blue" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+                  className={`min-h-24 border-l-4 p-3 text-left font-bold ${producing ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-300 bg-gray-100 text-gray-400"}`}
                 >
                   {label}
                   <span className="mt-1 block text-xs font-semibold">
@@ -2267,7 +2265,13 @@ function Rg003ProductionControl({
             </div>
           </section>
           {lineId === "ROS" ? (
-            <ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} />
+            <details className="group border border-gray-300 bg-white">
+              <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 p-4 font-black text-gray-900">
+                <span><span className="block text-xs uppercase text-cicopal-blue">Produção integrada</span>Abrir subprocessos da fábrica</span>
+                <ChevronRight className="text-cicopal-blue transition group-open:rotate-90" />
+              </summary>
+              <div className="border-t border-gray-200 p-3"><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} /></div>
+            </details>
           ) : null}
         </>
       )}
@@ -3224,14 +3228,20 @@ export function HierarchyNavigator({
       className={`audit-card p-4 ${currentStep === 6 && sequentialFlow ? "rg-tablet-app" : ""}`}
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-white p-3 shadow-sm">
-        <button
+        {currentStep === 6 && sequentialFlow ? <button
+          type="button"
+          onClick={() => onStepChange(4)}
+          className="inline-flex min-h-12 items-center gap-2 bg-cicopal-blue px-4 font-black text-white"
+        >
+          <Factory size={20} /> Fábrica
+        </button> : <button
           type="button"
           onClick={goBack}
           disabled={currentStep === 1 || (currentStep === 4 && sequentialFlow && rg003CycleStatus === "producing")}
           className="inline-flex min-h-12 items-center gap-2 border border-gray-200 bg-gray-50 px-4 font-black text-gray-700 disabled:opacity-35"
         >
           <ArrowLeft size={19} /> Voltar
-        </button>
+        </button>}
         <div className="min-w-0 flex-1 text-center"><p className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Navegação atual</p><p className="truncate text-lg font-black text-gray-950">{navigationLabel}</p></div>
         <button
           type="button"
