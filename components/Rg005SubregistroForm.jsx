@@ -3397,6 +3397,29 @@ export function Rg005SubregistroForm({
     return () => { active = false; };
   }, [cycleContext?.id, isRg003, subregistro?.id]);
   useEffect(() => {
+    if (!isRg003 || subregistro?.id !== "higienizacao" || !cycleContext?.id)
+      return;
+    let active = true;
+    const refreshFromOtherTablet = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const [rounds, openNcs] = await Promise.all([
+          loadHygieneRounds(cycleContext.id),
+          loadOpenCycleNcs(cycleContext.id, "higienizacao"),
+        ]);
+        if (active) {
+          setHygieneRounds(rounds);
+          setOpenPrerequisiteNcs(openNcs);
+        }
+      } catch {}
+    };
+    const timer = window.setInterval(refreshFromOtherTablet, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [cycleContext?.id, isRg003, subregistro?.id]);
+  useEffect(() => {
     setEditMode(false);
   }, [activeHour, subregistro?.id]);
   const allowedHours = useMemo(
@@ -3845,7 +3868,10 @@ export function Rg005SubregistroForm({
           <section className="mb-4 border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Higienização em duas etapas</p><h2 className="mt-1 text-xl font-black text-gray-950">{latestHygieneRound ? `Rodada ${latestHygieneRound.numero}` : "Execução inicial"}</h2><p className="mt-1 font-semibold text-gray-600">{workflowMessage}</p></div>
-              <span className={`px-3 py-2 text-xs font-black uppercase ${approved ? "bg-green-100 text-cicopal-green" : correcting ? "bg-red-100 text-cicopal-red" : waitingQuality ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-cicopal-blue"}`}>{approved ? "Aprovada" : correcting ? "Em correção" : waitingQuality ? "Aguardando Qualidade" : "Operação"}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={hygieneLoading} onClick={async () => { setHygieneLoading(true); try { await refreshHygieneWorkflow(); } finally { setHygieneLoading(false); } }} className="inline-flex min-h-11 items-center gap-2 border border-gray-300 bg-white px-3 text-sm font-black text-gray-700 disabled:opacity-50"><RotateCcw size={17} /> Atualizar</button>
+                <span className={`px-3 py-2 text-xs font-black uppercase ${approved ? "bg-green-100 text-cicopal-green" : correcting ? "bg-red-100 text-cicopal-red" : waitingQuality ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-cicopal-blue"}`}>{approved ? "Aprovada" : correcting ? "Em correção" : waitingQuality ? "Aguardando Qualidade" : "Operação"}</span>
+              </div>
             </div>
             {hygieneRounds.length ? <div className="mt-4 flex gap-2 overflow-x-auto border-t border-gray-100 pt-3">{hygieneRounds.map((round) => <span key={round.id} className={`min-w-max border-l-4 px-3 py-2 text-xs font-bold ${round.status === "aprovada" ? "border-l-cicopal-green bg-green-50" : round.status === "em_correcao" ? "border-l-cicopal-red bg-red-50" : "border-l-amber-500 bg-amber-50"}`}>Rodada {round.numero} · {round.status.replaceAll("_", " ")}</span>)}</div> : null}
           </section>
@@ -3880,6 +3906,8 @@ export function Rg005SubregistroForm({
           flowTitle={`Inspeção da Qualidade · Rodada ${latestHygieneRound.numero}`}
           successTitle="Inspeção da Qualidade registrada"
           confirmationLabel="Confirmar inspeção"
+          referenceEvaluations={latestHygieneRound.dados_operacao?.avaliacoes ?? []}
+          referenceLabel="Resultado informado pelo operador"
         /> : waitingQuality ? (
           <section className="border-l-8 border-amber-500 bg-white p-6 text-center shadow-sm"><Clock size={42} className="mx-auto text-amber-600" /><h3 className="mt-3 text-xl font-black">Aguardando a Qualidade</h3><p className="mt-2 font-semibold text-gray-600">Seu checklist foi preservado. A próxima etapa será liberada somente após a aprovação.</p></section>
         ) : approved ? (

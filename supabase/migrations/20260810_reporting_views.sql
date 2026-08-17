@@ -1,4 +1,5 @@
-create or replace view public.vw_relatorio_ciclos as
+create or replace view public.vw_relatorio_ciclos
+with (security_invoker = true) as
 select
   c.id as ciclo_id,
   c.linha_id,

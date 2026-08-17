@@ -254,6 +254,8 @@ export function ChecklistTable({
   flowTitle = "Higienização · RG 003",
   successTitle = "Higienização gravada com sucesso",
   confirmationLabel = "Confirmar registro",
+  referenceEvaluations = [],
+  referenceLabel = "Resultado da operação",
 }) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
   const [savedAt, setSavedAt] = useState("");
@@ -389,6 +391,9 @@ export function ChecklistTable({
       );
     }
     const row = rows[activeIndex];
+    const reference = referenceEvaluations.find(
+      (item) => item.item === row?.item,
+    );
     const progress = rows.length
       ? Math.round(((activeIndex + 1) / rows.length) * 100)
       : 0;
@@ -441,6 +446,17 @@ export function ChecklistTable({
           <h3 className="mt-2 min-h-20 text-2xl font-bold leading-tight text-gray-950 md:text-3xl">
             {row?.item}
           </h3>
+          {reference ? (
+            <div className="mb-4 flex items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-blue-50 p-3">
+              <span>
+                <span className="block text-xs font-black uppercase text-gray-500">{referenceLabel}</span>
+                <strong className="text-sm text-gray-900">Registrado antes da sua inspeção</strong>
+              </span>
+              <span className={`min-w-14 px-3 py-2 text-center text-lg font-black ${reference.av1 === "C" ? "bg-cicopal-green text-white" : ["N", "NC"].includes(reference.av1) ? "bg-cicopal-red text-white" : "bg-gray-600 text-white"}`}>
+                {reference.av1 || "—"}
+              </span>
+            </div>
+          ) : null}
           <p className="mb-3 text-sm font-semibold text-gray-500">
             Toque duas vezes para confirmar. Conforme avança automaticamente.
           </p>
