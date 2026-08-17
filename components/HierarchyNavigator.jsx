@@ -1815,11 +1815,11 @@ function Rg003ProductionControl({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
-      <section className="rounded-lg border border-gray-300 border-t-4 border-t-cicopal-blue bg-white p-5">
+    <div className="production-app mx-auto max-w-6xl space-y-4">
+      <section className="production-app-hero overflow-hidden bg-cicopal-blue p-5 text-white shadow-lg md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase text-cicopal-blue">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-blue-100"><Factory size={17} />
               {documentCode} ·{" "}
               {lineId === "ROS"
                 ? "Rosca"
@@ -1827,11 +1827,11 @@ function Rg003ProductionControl({
                   ? "Pururuca"
                   : "Salgadinho"}
             </p>
-            <h2 className="mt-1 text-2xl font-bold text-gray-950">
+            <h2 className="mt-2 text-3xl font-black text-white">
               {cycle?.product ?? "Nova produção"}
             </h2>
             {cycle ? (
-              <p className="mt-1 font-mono text-sm font-bold text-gray-600">
+              <p className="mt-1 font-mono text-sm font-bold text-blue-100">
                 {cycle.productionCode ||
                   makeRg003ProductionCode(
                     cycle.product,
@@ -1842,12 +1842,12 @@ function Rg003ProductionControl({
               </p>
             ) : null}
             <p
-              className={`mt-2 text-sm font-bold ${producing ? "text-cicopal-green" : cycle?.status === "blocked" ? "text-cicopal-red" : "text-amber-700"}`}
+              className={`mt-3 inline-flex bg-white/15 px-3 py-1.5 text-sm font-black ${producing ? "text-green-200" : cycle?.status === "blocked" ? "text-red-200" : "text-amber-200"}`}
             >
               {statusText}
             </p>
             <p
-              className={`mt-2 inline-flex items-center gap-2 text-xs font-bold ${syncState === "online" ? "text-cicopal-green" : syncState === "error" ? "text-cicopal-red" : "text-gray-500"}`}
+              className={`mt-3 flex items-center gap-2 text-xs font-bold ${syncState === "online" ? "text-green-200" : syncState === "error" ? "text-red-200" : "text-blue-100"}`}
             >
               <span
                 className={`size-2 rounded-full ${syncState === "online" ? "bg-cicopal-green" : syncState === "saving" || syncState === "checking" ? "animate-pulse bg-amber-500" : syncState === "error" ? "bg-cicopal-red" : "bg-gray-400"}`}
@@ -1855,8 +1855,8 @@ function Rg003ProductionControl({
               {syncText}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-xs font-bold uppercase text-gray-400">
+          <div className="min-w-48 bg-white/10 p-4 text-right backdrop-blur-sm">
+            <p className="text-xs font-bold uppercase text-blue-100">
               {cycle?.status === "hygiene"
                 ? "Tempo de higienização"
                 : cycle?.status === "awaiting_release"
@@ -1865,7 +1865,7 @@ function Rg003ProductionControl({
                     ? "Produção ainda não iniciada"
                     : "Tempo total de produção"}
             </p>
-            <p className="text-3xl font-bold tabular-nums text-gray-950">
+            <p className="mt-1 text-4xl font-black tabular-nums text-white">
               {formatElapsed(clockStartedAt, clockNow)}
             </p>
             {cycle?.status === "blocked" && cycle?.activePause ? <p className="mt-1 text-xs font-black uppercase text-cicopal-red">Pausada há {formatElapsed(cycle.activePause.iniciada_em, now)}</p> : null}
@@ -1873,7 +1873,7 @@ function Rg003ProductionControl({
         </div>
       </section>
 
-      <details className="group border border-gray-300 bg-white">
+      <details className="group production-app-card bg-white">
         <summary className="flex min-h-16 cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Histórico do dia</p>
@@ -1916,7 +1916,7 @@ function Rg003ProductionControl({
       </details>
 
       {!cycle ? (
-        <section className="rounded-lg border border-gray-300 bg-white p-5">
+        <section className="production-app-card bg-white p-5 md:p-6">
           <div className="mb-4">
             <p className="text-xs font-bold uppercase text-gray-500">
               Produtos do dia
@@ -1940,13 +1940,13 @@ function Rg003ProductionControl({
                   key={item}
                   type="button"
                   onClick={() => setProduct(item)}
-                  className={`min-h-32 rounded-md border-2 p-4 text-left ${selectedProduct ? "border-cicopal-blue bg-blue-50 ring-2 ring-blue-100" : "border-gray-200 bg-white"}`}
+                  className={`min-h-32 p-4 text-left transition active:scale-[.98] ${selectedProduct ? "bg-cicopal-blue text-white shadow-lg" : "bg-gray-50 text-gray-950 hover:bg-blue-50"}`}
                 >
-                  <span className="block text-lg font-bold text-gray-950">
+                  <span className={`block text-lg font-bold ${selectedProduct ? "text-white" : "text-gray-950"}`}>
                     {selectedProduct ? "✓ " : ""}
                     {item}
                   </span>
-                  <span className="mt-1 block text-sm font-semibold text-gray-500">
+                  <span className={`mt-1 block text-sm font-semibold ${selectedProduct ? "text-blue-100" : "text-gray-500"}`}>
                     {productions.length
                       ? `${productions.length} produção(ões) iniciada(s)`
                       : "Nenhuma produção neste dia"}
@@ -2001,7 +2001,7 @@ function Rg003ProductionControl({
         </section>
       ) : (
         <>
-          <section className="border border-gray-300 bg-white p-4">
+          <section className="production-app-card bg-white p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-gray-500">
               Preparação da linha ·{" "}
@@ -2013,11 +2013,11 @@ function Rg003ProductionControl({
                   lineId,
                 )}
             </p><span className="text-xs font-black text-gray-500">{Number(hygieneDone) + Number(releaseDone)}/2</span></div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="relative grid gap-2 md:grid-cols-2 md:gap-4">
               <button
                 type="button"
                 onClick={() => onOpenProcess("higienizacao")}
-                className={`min-h-20 border-l-4 p-4 text-left ${hygieneDone ? "border-cicopal-green bg-green-50 text-cicopal-green" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}
+                className={`min-h-24 p-4 text-left transition active:scale-[.99] ${hygieneDone ? "bg-green-50 text-cicopal-green" : "bg-blue-50 text-cicopal-blue ring-2 ring-blue-200"}`}
               >
                 <span className="block text-lg font-bold">
                   {hygieneDone ? "✓ Higienização confirmada" : "Higienização"}
@@ -2032,7 +2032,7 @@ function Rg003ProductionControl({
                 type="button"
                 disabled={!hygieneDone}
                 onClick={() => onOpenProcess("produto_liberacao")}
-                className={`min-h-20 border-l-4 p-4 text-left ${releaseDone ? "border-cicopal-green bg-green-50 text-cicopal-green" : hygieneDone ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-300 bg-gray-100 text-gray-400"}`}
+                className={`min-h-24 p-4 text-left transition active:scale-[.99] ${releaseDone ? "bg-green-50 text-cicopal-green" : hygieneDone ? "bg-blue-50 text-cicopal-blue ring-2 ring-blue-200" : "bg-gray-100 text-gray-400"}`}
               >
                 <span className="block text-lg font-bold">
                   {releaseDone ? "✓ Produto liberado" : "Liberação do produto"}
@@ -2048,7 +2048,7 @@ function Rg003ProductionControl({
             </div>
           </section>
 
-          <section className="relative overflow-hidden bg-slate-950 p-5 text-white shadow-lg md:p-7">
+          <section className="production-command relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-cicopal-blue p-5 text-white shadow-xl md:p-7">
             <button
               type="button"
               disabled={!cycle}
@@ -2062,7 +2062,7 @@ function Rg003ProductionControl({
             <p className="text-center text-xs font-bold uppercase tracking-[.18em] text-blue-200">
               Comando principal
             </p>
-            <div className="mt-4 flex items-center justify-center">
+            <div className="mt-5 flex items-center justify-center">
               <button
                 type="button"
                 disabled={!releaseDone && !producing}
@@ -2076,7 +2076,7 @@ function Rg003ProductionControl({
                         activeAction: null,
                       })
                 }
-                className={`grid size-28 place-items-center rounded-full border-8 text-white shadow-md transition ${producing ? "border-red-100 bg-cicopal-red" : releaseDone ? "border-blue-100 bg-cicopal-blue" : "border-gray-200 bg-gray-300"}`}
+                className={`grid size-28 place-items-center rounded-full border-8 text-white shadow-2xl transition active:scale-95 ${producing ? "border-red-200/40 bg-cicopal-red" : releaseDone ? "border-white/30 bg-white text-cicopal-blue" : "border-gray-300/30 bg-gray-500"}`}
               >
                 {producing ? (
                   <Square size={38} fill="currentColor" />
@@ -2235,10 +2235,8 @@ function Rg003ProductionControl({
             </div>
           ) : null}
 
-          <section className="border border-gray-300 bg-white p-4">
-            <p className="mb-3 text-xs font-bold uppercase text-gray-500">
-              Tarefas da produção
-            </p>
+          <section className="production-app-card bg-white p-4 md:p-5">
+            <div className="mb-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-cicopal-blue">Acesso rápido</p><h3 className="mt-1 text-xl font-black text-gray-950">Registros da hora</h3></div>
             <div className="grid gap-3 md:grid-cols-3">
               {[
                 ["produto_avaliacao", "Avaliação do produto", "product"],
@@ -2250,10 +2248,11 @@ function Rg003ProductionControl({
                   type="button"
                   disabled={!producing}
                   onClick={() => beginHourly(type, label, id)}
-                  className={`min-h-24 border-l-4 p-3 text-left font-bold ${producing ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-300 bg-gray-100 text-gray-400"}`}
+                  className={`group min-h-28 p-4 text-left font-bold transition active:scale-[.98] ${producing ? "bg-gray-50 text-gray-950 hover:bg-blue-50" : "bg-gray-100 text-gray-400"}`}
                 >
-                  {label}
-                  <span className="mt-1 block text-xs font-semibold">
+                  <span className={`mb-3 grid size-10 place-items-center ${producing ? "bg-cicopal-blue text-white" : "bg-gray-200 text-gray-400"}`}>{id === "fotografico" ? <Camera size={21} /> : id === "processo" ? <Factory size={21} /> : <ClipboardList size={21} />}</span>
+                  <span className="block text-base">{label}</span>
+                  <span className={`mt-1 block text-xs font-semibold ${producing ? "text-gray-500" : "text-gray-400"}`}>
                     {producing
                       ? cycle.activeAction?.type === type
                         ? "Em andamento"
@@ -2265,7 +2264,7 @@ function Rg003ProductionControl({
             </div>
           </section>
           {lineId === "ROS" ? (
-            <details className="group border border-gray-300 bg-white">
+            <details className="group production-app-card bg-white">
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 p-4 font-black text-gray-900">
                 <span><span className="block text-xs uppercase text-cicopal-blue">Produção integrada</span>Abrir subprocessos da fábrica</span>
                 <ChevronRight className="text-cicopal-blue transition group-open:rotate-90" />

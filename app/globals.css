@@ -278,6 +278,39 @@ button {
   border-top-color: var(--cicopal-red);
 }
 
+.production-app {
+  --app-radius: 14px;
+  padding: 4px;
+}
+
+.production-app-card,
+.production-app-hero,
+.production-command {
+  border-radius: var(--app-radius);
+}
+
+.production-app-card {
+  border: 1px solid #e4e8ef;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
+}
+
+.production-app-hero {
+  background-image: radial-gradient(circle at 90% 10%, rgb(255 255 255 / .16), transparent 32%);
+}
+
+@media (max-width: 720px) {
+  .production-app {
+    margin-inline: -12px;
+    padding: 0;
+  }
+
+  .production-app-card,
+  .production-app-hero,
+  .production-command {
+    border-radius: 10px;
+  }
+}
+
 .audit-table {
   width: 100%;
   border-collapse: collapse;
