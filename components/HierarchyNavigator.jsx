@@ -2266,7 +2266,7 @@ function Rg003ProductionControl({
           {lineId === "ROS" ? (
             <details className="group production-app-card bg-white">
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 p-4 font-black text-gray-900">
-                <span><span className="block text-xs uppercase text-cicopal-blue">Produção integrada</span>Abrir subprocessos da fábrica</span>
+                <span><span className="block text-xs uppercase text-cicopal-blue">Fluxo da produção</span>Abrir processos da produção</span>
                 <ChevronRight className="text-cicopal-blue transition group-open:rotate-90" />
               </summary>
               <div className="border-t border-gray-200 p-3"><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} /></div>
@@ -2290,12 +2290,13 @@ function Rg003ProductionControl({
           <section className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border-t-8 border-cicopal-blue bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-4 border-b border-gray-200 p-5">
               <div>
-                <p className="text-xs font-black uppercase text-cicopal-blue">Visualização somente leitura</p>
+                <p className="text-xs font-black uppercase text-cicopal-blue">Produção anterior · somente leitura</p>
                 <h2 className="mt-1 text-2xl font-black text-gray-950">{viewedCycle.product}</h2>
                 <p className="mt-1 font-mono text-sm font-bold text-gray-500">{viewedCycle.productionCode}</p>
               </div>
               <button type="button" onClick={() => setViewedCycle(null)} className="grid size-12 shrink-0 place-items-center border border-gray-300"><X size={22} /></button>
             </header>
+            <div className="border-b border-gray-200 bg-gray-50 px-5 py-3 text-sm font-bold text-gray-600">Resumo desta produção. Os registros de Automação, Masseira, Corte a fio, Forno, Empacotamento e Encaixotamento permanecem vinculados ao código abaixo.</div>
             <div className="grid gap-3 p-5 sm:grid-cols-2">
               <CycleReadOnlyField label="Situação" value={viewedCycle.status === "ended" ? "Produção encerrada" : viewedCycle.id === cycle?.id ? "Produção atual" : "Em andamento"} />
               <CycleReadOnlyField label="Motivo do início" value={viewedCycle.reason || "Início de produção"} />
@@ -2305,7 +2306,7 @@ function Rg003ProductionControl({
               <CycleReadOnlyField label="Tempo de produção" value={formatElapsed(viewedCycle.productionStartedAt, viewedCycle.productionEndedAt || viewedCycle.endedAt ? new Date(viewedCycle.productionEndedAt ?? viewedCycle.endedAt) : now)} />
             </div>
             <div className="border-t border-gray-200 p-5">
-              <p className="mb-3 text-sm font-semibold text-gray-600">Para consultar lotes, bateladas, registros hora a hora, NCs e interrupções, abra o relatório completo.</p>
+              <p className="mb-3 text-sm font-semibold text-gray-600">O relatório reúne todos os processos, lotes, bateladas, registros por hora, NCs e interrupções desta produção.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <button type="button" onClick={() => setViewedCycle(null)} className="min-h-14 border border-gray-300 bg-white font-bold text-gray-700">Fechar</button>
                 <a href="/relatorios" className="flex min-h-14 items-center justify-center gap-2 bg-cicopal-blue px-4 text-center font-black text-white"><FileText size={19} /> Ver relatório completo</a>

@@ -123,14 +123,15 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
     <section className="border border-gray-300 bg-white">
       <header className="border-b p-4">
         <p className="text-xs font-black uppercase text-cicopal-blue">
-          Rastreabilidade antes dos controles horários
+          Configurações da produção
         </p>
-        <h2 className="text-xl font-black">Insumos, bateladas e máquinas</h2>
+        <h2 className="text-xl font-black">Informações por processo</h2>
+        <p className="mt-1 text-sm font-semibold text-gray-500">Entre no processo que deseja configurar. Cada informação permanece vinculada à mesma produção.</p>
         <div className="mt-3 flex gap-2 overflow-x-auto">
           {[
             ["lots", "Automação"],
-            ["batches", "Masseira · Bateladas"],
-            ["packers", "Empacotadoras"],
+            ["batches", "Masseira"],
+            ["packers", "Empacotamento"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -236,6 +237,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
         ) : null}
         {tab === "batches" ? (
           <div>
+            <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">Masseira · controle de bateladas</p>
             <div className="mb-4 flex items-start justify-between gap-3 bg-blue-50 p-4">
               <div>
                 <small className="font-black uppercase text-cicopal-blue">
@@ -354,6 +356,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
         ) : null}
         {tab === "packers" ? (
           <div>
+            <div className="mb-4 border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">Empacotamento</p><h3 className="text-xl font-black">Configuração das empacotadoras</h3><p className="mt-1 text-sm font-semibold text-gray-600">As quatro máquinas pertencem a este processo. Configure somente as que estão rodando.</p></div>
             <p className="mb-3 font-semibold text-gray-600">
               Dados fictícios iniciais. Configure quais máquinas estão ativas, a
               gramatura e quantos pacotes cabem por caixa.

@@ -306,6 +306,38 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     ).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   }
 
+  function processButton(item, nested = false) {
+    const row = rowByCode(item.code);
+    const latest = recordsFor(item.code)[0];
+    const pendingCount = fixedSlots.filter((slot) => !recordsFor(item.code).some((record) => record.horario_previsto === slot)).length;
+    const filledCurrent = activeWindow && latest?.janela_indice === activeWindow.janela_indice;
+    const unlocked = isUnlocked(item.code);
+    const pendingTone = windowUrgency === "late" || windowUrgency === "danger"
+      ? "border-red-600 bg-red-50"
+      : windowUrgency === "warning"
+        ? "border-amber-500 bg-amber-50"
+        : "border-cicopal-blue bg-white";
+    return (
+      <button
+        key={item.code}
+        disabled={!unlocked}
+        onClick={() => openProcess(item.code)}
+        className={`min-h-28 border-l-4 p-4 text-left shadow-sm ${nested ? "bg-white" : ""} ${filledCurrent ? "border-green-500 bg-green-50" : unlocked ? pendingTone : "border-gray-200 bg-gray-50 opacity-50"}`}
+      >
+        <div className="flex justify-between gap-2">
+          <span><b className="block text-lg">{item.name}</b><small className="font-bold text-gray-500">{item.equipment}</small></span>
+          <span className={`h-fit px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+            {pendingCount ? `${pendingCount} pendente(s)` : "Em dia"}
+          </span>
+        </div>
+        <p className="mt-2 text-sm font-semibold text-gray-500">
+          {!unlocked ? "Finalize uma batelada na Masseira" : latest ? `Resultado anterior · ${fmt(latest.preenchido_em)}` : "Sem resultado anterior · início em zero"}
+        </p>
+        <small className="mt-2 block font-black uppercase text-gray-500">{labels[row?.status ?? "nao_iniciado"]}</small>
+      </button>
+    );
+  }
+
   if (!cycle?.productionStartedAt)
     return (
       <section className="border bg-gray-50 p-6 text-center">
@@ -403,49 +435,17 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               Confirmados não podem ser alterados
             </small>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {ROSCA_SUBPROCESSES.slice(2).map((item) => {
-              const row = rowByCode(item.code);
-              const latest = recordsFor(item.code)[0];
-              const pendingCount = fixedSlots.filter((slot) => !recordsFor(item.code).some((record) => record.horario_previsto === slot)).length;
-              const filledCurrent =
-                activeWindow &&
-                latest?.janela_indice === activeWindow.janela_indice;
-              const unlocked = isUnlocked(item.code);
-              const pendingTone =
-                windowUrgency === "late" || windowUrgency === "danger"
-                  ? "border-red-600 bg-red-50"
-                  : windowUrgency === "warning"
-                    ? "border-amber-500 bg-amber-50"
-                    : "border-cicopal-blue bg-white";
-              return (
-                <button
-                  key={item.code}
-                  disabled={!unlocked}
-                  onClick={() => openProcess(item.code)}
-                  className={`min-h-32 border-l-4 p-4 text-left shadow-sm ${filledCurrent ? "border-green-500 bg-green-50" : unlocked ? pendingTone : "border-gray-200 bg-gray-50 opacity-50"}`}
-                >
-                  <div className="flex justify-between gap-2">
-                    <b className="text-xl">{item.name}</b>
-                    <span
-                      className={`px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}
-                    >
-                      {pendingCount ? `${pendingCount} pendente(s)` : "Em dia"}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm font-semibold text-gray-500">
-                    {!unlocked
-                      ? "Selecione primeiro o lote na Masseira"
-                      : latest
-                        ? `Resultado anterior · ${fmt(latest.preenchido_em)}`
-                        : "Sem resultado anterior · início em zero"}
-                  </p>
-                  <small className="mt-3 block font-black uppercase text-gray-500">
-                    {labels[row?.status ?? "nao_iniciado"]}
-                  </small>
-                </button>
-              );
-            })}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "corte_fio"))}
+            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "forno"))}
+            <section className="border border-blue-200 bg-blue-50 p-3 sm:col-span-2">
+              <div className="mb-3"><p className="text-xs font-black uppercase text-cicopal-blue">Processo</p><h3 className="text-xl font-black">Empacotamento</h3><p className="text-sm font-semibold text-gray-600">Detecção de metais e empacotadoras fazem parte deste processo.</p></div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "detector_metal"), true)}
+                {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "empacotamento"), true)}
+              </div>
+            </section>
+            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "encaixotamento"))}
           </div>
         </section>
       </div>
