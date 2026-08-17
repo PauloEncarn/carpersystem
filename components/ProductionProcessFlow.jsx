@@ -76,6 +76,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
   const parameter = config?.parameters[fieldIndex];
+  const parameterContext = parameter?.group ?? (parameter?.key?.match(/^maq_(\d+)_/) ? `Empacotadora ${parameter.key.match(/^maq_(\d+)_/)[1]}` : config?.equipment);
   const rowByCode = (code) => rows.find((item) => item.codigo === code);
   const recordsFor = (code) => {
     const row = rowByCode(code);
@@ -452,8 +453,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
 
       {selected && config ? (
         <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
-          <article className="flex h-dvh w-full flex-col bg-white sm:h-auto sm:max-h-[94dvh] sm:max-w-2xl">
-            <header className="flex items-center justify-between border-b p-4 sm:p-5">
+          <article className="flex h-dvh w-full flex-col bg-white sm:h-[94dvh] sm:max-w-3xl">
+            <header className="shrink-0 border-b bg-white p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase text-cicopal-blue">
                   {config.frequency === "lot"
@@ -468,8 +470,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               >
                 <X />
               </button>
+              </div>
+              {!viewOnly && !review ? <div className="mt-3 flex items-center justify-between gap-3"><span className="bg-blue-50 px-3 py-2 text-xs font-black uppercase text-cicopal-blue">{parameterContext}</span><span className="text-sm font-black text-gray-500">{fieldIndex + 1}/{config.parameters.length}</span></div> : null}
             </header>
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">
               {viewOnly ? (
                 <section>
                   <p className="text-xs font-black uppercase text-green-700">
@@ -519,6 +523,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       {parameter.hint}
                     </p>
                   ) : null}
+                  {latestSelected?.valores?.[parameter.key] !== undefined && !rectifying ? <div className="mt-4 flex items-center justify-between bg-gray-100 p-3"><span className="text-xs font-black uppercase text-gray-500">Resultado anterior</span><b className="text-lg text-gray-800">{latestSelected.valores[parameter.key]} {parameter.unit}</b></div> : null}
                   <div className="mt-7">
                     {parameter.type === "options" ? (
                       <div className="grid grid-cols-3 gap-3">{parameter.options.map((option)=><button key={option} type="button" onClick={()=>setValues((all)=>({...all,[parameter.key]:option}))} className={`min-h-20 border-2 text-2xl font-black ${values[parameter.key]===option?option==="NC"?"border-red-600 bg-red-50 text-red-700":option==="NA"?"border-gray-500 bg-gray-100":"border-green-600 bg-green-50 text-green-700":"border-gray-200"}`}>{option}</button>)}</div>
@@ -575,7 +580,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                               [parameter.key]: event.target.value,
                             }))
                           }
-                          className="min-h-20 min-w-0 flex-1 px-4 text-3xl font-black outline-none"
+                          className="min-h-24 min-w-0 flex-1 px-4 text-center text-4xl font-black outline-none"
                         />
                         {parameter.type !== "text" ? (
                           <button
@@ -687,7 +692,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 </div>
               ) : null}
             </div>
-            <footer className="grid grid-cols-[auto_1fr] gap-2 border-t bg-white p-4">
+            <footer className="sticky bottom-0 grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,.08)] sm:p-4">
               <button
                 onClick={() =>
                   review
@@ -696,7 +701,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ? setFieldIndex((value) => value - 1)
                       : setSelectedCode("")
                 }
-                className="flex min-h-14 items-center justify-center gap-2 border px-5 font-black"
+                className="flex min-h-16 items-center justify-center gap-2 border px-5 font-black"
               >
                 <ChevronLeft />
                 Voltar
@@ -704,7 +709,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               {viewOnly ? (
                 <button
                   onClick={() => setSelectedCode("")}
-                  className="flex items-center justify-center bg-cicopal-blue px-5 font-black text-white"
+                  className="flex min-h-16 items-center justify-center bg-cicopal-blue px-5 font-black text-white"
                 >
                   Fechar resultado
                 </button>
@@ -712,7 +717,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 <button
                   disabled={saving}
                   onClick={confirm}
-                  className="flex items-center justify-center gap-2 bg-green-600 px-5 font-black text-white"
+                  className="flex min-h-16 items-center justify-center gap-2 bg-green-600 px-5 font-black text-white"
                 >
                   <Save />
                   Confirmar apontamento
@@ -720,7 +725,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               ) : (
                 <button
                   onClick={nextField}
-                  className="flex items-center justify-center gap-2 bg-cicopal-blue px-5 font-black text-white"
+                  className="flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-5 font-black text-white"
                 >
                   Continuar
                   <ChevronRight />

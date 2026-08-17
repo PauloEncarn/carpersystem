@@ -14,6 +14,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
   const [tab, setTab] = useState("lots");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [activePacker, setActivePacker] = useState(0);
   const [lot, setLot] = useState({
     supplyId: "",
     supplierLot: "",
@@ -361,14 +362,17 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
               Dados fictícios iniciais. Configure quais máquinas estão ativas, a
               gramatura e quantos pacotes cabem por caixa.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {packers.map((item, index) => (
+            <div className="mb-3 grid grid-cols-4 gap-2">
+              {packers.map((item, index) => <button key={item.machine} type="button" onClick={() => setActivePacker(index)} className={`min-h-14 font-black ${activePacker === index ? "bg-cicopal-blue text-white" : item.active ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-500"}`}>M{item.machine}</button>)}
+            </div>
+            <div>
+              {packers.map((item, index) => index === activePacker ? (
                 <article
                   key={item.machine}
-                  className={`border-l-4 p-4 ${item.active ? "border-green-500 bg-green-50" : "border-gray-300 bg-gray-50"}`}
+                  className={`border-l-4 p-5 ${item.active ? "border-green-500 bg-green-50" : "border-gray-300 bg-gray-50"}`}
                 >
                   <label className="flex min-h-12 items-center justify-between">
-                    <b className="text-lg">Máquina {item.machine}</b>
+                    <span><small className="block font-black uppercase text-gray-500">Empacotamento</small><b className="text-2xl">Empacotadora {item.machine}</b></span>
                     <input
                       type="checkbox"
                       className="size-7"
@@ -384,9 +388,10 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                       }
                     />
                   </label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <input
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <label><span className="mb-1 block text-xs font-black uppercase text-gray-500">Gramatura (g)</span><input
                       type="number"
+                      inputMode="decimal"
                       placeholder="Gramatura"
                       value={item.grammage}
                       onChange={(e) =>
@@ -398,10 +403,11 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                           ),
                         )
                       }
-                      className="min-h-14 border px-2"
-                    />
-                    <input
+                      className="min-h-16 w-full border px-3 text-xl font-black"
+                    /></label>
+                    <label><span className="mb-1 block text-xs font-black uppercase text-gray-500">Pacotes por caixa</span><input
                       type="number"
+                      inputMode="numeric"
                       placeholder="Pacotes/caixa"
                       value={item.packagesPerBox}
                       onChange={(e) =>
@@ -413,11 +419,11 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                           ),
                         )
                       }
-                      className="min-h-14 border px-2"
-                    />
+                      className="min-h-16 w-full border px-3 text-xl font-black"
+                    /></label>
                   </div>
                 </article>
-              ))}
+              ) : null)}
             </div>
             <button
               onClick={savePackers}
