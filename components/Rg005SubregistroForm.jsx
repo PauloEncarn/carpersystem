@@ -3612,7 +3612,16 @@ export function Rg005SubregistroForm({
         status: payload.ncs?.length ? "Com NC" : "Gravado",
       },
     });
-    if (saveResult === false) return false;
+    if (saveResult === false) {
+      // Um conflito significa que a versão local ficou obsoleta. Recarregamos
+      // imediatamente para impedir novas tentativas com a mesma versão antiga.
+      try {
+        const refreshed = await loadRg003Record(registro.id);
+        setPersistedRecord(refreshed);
+        setEditMode(false);
+      } catch {}
+      return false;
+    }
     if (
       isHourlyRg003 &&
       cycleContext?.id &&
@@ -3770,6 +3779,13 @@ export function Rg005SubregistroForm({
         setSavedAt("");
       }
     }
+    // A RPC incrementa `versao` no banco. A tela precisa receber essa nova
+    // versão antes de permitir outra edição no mesmo registro.
+    try {
+      const refreshed = await loadRg003Record(registro.id);
+      setPersistedRecord(refreshed);
+      setEditMode(false);
+    } catch {}
     setSavedAt(
       new Date().toLocaleTimeString("pt-BR", {
         hour: "2-digit",

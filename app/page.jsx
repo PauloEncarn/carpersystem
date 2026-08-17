@@ -28,6 +28,7 @@ export default function HomePage() {
   const [databaseStatus, setDatabaseStatus] = useState("");
   const [databaseError, setDatabaseError] = useState("");
   const currentStepRef = useRef(currentStep);
+  const saveInFlightRef = useRef(null);
   const selected = useMemo(
     () => findSelection(selection, operationTree),
     [selection, operationTree],
@@ -75,7 +76,16 @@ export default function HomePage() {
     setSelection(getInitialSelection(operationTree));
   }
 
-  async function saveRegistroSnapshot(snapshot) {
+  function saveRegistroSnapshot(snapshot) {
+    if (saveInFlightRef.current) return saveInFlightRef.current;
+    const task = performSaveRegistroSnapshot(snapshot).finally(() => {
+      if (saveInFlightRef.current === task) saveInFlightRef.current = null;
+    });
+    saveInFlightRef.current = task;
+    return task;
+  }
+
+  async function performSaveRegistroSnapshot(snapshot) {
     if (
       !selection.linhaId ||
       !selection.dataId ||
