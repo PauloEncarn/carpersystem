@@ -1,4 +1,4 @@
-import { sendHourlyEmailReport } from "@/lib/hourlyEmailReport";
+import { sendDailyEmailReport } from "@/lib/hourlyEmailReport";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -14,10 +14,29 @@ export async function GET(request) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const now = new Date();
-  now.setUTCMinutes(0, 0, 0);
-  const reportKey = new Date(now.getTime() - 3_600_000)
-    .toISOString()
-    .slice(0, 13);
+  const saoPauloHour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(now),
+  );
+  // Proteção adicional: mesmo que o cron antigo ainda dispare a cada hora,
+  // nenhuma consulta ao banco ou envio ocorre fora da janela diária das 15h.
+  if (saoPauloHour !== 15) {
+    return Response.json({
+      ok: true,
+      skipped: true,
+      reason: "outside_daily_window",
+      scheduledHour: "15:00 America/Sao_Paulo",
+    });
+  }
+  const reportKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -48,7 +67,7 @@ export async function GET(request) {
         },
         { onConflict: "report_key" },
       );
-    const result = await sendHourlyEmailReport();
+    const result = await sendDailyEmailReport(now);
     await supabase
       .from("hourly_email_dispatches")
       .update({

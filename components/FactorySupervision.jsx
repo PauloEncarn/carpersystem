@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -427,7 +427,10 @@ export function FactorySupervision({ variant = "classic" }) {
   const [hoveredId, setHoveredId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const refreshingRef = useRef(false);
   async function refresh() {
+    if (refreshingRef.current || document.visibilityState === "hidden") return;
+    refreshingRef.current = true;
     setLoading(true);
     setError("");
     try {
@@ -436,15 +439,21 @@ export function FactorySupervision({ variant = "classic" }) {
       setError(problem?.message ?? "Não foi possível consultar a fábrica.");
     } finally {
       setLoading(false);
+      refreshingRef.current = false;
     }
   }
   useEffect(() => {
     refresh();
     const clock = window.setInterval(() => setNow(new Date()), 1000);
-    const sync = window.setInterval(refresh, 30_000);
+    const sync = window.setInterval(refresh, 60_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(clock);
       window.clearInterval(sync);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
   const lines = useMemo(
