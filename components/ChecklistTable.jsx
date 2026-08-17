@@ -366,6 +366,16 @@ export function ChecklistTable({
     }
   }
 
+  if (!rows.length) {
+    return (
+      <section className="border-l-8 border-amber-500 bg-white p-6 shadow-sm">
+        <AlertTriangle size={34} className="text-amber-600" />
+        <h2 className="mt-3 text-xl font-black text-gray-950">Nenhum item disponível nesta frente</h2>
+        <p className="mt-1 font-semibold text-gray-600">Atualize a tela para recuperar a configuração mais recente da higienização.</p>
+      </section>
+    );
+  }
+
   if (stepByStep) {
     if (savedAt) {
       return (

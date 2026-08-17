@@ -3536,7 +3536,7 @@ export function Rg005SubregistroForm({
   const isFocusedReinspection =
     latestHygieneRound?.dados_operacao?.tipo === "correcao" &&
     correctionItems.length > 0;
-  const qualityChecklistGroups = isFocusedReinspection
+  const focusedQualityGroups = isFocusedReinspection
     ? config.checklistGroups
         .map((group, index) => ({
           ...group,
@@ -3546,6 +3546,9 @@ export function Rg005SubregistroForm({
           ),
         }))
         .filter((group) => group.items.length)
+    : [];
+  const qualityChecklistGroups = focusedQualityGroups.length
+    ? focusedQualityGroups
     : config.checklistGroups;
 
   async function refreshHygieneWorkflow() {

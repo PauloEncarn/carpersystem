@@ -1511,6 +1511,33 @@ function Rg003ProductionControl({
   }, [lineId, storageKey]);
 
   useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    const syncRemoteCycle = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const result = await loadActiveRg003Cycle(lineId);
+        if (!active || !result.remote) return;
+        store(result.cycle ?? null);
+        if (result.cycle?.product) setProduct(result.cycle.product);
+        setSyncState("online");
+      } catch {
+        if (active) setSyncState("error");
+      }
+    };
+    const timer = window.setInterval(syncRemoteCycle, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncRemoteCycle();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [lineId, ready]);
+
+  useEffect(() => {
     let active = true;
     loadRg003CyclesByDate(lineId, dateId)
       .then((result) => {
@@ -1784,7 +1811,7 @@ function Rg003ProductionControl({
     : new Date();
 
   if (operatorOnly && cycle) {
-    return <div className="mx-auto max-w-3xl space-y-4"><section className="border-t-4 border-cicopal-blue bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-cicopal-blue">{documentCode} · higienização operacional</p><h2 className="mt-1 text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-500">{cycle.productionCode}</p><div className="mt-5 border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-gray-500">Etapa disponível para o operador</p><button type="button" onClick={() => onOpenProcess("higienizacao")} className={`mt-3 min-h-24 w-full border-2 p-4 text-left ${hygieneDone ? "border-green-400 bg-green-50 text-green-800" : "border-cicopal-blue bg-white text-cicopal-blue"}`}><b className="block text-xl">{hygieneDone ? "Higienização enviada" : "Realizar higienização"}</b><span className="mt-1 block font-semibold">{hygieneDone ? "Toque para visualizar o registro realizado." : "Preencha a execução e envie para inspeção da Qualidade."}</span></button></div><p className="mt-4 text-sm font-semibold text-gray-500">As etapas de inspeção, liberação e avaliação são visualizadas pelo perfil da Qualidade.</p></section></div>;
+    return <div className="mx-auto max-w-3xl space-y-4"><section className="border-t-4 border-cicopal-blue bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-cicopal-blue">{documentCode} · higienização operacional</p><h2 className="mt-1 text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-500">{cycle.productionCode}</p><div className={`mt-5 border-l-4 p-4 ${hygieneDone ? "border-cicopal-green bg-green-50" : "border-cicopal-blue bg-blue-50"}`}><p className="text-xs font-black uppercase text-gray-500">Etapa do operador</p>{hygieneDone ? <div className="mt-3 min-h-24 border-2 border-green-300 bg-white p-4 text-green-800"><b className="block text-xl">Higienização operacional concluída</b><span className="mt-1 block font-semibold">Nenhuma tarefa pendente para o operador neste ciclo. O registro permanece preservado no histórico.</span></div> : <button type="button" onClick={() => onOpenProcess("higienizacao")} className="mt-3 min-h-24 w-full border-2 border-cicopal-blue bg-white p-4 text-left text-cicopal-blue"><b className="block text-xl">Realizar higienização</b><span className="mt-1 block font-semibold">Preencha a execução e envie para inspeção da Qualidade.</span></button>}</div><p className="mt-4 text-sm font-semibold text-gray-500">As etapas de inspeção, liberação e avaliação são visualizadas pelo perfil da Qualidade.</p></section></div>;
   }
 
   return (
@@ -3031,29 +3058,9 @@ export function HierarchyNavigator({
       } catch {
         activeCycle = null;
       }
+      // Navegação nunca encerra um ciclo. Cancelamento, troca e encerramento
+      // somente podem acontecer pelos controles explícitos da produção.
       if (activeCycle?.status === "producing") return;
-      if (activeCycle) {
-        try {
-          await persistCycleTransition({
-            cycle: activeCycle,
-            status: "ended",
-            description: "Preparação cancelada ao voltar para os produtos",
-            operatorId,
-            operatorName,
-            activeAction: null,
-          });
-          window.localStorage.removeItem(
-            `carper_rg003_cycle_${selection.linhaId}`,
-          );
-          window.dispatchEvent(
-            new CustomEvent("rg003-cycle-updated", { detail: null }),
-          );
-          return;
-        } catch {
-          setRg003CycleStatus("sync_error");
-          return;
-        }
-      }
     }
     onStepChange(
       hideDates && currentStep === 3
