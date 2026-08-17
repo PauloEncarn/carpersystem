@@ -12,6 +12,9 @@ import {
 export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("lots");
+  const [automationStep, setAutomationStep] = useState(0);
+  const [editingLot, setEditingLot] = useState(false);
+  const [lotClosure, setLotClosure] = useState({ outcome: "finalizado", problem: "" });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [activePacker, setActivePacker] = useState(0);
@@ -55,10 +58,15 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
       await replaceAutomationLot({
         cycleId: cycle.id,
         ...lot,
+        closureOutcome: lotClosure.outcome,
+        closureProblem: lotClosure.problem,
         userId: operatorId,
       });
       await reload();
       setLot((current) => ({ ...current, supplierLot: "" }));
+      setEditingLot(false);
+      if (automationStep === 0) setAutomationStep(1);
+      else setTab("mixer");
       setMessage("Novo lote vigente registrado sem apagar o histórico.");
     } catch (error) {
       setMessage(error.message);
@@ -131,7 +139,8 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
         <div className="mt-3 flex gap-2 overflow-x-auto">
           {[
             ["lots", "Automação"],
-            ["batches", "Masseira"],
+            ["mixer", "Masseira"],
+            ["batches", "Batelada"],
             ["packers", "Empacotamento"],
           ].map(([id, label]) => (
             <button
@@ -147,12 +156,13 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
       <div className="p-4">
         {tab === "lots" ? (
           <div>
-            <div className="mb-4 border-l-4 border-cicopal-blue bg-blue-50 p-4">
-              <b className="block text-cicopal-blue">Farinha + Açúcar são obrigatórios em conjunto</b>
-              <p className="mt-1 text-sm font-semibold text-gray-600">Os dois lotes precisam estar vigentes. O formulário registra a entrada ou troca de cada um sem substituir o outro.</p>
+            <div className="mb-5"><p className="text-xs font-black uppercase text-cicopal-blue">Etapa 1 de 3 · Automação</p><h3 className="mt-1 text-2xl font-black">{automationStep === 0 ? "Informe o lote da farinha" : "Informe o lote do açúcar"}</h3><p className="mt-1 font-semibold text-gray-500">O lote ficará vigente até que uma troca seja registrada.</p></div>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {["Farinha", "Açúcar"].map((label, index) => <button key={label} type="button" onClick={() => { setAutomationStep(index); setEditingLot(false); }} className={`min-h-14 font-black ${automationStep === index ? "bg-cicopal-blue text-white" : "bg-gray-100 text-gray-500"}`}>{index + 1}. {label}</button>)}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {["FARINHA", "ACUCAR"].map((code) => {
+            <div>
+              {["FARINHA", "ACUCAR"].map((code, index) => {
+                if (index !== automationStep) return null;
                 const supply = supplies.find((item) => item.codigo === code);
                 const current = activeLots.find(
                   (item) => item.insumo_id === supply?.id,
@@ -160,12 +170,12 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                 return (
                   <article
                     key={code}
-                    className={`border-l-4 p-4 ${current ? "border-green-500 bg-green-50" : "border-red-500 bg-red-50"}`}
+                    className={`p-5 ${current ? "bg-green-50" : "bg-amber-50"}`}
                   >
-                    <b className="text-lg">{supply?.nome ?? code}</b>
+                    <small className="font-black uppercase text-gray-500">Lote vigente</small><b className="mt-1 block text-2xl">{supply?.nome ?? code}</b>
                     {current ? (
                       <>
-                        <p className="font-black">
+                        <p className="mt-2 text-xl font-black">
                           Lote {current.lote_fornecedor}
                         </p>
                         <small>
@@ -176,31 +186,16 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                         </small>
                       </>
                     ) : (
-                      <p className="font-bold text-red-700">
-                        Nenhum lote vigente
-                      </p>
+                        <p className="mt-2 font-bold text-amber-800">
+                          Nenhum lote vigente
+                        </p>
                     )}
+                    <button type="button" onClick={() => { setLot((value) => ({ ...value, supplyId: supply?.id ?? "" })); setEditingLot(true); }} className={`mt-4 min-h-14 w-full font-black ${current ? "border-2 border-cicopal-blue bg-white text-cicopal-blue" : "bg-cicopal-blue text-white"}`}>{current ? "Alterar este lote" : "Registrar lote"}</button>
                   </article>
                 );
               })}
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <select
-                value={lot.supplyId}
-                onChange={(e) =>
-                  setLot((v) => ({ ...v, supplyId: e.target.value }))
-                }
-                className="min-h-14 border px-3 font-bold"
-              >
-                <option value="">Qual lote será registrado ou trocado agora?</option>
-                {supplies
-                  .filter((item) => ["FARINHA", "ACUCAR"].includes(item.codigo))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nome}
-                    </option>
-                  ))}
-              </select>
+            {editingLot ? <div className="mt-4 border border-blue-200 bg-white p-4"><p className="mb-3 text-xs font-black uppercase text-gray-500">Como o lote anterior foi encerrado?</p><div className="mb-4 grid gap-2 sm:grid-cols-3">{[["finalizado","Lote finalizado"],["problema","Problema encontrado"],["outro","Outro motivo"]].map(([id,label])=><button key={id} type="button" onClick={()=>setLotClosure({ outcome:id, problem:"" })} className={`min-h-14 p-2 font-black ${lotClosure.outcome===id?"bg-cicopal-blue text-white":"bg-gray-100 text-gray-600"}`}>{label}</button>)}</div>{lotClosure.outcome!=="finalizado"?<textarea value={lotClosure.problem} onChange={(event)=>setLotClosure((current)=>({...current,problem:event.target.value}))} className="mb-4 min-h-24 w-full border-2 border-amber-300 p-3" placeholder={lotClosure.outcome==="problema"?"Qual problema foi encontrado?":"Qual foi o motivo?"}/>:null}<p className="mb-3 text-xs font-black uppercase text-cicopal-blue">Dados do novo lote</p><div className="grid gap-3 sm:grid-cols-2">
               <input
                 value={lot.supplierLot}
                 onChange={(e) =>
@@ -228,17 +223,25 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
             </div>
             <button
               onClick={saveLot}
-              disabled={saving}
+              disabled={saving || (lotClosure.outcome !== "finalizado" && !lotClosure.problem.trim())}
               className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-blue font-black text-white"
             >
               <Save />
-              Registrar troca de lote
+              Confirmar novo lote
             </button>
+            <button type="button" onClick={() => setEditingLot(false)} className="mt-2 min-h-12 w-full font-bold text-gray-600">Cancelar</button></div> : null}
+          </div>
+        ) : null}
+        {tab === "mixer" ? (
+          <div>
+            <div className="mb-5"><p className="text-xs font-black uppercase text-cicopal-blue">Etapa 2 de 3 · Masseira</p><h3 className="mt-1 text-2xl font-black">Insumos específicos da receita</h3><p className="mt-1 font-semibold text-gray-500">Farinha e açúcar são herdados da Automação. Informe os demais lotes usados nesta preparação.</p></div>
+            <div className="space-y-3">{(recipe?.receita_insumos ?? []).filter((item) => !activeLots.some((lotItem) => lotItem.insumo_id === item.insumos.id)).map((item) => { const supply=item.insumos; return <article key={supply.id} className="bg-gray-50 p-4"><b className="text-lg">{supply.nome}</b><div className="mt-3 grid gap-2 sm:grid-cols-2"><input placeholder="Lote" value={batchInputs[supply.id]?.lot ?? ""} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],lot:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/><input type="date" value={batchInputs[supply.id]?.expiry ?? "2027-12-31"} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],expiry:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/></div></article>;})}</div>
+            <button type="button" onClick={() => setTab("batches")} className="mt-4 min-h-16 w-full bg-cicopal-blue text-lg font-black text-white">Revisar e criar batelada</button>
           </div>
         ) : null}
         {tab === "batches" ? (
           <div>
-            <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">Masseira · controle de bateladas</p>
+            <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">Etapa 3 de 3 · Controle de bateladas</p>
             <div className="mb-4 flex items-start justify-between gap-3 bg-blue-50 p-4">
               <div>
                 <small className="font-black uppercase text-cicopal-blue">
