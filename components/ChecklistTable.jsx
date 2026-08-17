@@ -471,31 +471,31 @@ export function ChecklistTable({
               {activeIndex + 1}/{rows.length}
             </span>
           </div>
-          <div className="mt-4 grid gap-2 md:grid-cols-2">
-            {fronts.map((front, index) => (
-              <button
-                key={front.id}
-                type="button"
-                disabled={!front.available || saving}
-                onClick={() => front.firstIndex >= 0 && setActiveIndex(front.firstIndex)}
-                className={`min-h-20 border-2 p-3 text-left ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : front.available ? "border-gray-300 bg-white text-gray-800" : "border-gray-200 bg-gray-100 text-gray-400"}`}
-              >
-                <span className="text-xs font-black uppercase">Frente {front.frontNumber ?? index + 1}</span>
-                <strong className="mt-1 block text-sm md:text-base">{front.title}</strong>
-                <span className="mt-1 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · finalize a frente anterior" : ""}</span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 h-2 overflow-hidden bg-gray-200">
+          <div className="checklist-progress-track mt-4 overflow-hidden bg-gray-200">
             <div
               className="h-full bg-cicopal-blue transition-all"
-              style={{ width: `${progress}%` }}
+              style={{ height: `${progress}%`, "--mobile-progress": `${progress}%` }}
             />
           </div>
           <p className="mt-2 text-xs font-semibold text-gray-500">
             Frente {activeFront} de {totalFronts} · item {groupPosition} de {groupRows.length}
           </p>
         </header>
+        <nav className="checklist-fronts" aria-label="Frentes da higienização">
+          {fronts.map((front, index) => (
+            <button
+              key={front.id}
+              type="button"
+              disabled={!front.available || saving}
+              onClick={() => front.firstIndex >= 0 && setActiveIndex(front.firstIndex)}
+              className={`min-h-20 border-2 p-3 text-left ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : front.available ? "border-gray-300 bg-white text-gray-800" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+            >
+              <span className="text-xs font-black uppercase">Frente {front.frontNumber ?? index + 1}</span>
+              <strong className="mt-1 block text-sm md:text-base">{front.title}</strong>
+              <span className="mt-1 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · finalize a frente anterior" : ""}</span>
+            </button>
+          ))}
+        </nav>
         <div className="p-4 md:p-6">
           <p className="text-sm font-bold uppercase text-gray-400">
             Verifique o item

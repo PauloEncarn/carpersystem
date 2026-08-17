@@ -583,15 +583,22 @@ button {
   display: inline-flex;
   margin-top: 30px;
 }
-.checklist-focus > header > div:nth-child(2) {
+.checklist-focus .checklist-progress-track {
   height: 180px;
   width: 8px;
   margin: 28px auto 0;
   background: rgba(255, 255, 255, 0.15);
 }
-.checklist-focus > header > div:nth-child(2) > div {
+.checklist-focus .checklist-progress-track > div {
   width: 100% !important;
-  height: var(--progress);
+  background: white;
+}
+.checklist-fronts {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px 24px 0;
   background: white;
 }
 .checklist-focus > div {
@@ -615,27 +622,41 @@ button {
 
 @media (max-width: 720px) {
   .checklist-focus {
-    grid-template-columns: 84px minmax(0, 1fr);
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
   }
   .checklist-focus > header {
-    padding: 22px 8px;
+    padding: 18px 16px;
   }
   .checklist-focus > header h2 {
-    display: none;
+    display: block;
   }
-  .checklist-focus > header > div:first-child > div p {
-    writing-mode: vertical-rl;
+  .checklist-focus > header > div:first-child {
+    display: flex;
+  }
+  .checklist-focus > header > div:first-child > span {
+    margin-top: 0;
+  }
+  .checklist-focus .checklist-progress-track {
+    width: 100%;
+    height: 8px;
+    margin: 16px 0 0;
+  }
+  .checklist-focus .checklist-progress-track > div {
+    width: var(--mobile-progress, 0%);
+    height: 100% !important;
+  }
+  .checklist-fronts {
+    grid-template-columns: 1fr;
+    padding: 12px 12px 0;
   }
   .checklist-focus > div {
     padding: 24px 16px;
   }
-  .checklist-focus > div > div.grid {
-    gap: 6px;
-  }
-  .checklist-focus > div > div.grid button {
-    min-height: 100px;
-    padding: 6px;
-    font-size: 0.82rem;
+  .checklist-focus > footer,
+  .checklist-focus > p {
+    grid-column: 1;
   }
 }
 @media (max-width: 720px) {
