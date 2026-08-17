@@ -3240,6 +3240,7 @@ function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
   const [resolution, setResolution] = useState("");
   const [photoAfter, setPhotoAfter] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resolvedItems, setResolvedItems] = useState([]);
   const selected = ncs.find((item) => item.id === selectedId) ?? ncs[0];
   async function resolve() {
     if (!selected || !resolution.trim() || !photoAfter) return;
@@ -3248,12 +3249,25 @@ function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
       if (/^[0-9a-f-]{36}$/i.test(selected.id)) {
         await resolveCycleNc({ ncId: selected.id, operatorId, resolution, photoAfter });
       }
+      const resolvedItem = {
+        id: selected.id,
+        item: selected.item,
+        grupo: selected.grupo,
+        descricao: selected.descricao,
+        causa: selected.causa,
+        acaoCorretiva: resolution.trim(),
+        fotoAntes: selected.foto_antes ?? selected.fotoAntes ?? null,
+        fotoDepois: photoAfter,
+        resolvidaEm: new Date().toISOString(),
+      };
+      const nextResolvedItems = [...resolvedItems, resolvedItem];
+      setResolvedItems(nextResolvedItems);
       const remaining = ncs.filter((item) => item.id !== selected.id);
       onChange(remaining);
       setSelectedId(remaining[0]?.id ?? "");
       setResolution("");
       setPhotoAfter("");
-      if (!remaining.length) await onAllResolved();
+      if (!remaining.length) await onAllResolved(nextResolvedItems);
     } finally { setSaving(false); }
   }
   return (
@@ -3261,7 +3275,7 @@ function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
       <div className="flex items-start gap-3"><span className="grid size-12 shrink-0 place-items-center bg-red-50 text-cicopal-red"><AlertTriangle size={26} /></span><div><p className="text-xs font-black uppercase tracking-wider text-cicopal-red">Etapa bloqueada</p><h2 className="text-2xl font-black text-gray-950">{title}</h2><p className="mt-1 font-semibold text-gray-600">Existe NC aberta em <b>{selected?.item ?? "item do checklist"}</b>. A próxima etapa será liberada somente após todas as ocorrências serem resolvidas.</p></div></div>
       <div className="mt-5 grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2">{ncs.map((nc) => <button key={nc.id} type="button" onClick={() => setSelectedId(nc.id)} className={`w-full border-l-4 p-3 text-left ${selected?.id === nc.id ? "border-l-cicopal-red bg-red-50" : "border-l-gray-300 bg-gray-50"}`}><strong className="block">{nc.item}</strong><span className="text-xs font-bold text-gray-500">Aberta há {nc.aberta_em ? Math.max(0, Math.floor((Date.now() - new Date(nc.aberta_em)) / 60000)) : 0} min</span></button>)}</div>
-        <div className="border border-gray-200 p-4"><h3 className="text-lg font-black">Resolver NC</h3><p className="mt-1 text-sm font-semibold text-gray-500">Descreva exatamente o que foi feito e registre a evidência depois da correção.</p><textarea className="mt-4 min-h-28 w-full border border-gray-300 p-3 font-semibold" placeholder="Ação executada para resolver a não conformidade" value={resolution} onChange={(event) => setResolution(event.target.value)} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue"><Camera size={22} />{photoAfter ? "Foto posterior registrada" : "Registrar foto depois da correção"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhotoAfter(reader.result); reader.readAsDataURL(file); }} /></label>{photoAfter ? <img src={photoAfter} alt="Evidência após resolução" className="mt-3 max-h-52 w-full object-contain" /> : null}<button type="button" disabled={!resolution.trim() || !photoAfter || saving} onClick={resolve} className="mt-4 min-h-14 w-full bg-cicopal-green px-5 text-lg font-black text-white disabled:bg-gray-300">{saving ? "Salvando..." : "RESOLVER NC"}</button></div>
+        <div className="relative border border-gray-200 p-4"><h3 className="text-lg font-black">Resolver NC</h3><p className="mt-1 text-sm font-semibold text-gray-500">Descreva exatamente o que foi feito e registre a evidência depois da correção.</p><textarea className="mt-4 min-h-28 w-full border border-gray-300 p-3 font-semibold" placeholder="Ação executada para resolver a não conformidade" value={resolution} onChange={(event) => setResolution(event.target.value)} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue"><Camera size={22} />{photoAfter ? "Foto posterior registrada" : "Registrar foto depois da correção"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhotoAfter(reader.result); reader.readAsDataURL(file); }} /></label>{photoAfter ? <img src={photoAfter} alt="Evidência após resolução" className="mt-3 max-h-52 w-full object-contain" /> : null}<button type="button" disabled={!resolution.trim() || !photoAfter || saving} onClick={resolve} className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-green px-5 text-lg font-black text-white disabled:bg-gray-300">{saving ? <><RotateCcw size={20} className="animate-spin" /> Salvando correção...</> : "RESOLVER NC"}</button>{saving ? <div className="absolute inset-0 grid place-items-center bg-white/75"><span className="inline-flex items-center gap-3 bg-white px-5 py-4 font-black text-cicopal-blue shadow-lg"><RotateCcw className="animate-spin" /> Enviando ação e fotografia</span></div> : null}</div>
       </div>
     </section>
   );
@@ -3512,6 +3526,27 @@ export function Rg005SubregistroForm({
     ["qualidade", "tecnico", "admin"].includes(loggedUser?.perfil?.codigo),
   );
   const latestHygieneRound = hygieneRounds.at(-1) ?? null;
+  const previousHygieneRound = latestHygieneRound?.rodada_anterior_id
+    ? hygieneRounds.find((round) => round.id === latestHygieneRound.rodada_anterior_id)
+    : null;
+  const correctionItems =
+    latestHygieneRound?.dados_operacao?.itensCorrigidos ??
+    previousHygieneRound?.dados_qualidade?.ncs ??
+    [];
+  const isFocusedReinspection =
+    latestHygieneRound?.dados_operacao?.tipo === "correcao" &&
+    correctionItems.length > 0;
+  const qualityChecklistGroups = isFocusedReinspection
+    ? config.checklistGroups
+        .map((group, index) => ({
+          ...group,
+          frontNumber: index + 1,
+          items: group.items.filter((item) =>
+            correctionItems.some((correction) => correction.item === item),
+          ),
+        }))
+        .filter((group) => group.items.length)
+    : config.checklistGroups;
 
   async function refreshHygieneWorkflow() {
     if (!cycleContext?.id) return;
@@ -3876,17 +3911,17 @@ export function Rg005SubregistroForm({
             {hygieneRounds.length ? <div className="mt-4 flex gap-2 overflow-x-auto border-t border-gray-100 pt-3">{hygieneRounds.map((round) => <span key={round.id} className={`min-w-max border-l-4 px-3 py-2 text-xs font-bold ${round.status === "aprovada" ? "border-l-cicopal-green bg-green-50" : round.status === "em_correcao" ? "border-l-cicopal-red bg-red-50" : "border-l-amber-500 bg-amber-50"}`}>Rodada {round.numero} · {round.status.replaceAll("_", " ")}</span>)}</div> : null}
           </section>
         ) : null}
-        {hygieneLoading ? <div className="min-h-40 animate-pulse bg-gray-100" /> : correcting && openPrerequisiteNcs.length && !canInspectHygiene ? (
+        {hygieneLoading ? <section className="grid min-h-52 place-items-center border border-blue-100 bg-white shadow-sm"><div className="text-center"><RotateCcw size={34} className="mx-auto animate-spin text-cicopal-blue" /><h3 className="mt-4 text-lg font-black text-gray-950">Atualizando a higienização</h3><p className="mt-1 font-semibold text-gray-500">Buscando a rodada, as NCs e as correções mais recentes.</p></div></section> : correcting && openPrerequisiteNcs.length && !canInspectHygiene ? (
           <NcResolutionGate
             title="Higienização não liberada"
             ncs={openPrerequisiteNcs}
             operatorId={effectiveRegistro.operadorId}
             onChange={setOpenPrerequisiteNcs}
-            onAllResolved={async () => {
+            onAllResolved={async (resolvedItems) => {
               await submitOperationalHygieneRound({
                 cycle: cycleContext,
                 operatorId: effectiveRegistro.operadorId,
-                payload: { tipo: "correcao", rodadaCorrigida: latestHygieneRound.numero, corrigidaEm: new Date().toISOString() },
+                payload: { tipo: "correcao", rodadaCorrigida: latestHygieneRound.numero, corrigidaEm: new Date().toISOString(), itensCorrigidos: resolvedItems },
                 previousRoundId: latestHygieneRound.id,
               });
               await refreshHygieneWorkflow();
@@ -3894,21 +3929,33 @@ export function Rg005SubregistroForm({
           />
         ) : correcting && canInspectHygiene ? (
           <section className="border-l-8 border-cicopal-red bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Aguardando correção pela Operação</h3><p className="mt-2 font-semibold text-gray-600">Após todas as NCs serem tratadas com ação e foto posterior, uma nova rodada aparecerá para reinspeção.</p></section>
-        ) : waitingQuality && canInspectHygiene ? <ChecklistTable
-          key={`${latestHygieneRound.id}-qualidade`}
-          documentName={`${documentName} - Inspeção da qualidade`}
-          loteId={loteId}
-          registro={effectiveRegistro}
-          subregistro={{ ...subregistro, avaliacoes: [] }}
-          groups={config.checklistGroups}
-          onSave={saveQualityInspection}
-          stepByStep
-          flowTitle={`Inspeção da Qualidade · Rodada ${latestHygieneRound.numero}`}
-          successTitle="Inspeção da Qualidade registrada"
-          confirmationLabel="Confirmar inspeção"
-          referenceEvaluations={latestHygieneRound.dados_operacao?.avaliacoes ?? []}
-          referenceLabel="Resultado informado pelo operador"
-        /> : waitingQuality ? (
+        ) : waitingQuality && canInspectHygiene ? <>
+          {isFocusedReinspection ? (
+            <section className="mb-4 border-l-8 border-amber-500 bg-white p-5 shadow-sm">
+              <p className="text-xs font-black uppercase tracking-wider text-amber-700">Reinspeção direcionada</p>
+              <h3 className="mt-1 text-xl font-black text-gray-950">Verifique somente {correctionItems.length} item(ns) corrigido(s)</h3>
+              <p className="mt-1 font-semibold text-gray-600">Os itens aprovados na primeira inspeção permanecem válidos e não serão solicitados novamente.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {correctionItems.map((item) => <article key={item.id ?? item.item} className="border border-amber-200 bg-amber-50 p-3"><strong className="text-gray-950">{item.item}</strong><p className="mt-1 text-sm font-semibold text-gray-600">Ação da Operação: {item.acaoCorretiva}</p>{item.fotoDepois ? <img src={item.fotoDepois} alt={`Correção de ${item.item}`} className="mt-2 max-h-40 w-full bg-white object-contain" /> : null}</article>)}
+              </div>
+            </section>
+          ) : null}
+          <ChecklistTable
+            key={`${latestHygieneRound.id}-qualidade`}
+            documentName={`${documentName} - Inspeção da qualidade`}
+            loteId={loteId}
+            registro={effectiveRegistro}
+            subregistro={{ ...subregistro, avaliacoes: [] }}
+            groups={qualityChecklistGroups}
+            onSave={saveQualityInspection}
+            stepByStep
+            flowTitle={`${isFocusedReinspection ? "Reinspeção das NCs" : "Inspeção da Qualidade"} · Rodada ${latestHygieneRound.numero}`}
+            successTitle={isFocusedReinspection ? "Reinspeção das NCs registrada" : "Inspeção da Qualidade registrada"}
+            confirmationLabel={isFocusedReinspection ? "Confirmar reinspeção" : "Confirmar inspeção"}
+            referenceEvaluations={isFocusedReinspection ? correctionItems.map((item) => ({ item: item.item, av1: "NC" })) : latestHygieneRound.dados_operacao?.avaliacoes ?? []}
+            referenceLabel={isFocusedReinspection ? "Resultado anterior da Qualidade" : "Resultado informado pelo operador"}
+          />
+        </> : waitingQuality ? (
           <section className="border-l-8 border-amber-500 bg-white p-6 text-center shadow-sm"><Clock size={42} className="mx-auto text-amber-600" /><h3 className="mt-3 text-xl font-black">Aguardando a Qualidade</h3><p className="mt-2 font-semibold text-gray-600">Seu checklist foi preservado. A próxima etapa será liberada somente após a aprovação.</p></section>
         ) : approved ? (
           <section className="border-l-8 border-cicopal-green bg-white p-6 text-center shadow-sm"><CheckCircle2 size={46} className="mx-auto text-cicopal-green" /><h3 className="mt-3 text-2xl font-black">Higienização liberada</h3><p className="mt-2 font-semibold text-gray-600">Aprovada pela Qualidade na rodada {latestHygieneRound.numero}.</p></section>

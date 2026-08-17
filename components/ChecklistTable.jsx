@@ -8,6 +8,7 @@ import {
   Camera,
   CheckCircle2,
   Circle,
+  LoaderCircle,
   XCircle,
 } from "lucide-react";
 import { checklistGroups } from "@/lib/checklist";
@@ -259,6 +260,7 @@ export function ChecklistTable({
 }) {
   const [rows, setRows] = useState(() => buildInitialRows(subregistro, groups));
   const [savedAt, setSavedAt] = useState("");
+  const [saving, setSaving] = useState(false);
   const [activeIndex, setActiveIndex] = useState(() =>
     Math.max(
       0,
@@ -316,7 +318,7 @@ export function ChecklistTable({
   }
 
   async function saveChecklist() {
-    if (rows.some((row) => !isRowComplete(row))) return;
+    if (saving || rows.some((row) => !isRowComplete(row))) return;
     const avaliacoes = rows
       .filter((row) => row.av1 || row.av2)
       .map((row) => ({
@@ -349,17 +351,19 @@ export function ChecklistTable({
         assinaturaSupervisorAt: null,
       }));
 
-    const confirmed = await onSave?.({
-      avaliacoes,
-      ncs,
-    });
-    if (confirmed === false) return;
-    setSavedAt(
-      new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
+    setSaving(true);
+    try {
+      const confirmed = await onSave?.({ avaliacoes, ncs });
+      if (confirmed === false) return;
+      setSavedAt(
+        new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (stepByStep) {
@@ -400,6 +404,33 @@ export function ChecklistTable({
     const groupRows = rows.filter((item) => item.group === row?.group);
     const groupPosition =
       groupRows.findIndex((item) => item.item === row?.item) + 1;
+    const fronts = groups.map((group, groupIndex) => {
+      const frontRows = rows.filter((item) => item.group === group.title);
+      const completed = frontRows.filter(isRowComplete).length;
+      const firstIndex = rows.findIndex((item) => item.group === group.title);
+      const previousCompleted = groups
+        .slice(0, groupIndex)
+        .every((previous) =>
+          rows
+            .filter((item) => item.group === previous.title)
+            .every(isRowComplete),
+        );
+      return {
+        ...group,
+        completed,
+        total: frontRows.length,
+        firstIndex,
+        available: previousCompleted,
+        active: row?.group === group.title,
+      };
+    });
+    const activeFrontItem = fronts.find((front) => front.active);
+    const activeFront =
+      activeFrontItem?.frontNumber ?? fronts.findIndex((front) => front.active) + 1;
+    const totalFronts = Math.max(
+      fronts.length,
+      ...fronts.map((front) => front.frontNumber ?? 0),
+    );
     const updateNc = (field, value) =>
       updateRow(activeIndex, { nc: { ...(row?.nc ?? {}), [field]: value } });
     function choose(value) {
@@ -414,7 +445,8 @@ export function ChecklistTable({
       }
     }
     return (
-      <section className="checklist-focus mx-auto max-w-5xl overflow-hidden border border-gray-300 bg-white">
+      <section className="checklist-focus relative mx-auto max-w-5xl overflow-hidden border border-gray-300 bg-white">
+        {saving ? <div className="absolute inset-0 z-20 grid place-items-center bg-white/80"><div className="flex items-center gap-3 border border-blue-100 bg-white px-6 py-5 font-black text-cicopal-blue shadow-xl"><LoaderCircle className="animate-spin" /> Salvando e sincronizando...</div></div> : null}
         <header className="border-b border-gray-200 bg-white p-4 md:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -429,14 +461,29 @@ export function ChecklistTable({
               {activeIndex + 1}/{rows.length}
             </span>
           </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {fronts.map((front, index) => (
+              <button
+                key={front.id}
+                type="button"
+                disabled={!front.available || saving}
+                onClick={() => front.firstIndex >= 0 && setActiveIndex(front.firstIndex)}
+                className={`min-h-20 border-2 p-3 text-left ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : front.available ? "border-gray-300 bg-white text-gray-800" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+              >
+                <span className="text-xs font-black uppercase">Frente {front.frontNumber ?? index + 1}</span>
+                <strong className="mt-1 block text-sm md:text-base">{front.title}</strong>
+                <span className="mt-1 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · finalize a frente anterior" : ""}</span>
+              </button>
+            ))}
+          </div>
           <div className="mt-4 h-2 overflow-hidden bg-gray-200">
             <div
               className="h-full bg-cicopal-blue transition-all"
-              style={{ height: `${progress}%` }}
+              style={{ width: `${progress}%` }}
             />
           </div>
           <p className="mt-2 text-xs font-semibold text-gray-500">
-            Item {groupPosition} de {groupRows.length} nesta seção
+            Frente {activeFront} de {totalFronts} · item {groupPosition} de {groupRows.length}
           </p>
         </header>
         <div className="p-4 md:p-6">
@@ -563,7 +610,7 @@ export function ChecklistTable({
           {activeIndex === rows.length - 1 ? (
             <button
               type="button"
-              disabled={!isRowComplete(row)}
+              disabled={!isRowComplete(row) || saving}
               className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300"
               onClick={saveChecklist}
             >
@@ -573,7 +620,7 @@ export function ChecklistTable({
           ) : (
             <button
               type="button"
-              disabled={!isRowComplete(row)}
+              disabled={!isRowComplete(row) || saving}
               className="inline-flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-cicopal-blue text-lg font-black text-white disabled:bg-gray-300"
               onClick={() =>
                 setActiveIndex((index) => Math.min(rows.length - 1, index + 1))
