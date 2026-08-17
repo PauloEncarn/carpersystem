@@ -3226,13 +3226,13 @@ export function HierarchyNavigator({
     <section
       className={`audit-card p-4 ${currentStep === 6 && sequentialFlow ? "rg-tablet-app" : ""}`}
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-white p-3 shadow-sm">
+      <div className={`mb-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-white p-3 shadow-sm ${currentStep === 6 && sequentialFlow ? "sticky top-2 z-40 border border-blue-100 shadow-lg" : ""}`}>
         {currentStep === 6 && sequentialFlow ? <button
           type="button"
           onClick={() => onStepChange(4)}
-          className="inline-flex min-h-12 items-center gap-2 bg-cicopal-blue px-4 font-black text-white"
+          className="inline-flex min-h-14 items-center gap-2 bg-cicopal-blue px-5 font-black text-white active:scale-[.98]"
         >
-          <Factory size={20} /> Fábrica
+          <ArrowLeft size={20} /> <Factory size={20} /> Voltar à produção
         </button> : <button
           type="button"
           onClick={goBack}
@@ -3242,14 +3242,14 @@ export function HierarchyNavigator({
           <ArrowLeft size={19} /> Voltar
         </button>}
         <div className="min-w-0 flex-1 text-center"><p className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Navegação atual</p><p className="truncate text-lg font-black text-gray-950">{navigationLabel}</p></div>
-        <button
+        {currentStep === 6 && sequentialFlow ? <span className="hidden text-xs font-black uppercase tracking-wider text-cicopal-green md:inline-flex">Preenchimento em andamento</span> : <button
           type="button"
           onClick={goForward}
           disabled={currentStep === 6 || !canAdvance}
           className="inline-flex min-h-12 items-center gap-2 bg-cicopal-blue px-4 font-black text-white disabled:bg-gray-300"
         >
           Avançar <ArrowRight size={19} />
-        </button>
+        </button>}
       </div>
       <div className="mb-4 grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1">
         <button
