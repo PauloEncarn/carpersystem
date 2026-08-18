@@ -11,8 +11,6 @@ import {
   CookingPot,
   Flame,
   Scissors,
-  Pause,
-  Play,
   Save,
   Square,
   X,
@@ -212,15 +210,24 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     if (["automacao", "masseira"].includes(code)) return true;
     return Boolean(activeBatch);
   }
-  function openProcess(code) {
+  function openProcess(code, requestedSlot = null) {
     if (!isUnlocked(code)) return;
     const cfg = ROSCA_SUBPROCESSES.find((item) => item.code === code);
-    const existing = recordsFor(code)[0];
     const processRecords = recordsFor(code);
-    const pending = fixedSlots.find(
-      (slot) =>
-        !processRecords.some((record) => record.horario_previsto === slot),
-    );
+    const requestedRecord = requestedSlot
+      ? processRecords.find(
+          (record) => record.horario_previsto === requestedSlot,
+        )
+      : null;
+    const existing = requestedRecord ?? processRecords[0];
+    const pending = requestedSlot
+      ? requestedRecord
+        ? null
+        : requestedSlot
+      : fixedSlots.find(
+          (slot) =>
+            !processRecords.some((record) => record.horario_previsto === slot),
+        );
     const filledWindow =
       cfg?.frequency === "hourly" && !pending && Boolean(existing);
     const sameWindow = cfg?.frequency === "lot" || filledWindow;
@@ -610,11 +617,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               <p className="text-xs font-black uppercase text-cicopal-blue">
                 RG.PROD.ROS.001 · produção interligada
               </p>
-              <h2 className="text-2xl font-black">Apontamentos do processo</h2>
-              <p className="mt-1 font-semibold text-gray-600">
-                Informe leituras das máquinas. As projeções por minuto são
-                calculadas pelo sistema.
-              </p>
+              <h2 className="text-2xl font-black">
+                {workspace === "cut" ? "Corte a fio" : "Apontamentos do processo"}
+              </h2>
             </div>
             {activeWindow ? (
               <div
@@ -642,6 +647,48 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               </div>
             )}
           </header>
+
+          {workspace === "cut" ? (
+            <section className="mt-5 border-y border-slate-200 py-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="font-bold">Horários da produção</h3>
+                <span className="text-sm font-bold text-red-700">
+                  {fixedSlots.filter(
+                    (slot) =>
+                      !recordsFor("corte_fio").some(
+                        (record) => record.horario_previsto === slot,
+                      ),
+                  ).length} pendente(s)
+                </span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {fixedSlots.map((slot, index) => {
+                  const record = recordsFor("corte_fio").find(
+                    (item) => item.horario_previsto === slot,
+                  );
+                  const isCurrent = index === fixedSlots.length - 1;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => openProcess("corte_fio", slot)}
+                      className={`min-h-16 min-w-24 shrink-0 border px-3 text-center ${record ? "border-green-300 bg-green-50 text-green-800" : isCurrent ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-red-300 bg-red-50 text-red-800"}`}
+                    >
+                      <b className="block text-lg">
+                        {new Date(slot).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </b>
+                      <small className="font-bold uppercase">
+                        {record ? "Preenchido" : isCurrent ? "Atual" : "Pendente"}
+                      </small>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           <div className="mt-6 grid gap-5">
             <section className="hidden">
@@ -680,7 +727,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               </div>
             </section>
             <section>
-              <div className="mb-2 flex items-end justify-between">
+              <div
+                className={`mb-2 items-end justify-between ${workspace === "cut" ? "hidden" : "flex"}`}
+              >
                 <p className="text-xs font-black uppercase text-gray-500">
                   2 · Leituras da janela de 60 minutos
                 </p>
@@ -1062,29 +1111,17 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   ) : null}
                   {config.frequency === "hourly" &&
                   selected.status !== "nao_iniciado" ? (
-                    <div className="mt-5 border-t pt-4">
-                      <p className="mb-2 text-xs font-black uppercase text-gray-500">
-                        Estado desta área
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setStatus("operando")}
-                          className="min-h-12 bg-green-600 font-black text-white"
-                        >
-                          <Play className="mx-auto" size={17} />
-                          Operando
-                        </button>
-                        <button
-                          disabled={!canInterrupt}
-                          onClick={() => setInterruptOpen(true)}
-                          className="min-h-12 bg-red-600 font-black text-white disabled:bg-gray-300"
-                        >
-                          <Pause className="mx-auto" size={17} />
-                          {canInterrupt
-                            ? "Interromper produção"
-                            : "Interrupção · Qualidade"}
-                        </button>
-                      </div>
+                    <div className="mt-5 flex items-center justify-between border-t pt-4 text-sm">
+                      <span className="text-slate-500">Estado da área</span>
+                      <b
+                        className={
+                          selected.status === "operando"
+                            ? "text-green-700"
+                            : "text-red-700"
+                        }
+                      >
+                        {labels[selected.status]}
+                      </b>
                     </div>
                   ) : null}
                 </div>
