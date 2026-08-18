@@ -7,6 +7,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Factory,
+  Boxes,
+  CookingPot,
+  Flame,
+  PackageCheck,
+  Scissors,
   Pause,
   Play,
   Save,
@@ -20,6 +25,7 @@ import {
   saveSubprocessRecord,
 } from "@/lib/productionProcessPersistence";
 import { ProductionTraceabilitySetup } from "@/components/ProductionTraceabilitySetup";
+import { CicopalLogo } from "@/components/CicopalLogo";
 import {
   interruptWholeProduction,
   loadProductionTraceability,
@@ -131,6 +137,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const activeBatch = traceability?.batches?.find(
     (batch) => batch.status === "em_consumo",
   );
+  const stations = [
+    { id: "prep", label: "Preparo", Icon: CookingPot },
+    { id: "batch", label: "Controle de bateladas", Icon: PackageCheck },
+    { id: "cut", label: "Corte a fio", Icon: Scissors },
+    { id: "oven", label: "Forno", Icon: Flame },
+    { id: "pack", label: "Empacotamento", Icon: Factory },
+    { id: "box", label: "Encaixotamento", Icon: Boxes },
+  ];
   const canInterrupt = ["qualidade", "admin"].includes(profileCode);
   const openInterruption = traceability?.interruptions?.find(
     (item) => !item.encerrada_em,
@@ -448,35 +462,61 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       </section>
     );
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 bg-slate-50 p-2 sm:p-4">
+      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <CicopalLogo className="h-10 w-auto" />
+          <nav
+            className="flex items-center gap-2 text-sm font-light text-slate-500"
+            aria-label="Caminho de navegação"
+          >
+            <span>Processos</span>
+            <ChevronRight size={16} />
+            <strong className="font-bold text-slate-800">
+              {cycle.productionCode}
+            </strong>
+          </nav>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-lg bg-slate-100 p-4">
+          <div>
+            <p className="text-sm font-light text-slate-500">
+              Produto em produção
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-950">
+              {cycle.product}
+            </h1>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-light text-slate-500">
+              Batelada em consumo
+            </p>
+            <strong className="mt-1 block text-lg font-bold text-cicopal-blue">
+              {activeBatch ? `Batelada ${activeBatch.numero}` : "Não iniciada"}
+            </strong>
+          </div>
+        </div>
+      </header>
       {workspace === "overview" ? (
         <section className="border border-gray-200 bg-white p-4 sm:p-5">
-          <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">
+          <p className="text-sm font-light text-slate-500">
             Produção integrada
           </p>
-          <h2 className="mt-1 text-2xl font-black">Escolha sua área</h2>
-          <p className="mt-1 font-semibold text-gray-500">
+          <h2 className="mt-1 text-2xl font-bold">Escolha sua área</h2>
+          <p className="mt-1 font-light text-gray-500">
             Abra somente a estação que será preenchida agora.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              ["prep", "Preparo"],
-              ["batch", "Controle de bateladas"],
-              ["cut", "Corte a fio"],
-              ["oven", "Forno"],
-              ["pack", "Empacotamento"],
-              ["box", "Encaixotamento"],
-            ].map(([id, label]) => (
+            {stations.map(({ id, label, Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setWorkspace(id)}
-                className="min-h-24 bg-gray-100 p-4 text-left font-black text-gray-800 transition active:scale-[.98]"
+                className="group min-h-32 rounded-lg border border-slate-200 bg-white p-4 text-left font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-cicopal-blue hover:shadow-md active:scale-[.98]"
               >
-                <span className="block text-xs uppercase text-cicopal-blue">
-                  Abrir estação
+                <span className="mb-4 grid size-11 place-items-center rounded-lg bg-blue-50 text-cicopal-blue transition group-hover:bg-cicopal-blue group-hover:text-white">
+                  <Icon size={22} />
                 </span>
-                {label}
+                <span className="block leading-tight">{label}</span>
               </button>
             ))}
           </div>
@@ -535,27 +575,27 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         />
       ) : null}
       {workspace === "overview" ? (
-        <section className="border border-gray-200 bg-white p-4">
-          <p className="text-xs font-black uppercase text-cicopal-blue">
-            Visão geral
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <p className="text-sm font-light text-slate-500">
+            Acompanhamento geral
           </p>
-          <h3 className="mb-3 text-xl font-black">
-            Situação de toda a produção
-          </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <h3 className="mb-4 text-xl font-bold">Situação da produção</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <button
               type="button"
               onClick={() => setWorkspace("batch")}
-              className="min-h-24 border-l-4 border-violet-600 bg-violet-50 p-3 text-left"
+              className="min-h-32 rounded-lg border border-violet-200 bg-white p-4 text-left shadow-sm transition hover:shadow-md"
             >
-              <b className="block text-lg">Controle de bateladas</b>
-              <span className="text-xs font-black uppercase text-violet-700">
+              <b className="block text-lg font-bold">Controle de bateladas</b>
+              <span
+                className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${activeBatch ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
+              >
                 {activeBatch
                   ? `Batelada ${activeBatch.numero} em consumo`
                   : "Sem batelada em consumo"}
               </span>
-              <small className="mt-2 block font-semibold text-gray-500">
-                Abrir controle operacional
+              <small className="mt-3 block font-light text-gray-500">
+                Toque para visualizar
               </small>
             </button>
             {ROSCA_SUBPROCESSES.map((item) => {
@@ -580,13 +620,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                     )
                   }
                   key={item.code}
-                  className="min-h-24 border-l-4 border-cicopal-blue bg-gray-50 p-3 text-left"
+                  className="min-h-32 rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
                 >
-                  <b className="block text-lg">{item.name}</b>
-                  <span className="text-xs font-black uppercase text-gray-500">
+                  <b className="block text-lg font-bold">{item.name}</b>
+                  <span
+                    className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${row?.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(row?.status) ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-600"}`}
+                  >
                     {labels[row?.status ?? "nao_iniciado"]}
                   </span>
-                  <small className="mt-2 block font-semibold text-gray-500">
+                  <small className="mt-3 block font-light text-gray-500">
                     {latest
                       ? `Último registro ${fmt(latest.preenchido_em)}`
                       : "Sem registro"}
