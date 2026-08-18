@@ -17,7 +17,9 @@ export function ProductionTraceabilitySetup({
   mode = "all",
 }) {
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState(mode === "pack" ? "packers" : "lots");
+  const [tab, setTab] = useState(
+    mode === "pack" ? "packers" : mode === "batch" ? "batch" : "lots",
+  );
   const [automationStep, setAutomationStep] = useState(0);
   const [editingLot, setEditingLot] = useState(false);
   const [lotClosure, setLotClosure] = useState({
@@ -216,35 +218,43 @@ export function ProductionTraceabilitySetup({
     <section className="border border-gray-300 bg-white">
       <header className="border-b p-4">
         <p className="text-xs font-black uppercase text-cicopal-blue">
-          Configurações da produção
+          {mode === "batch"
+            ? "Produção · operação sob demanda"
+            : "Configurações da produção"}
         </p>
-        <h2 className="text-xl font-black">Informações por processo</h2>
+        <h2 className="text-xl font-black">
+          {mode === "batch"
+            ? "Controle de bateladas"
+            : "Informações por processo"}
+        </h2>
         <p className="mt-1 text-sm font-semibold text-gray-500">
           Entre no processo que deseja configurar. Cada informação permanece
           vinculada à mesma produção.
         </p>
-        <div className="mt-3 flex gap-2 overflow-x-auto">
-          {[
-            ["lots", "Automação"],
-            ["mixer", "Masseira"],
-            ["packers", "Empacotamento"],
-          ]
-            .filter(
-              ([id]) =>
-                mode === "all" ||
-                (mode === "prep" && ["lots", "mixer"].includes(id)) ||
-                (mode === "pack" && id === "packers"),
-            )
-            .map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`min-h-12 whitespace-nowrap border-b-4 px-4 font-black ${tab === id ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-transparent bg-gray-50 text-gray-600"}`}
-              >
-                {label}
-              </button>
-            ))}
-        </div>
+        {mode !== "batch" ? (
+          <div className="mt-3 flex gap-2 overflow-x-auto">
+            {[
+              ["lots", "Automação"],
+              ["mixer", "Masseira"],
+              ["packers", "Empacotamento"],
+            ]
+              .filter(
+                ([id]) =>
+                  mode === "all" ||
+                  (mode === "prep" && ["lots", "mixer"].includes(id)) ||
+                  (mode === "pack" && id === "packers"),
+              )
+              .map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={`min-h-12 whitespace-nowrap border-b-4 px-4 font-black ${tab === id ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-transparent bg-gray-50 text-gray-600"}`}
+                >
+                  {label}
+                </button>
+              ))}
+          </div>
+        ) : null}
       </header>
       <div className="p-4">
         {tab === "lots" ? (
@@ -514,13 +524,6 @@ export function ProductionTraceabilitySetup({
             <p className="mt-3 text-center text-sm font-black text-gray-500">
               Um insumo por vez · os cadastrados saem automaticamente da fila
             </p>
-            <button
-              type="button"
-              onClick={() => setBatchOpen(true)}
-              className="mt-4 min-h-16 w-full bg-cicopal-blue text-lg font-black text-white"
-            >
-              Continuar para o fluxo da produção
-            </button>
           </div>
         ) : null}
         {batchOpen ? (
@@ -848,7 +851,7 @@ export function ProductionTraceabilitySetup({
             </button>
           </div>
         ) : null}
-        {mode !== "pack" && !batchOpen ? (
+        {mode === "batch" && !batchOpen ? (
           <section className="mt-5 bg-slate-950 p-5 text-white">
             <p className="text-xs font-black uppercase tracking-wider text-blue-200">
               Controle por necessidade

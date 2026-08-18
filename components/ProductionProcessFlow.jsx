@@ -458,9 +458,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           <p className="mt-1 font-semibold text-gray-500">
             Abra somente a estação que será preenchida agora.
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               ["prep", "Preparo"],
+              ["batch", "Controle de bateladas"],
               ["cut", "Corte a fio"],
               ["oven", "Forno"],
               ["pack", "Empacotamento"],
@@ -496,13 +497,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             <h2 className="text-xl font-black">
               {workspace === "prep"
                 ? "Preparo"
-                : workspace === "cut"
-                  ? "Corte a fio"
-                  : workspace === "oven"
-                    ? "Forno"
-                    : workspace === "pack"
-                      ? "Empacotamento"
-                      : "Encaixotamento"}
+                : workspace === "batch"
+                  ? "Controle de bateladas"
+                  : workspace === "cut"
+                    ? "Corte a fio"
+                    : workspace === "oven"
+                      ? "Forno"
+                      : workspace === "pack"
+                        ? "Empacotamento"
+                        : "Encaixotamento"}
             </h2>
           </div>
         </section>
@@ -523,6 +526,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           mode="pack"
         />
       ) : null}
+      {workspace === "batch" ? (
+        <ProductionTraceabilitySetup
+          cycle={cycle}
+          operatorId={operatorId}
+          onChange={setTraceability}
+          mode="batch"
+        />
+      ) : null}
       {workspace === "overview" ? (
         <section className="border border-gray-200 bg-white p-4">
           <p className="text-xs font-black uppercase text-cicopal-blue">
@@ -532,6 +543,21 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             Situação de toda a produção
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setWorkspace("batch")}
+              className="min-h-24 border-l-4 border-violet-600 bg-violet-50 p-3 text-left"
+            >
+              <b className="block text-lg">Controle de bateladas</b>
+              <span className="text-xs font-black uppercase text-violet-700">
+                {activeBatch
+                  ? `Batelada ${activeBatch.numero} em consumo`
+                  : "Sem batelada em consumo"}
+              </span>
+              <small className="mt-2 block font-semibold text-gray-500">
+                Abrir controle operacional
+              </small>
+            </button>
             {ROSCA_SUBPROCESSES.map((item) => {
               const row = rowByCode(item.code);
               const latest = recordsFor(item.code)[0];
@@ -571,7 +597,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           </div>
         </section>
       ) : null}
-      {!["prep", "overview"].includes(workspace) ? (
+      {!["prep", "batch", "overview"].includes(workspace) ? (
         <section className="border border-gray-300 bg-white p-4 sm:p-5">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>
