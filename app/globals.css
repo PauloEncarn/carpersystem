@@ -49,8 +49,8 @@
   --ui-shadow-sm:
     0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.05);
   --ui-shadow: 0 18px 45px rgba(30, 34, 80, 0.1);
-  --font-brand: "Gotham", "Greycliff CF", "Segoe UI", Arial, sans-serif;
-  --font-operational: "Gotham", "Greycliff CF", "Segoe UI", Arial, sans-serif;
+  --font-brand: "Greycliff CF", "Segoe UI", Arial, sans-serif;
+  --font-operational: "Greycliff CF", "Segoe UI", Arial, sans-serif;
 }
 
 * {

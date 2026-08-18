@@ -10,7 +10,6 @@ import {
   Boxes,
   CookingPot,
   Flame,
-  PackageCheck,
   Scissors,
   Pause,
   Play,
@@ -138,8 +137,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     (batch) => batch.status === "em_consumo",
   );
   const stations = [
-    { id: "prep", label: "Preparo", Icon: CookingPot },
-    { id: "batch", label: "Controle de bateladas", Icon: PackageCheck },
+    { id: "prep", label: "Preparação", Icon: CookingPot },
     { id: "cut", label: "Corte a fio", Icon: Scissors },
     { id: "oven", label: "Forno", Icon: Flame },
     { id: "pack", label: "Empacotamento", Icon: Factory },
@@ -536,16 +534,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             </p>
             <h2 className="text-xl font-black">
               {workspace === "prep"
-                ? "Preparo"
-                : workspace === "batch"
-                  ? "Controle de bateladas"
-                  : workspace === "cut"
-                    ? "Corte a fio"
-                    : workspace === "oven"
-                      ? "Forno"
-                      : workspace === "pack"
-                        ? "Empacotamento"
-                        : "Encaixotamento"}
+                ? "Preparação"
+                : workspace === "cut"
+                  ? "Corte a fio"
+                  : workspace === "oven"
+                    ? "Forno"
+                    : workspace === "pack"
+                      ? "Empacotamento"
+                      : "Encaixotamento"}
             </h2>
           </div>
         </section>
@@ -566,14 +562,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           mode="pack"
         />
       ) : null}
-      {workspace === "batch" ? (
-        <ProductionTraceabilitySetup
-          cycle={cycle}
-          operatorId={operatorId}
-          onChange={setTraceability}
-          mode="batch"
-        />
-      ) : null}
       {workspace === "overview" ? (
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <p className="text-sm font-light text-slate-500">
@@ -583,10 +571,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <button
               type="button"
-              onClick={() => setWorkspace("batch")}
+              onClick={() => setWorkspace("prep")}
               className="min-h-32 rounded-lg border border-violet-200 bg-white p-4 text-left shadow-sm transition hover:shadow-md"
             >
-              <b className="block text-lg font-bold">Controle de bateladas</b>
+              <b className="block text-lg font-bold">Preparação</b>
+              <span className="mt-1 block text-sm font-light text-slate-500">
+                Automação · Masseira · Bateladas
+              </span>
               <span
                 className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${activeBatch ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
               >
@@ -639,7 +630,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           </div>
         </section>
       ) : null}
-      {!["prep", "batch", "overview"].includes(workspace) ? (
+      {!["prep", "overview"].includes(workspace) ? (
         <section className="border border-gray-300 bg-white p-4 sm:p-5">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -805,6 +796,47 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         {fieldIndex + 1}/{config.parameters.length}
                       </span>
                     </div>
+                  ) : null}
+                  {selectedCode === "forno" && !viewOnly && !review ? (
+                    <nav
+                      className="mt-3 flex gap-2 overflow-x-auto pb-1"
+                      aria-label="Áreas do forno"
+                    >
+                      {[
+                        { label: "Geral", index: 0, active: fieldIndex < 3 },
+                        ...Array.from({ length: 7 }, (_, index) => ({
+                          label: `Zona ${index + 1}`,
+                          index: 3 + index * 2,
+                          active: parameter?.group === `Zona ${index + 1}`,
+                        })),
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setFieldIndex(item.index)}
+                          className={`min-h-11 shrink-0 px-4 text-sm font-bold ${item.active ? "bg-cicopal-blue text-white" : "bg-slate-100 text-slate-600"}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </nav>
+                  ) : null}
+                  {selectedCode === "encaixotamento" && !viewOnly && !review ? (
+                    <nav
+                      className="mt-3 grid grid-cols-2 gap-2"
+                      aria-label="Encaixotadeiras"
+                    >
+                      {[1, 2].map((machine, index) => (
+                        <button
+                          key={machine}
+                          type="button"
+                          onClick={() => setFieldIndex(index)}
+                          className={`min-h-12 px-3 text-sm font-bold ${parameter?.group === `Encaixotadeira ${machine}` ? "bg-cicopal-blue text-white" : "bg-slate-100 text-slate-600"}`}
+                        >
+                          Encaixotadeira {machine}
+                        </button>
+                      ))}
+                    </nav>
                   ) : null}
                 </header>
                 <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">

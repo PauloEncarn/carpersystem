@@ -225,23 +225,28 @@ export function ProductionTraceabilitySetup({
         <h2 className="text-xl font-black">
           {mode === "batch"
             ? "Controle de bateladas"
-            : "Informações por processo"}
+            : mode === "prep"
+              ? "Preparação"
+              : "Informações por processo"}
         </h2>
         <p className="mt-1 text-sm font-semibold text-gray-500">
-          Entre no processo que deseja configurar. Cada informação permanece
-          vinculada à mesma produção.
+          {mode === "prep"
+            ? "Automação, masseira e bateladas conectadas à mesma produção."
+            : "Cada informação permanece vinculada à mesma produção."}
         </p>
         {mode !== "batch" ? (
           <div className="mt-3 flex gap-2 overflow-x-auto">
             {[
               ["lots", "Automação"],
               ["mixer", "Masseira"],
+              ["batch", "Bateladas"],
               ["packers", "Empacotamento"],
             ]
               .filter(
                 ([id]) =>
                   mode === "all" ||
-                  (mode === "prep" && ["lots", "mixer"].includes(id)) ||
+                  (mode === "prep" &&
+                    ["lots", "mixer", "batch"].includes(id)) ||
                   (mode === "pack" && id === "packers"),
               )
               .map(([id, label]) => (
@@ -524,6 +529,19 @@ export function ProductionTraceabilitySetup({
             <p className="mt-3 text-center text-sm font-black text-gray-500">
               Um insumo por vez · os cadastrados saem automaticamente da fila
             </p>
+            {(recipe?.receita_insumos ?? []).every((item) =>
+              activeLots.some(
+                (lotItem) => lotItem.insumo_id === item.insumos.id,
+              ),
+            ) ? (
+              <button
+                type="button"
+                onClick={() => setTab("batch")}
+                className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 font-black text-white"
+              >
+                Continuar para controle de bateladas
+              </button>
+            ) : null}
           </div>
         ) : null}
         {batchOpen ? (
@@ -851,7 +869,8 @@ export function ProductionTraceabilitySetup({
             </button>
           </div>
         ) : null}
-        {mode === "batch" && !batchOpen ? (
+        {(mode === "batch" || (mode === "prep" && tab === "batch")) &&
+        !batchOpen ? (
           <section className="mt-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-light text-slate-500">
               Controle por necessidade
