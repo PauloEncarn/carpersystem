@@ -527,8 +527,8 @@ export function ProductionTraceabilitySetup({
           </div>
         ) : null}
         {batchOpen ? (
-          <div className="fixed inset-0 z-[100] overflow-y-auto bg-white p-4 sm:p-8">
-            <div className="mx-auto max-w-3xl">
+          <div className="mt-5 border-t border-slate-200 pt-5">
+            <div>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase text-cicopal-blue">
@@ -852,8 +852,8 @@ export function ProductionTraceabilitySetup({
           </div>
         ) : null}
         {mode === "batch" && !batchOpen ? (
-          <section className="mt-5 bg-slate-950 p-5 text-white">
-            <p className="text-xs font-black uppercase tracking-wider text-blue-200">
+          <section className="mt-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-light text-slate-500">
               Controle por necessidade
             </p>
             <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
@@ -863,7 +863,7 @@ export function ProductionTraceabilitySetup({
                     ? `Batelada ${consumingBatch.numero} em consumo`
                     : "Nenhuma batelada em consumo"}
                 </h3>
-                <p className="mt-1 font-semibold text-slate-300">
+                <p className="mt-1 font-light text-slate-500">
                   {activeBatch
                     ? `Batelada ${activeBatch.numero} em preparação`
                     : readyBatches.length
@@ -874,13 +874,13 @@ export function ProductionTraceabilitySetup({
               <button
                 type="button"
                 onClick={() => setBatchOpen(true)}
-                className="min-h-16 bg-white px-6 text-lg font-black text-cicopal-blue"
+                className="min-h-14 bg-cicopal-blue px-6 text-base font-bold text-white"
               >
                 INICIAR NOVA BATELADA
               </button>
             </div>
             {consumingBatch ? (
-              <p className="mt-4 border-t border-white/20 pt-3 text-sm font-bold text-green-200">
+              <p className="mt-4 border-t border-slate-200 pt-3 text-sm font-bold text-green-700">
                 Em consumo desde{" "}
                 {new Date(
                   consumingBatch.consumo_iniciado_em ??
