@@ -16,7 +16,14 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ["Gotham", "Montserrat", "Avenir Next", "Arial", "sans-serif"]
+        sans: [
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Arial",
+          "sans-serif"
+        ]
       },
       boxShadow: {
         soft: "0 .125rem .25rem rgba(0,0,0,.075)"

@@ -238,6 +238,12 @@ export function ProductionTraceabilitySetup({
     em_consumo: "Em consumo",
     consumida: "Consumida",
   };
+  const batchTone = {
+    em_preparacao: "bg-amber-50 text-amber-900",
+    pronta: "bg-green-100 text-green-900",
+    em_consumo: "bg-blue-100 text-blue-900",
+    consumida: "bg-red-100 text-red-900",
+  };
   function editSupply(supply) {
     const current = activeLots.find((item) => item.insumo_id === supply.id);
     setLot({
@@ -494,7 +500,10 @@ export function ProductionTraceabilitySetup({
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {data.batches.map((batch) => (
-                      <tr key={batch.id}>
+                      <tr
+                        key={batch.id}
+                        className={batchTone[batch.status] ?? "bg-white"}
+                      >
                         <td className="p-3 font-bold">#{batch.numero}</td>
                         <td className="p-3">
                           {new Date(batch.iniciada_em).toLocaleString("pt-BR")}
@@ -506,8 +515,10 @@ export function ProductionTraceabilitySetup({
                               )
                             : "—"}
                         </td>
-                        <td className="p-3 font-bold">
-                          {statusLabel[batch.status] ?? batch.status}
+                        <td className="p-3">
+                          <span className="inline-flex border border-current/20 bg-white/60 px-2 py-1 text-xs font-bold uppercase">
+                            {statusLabel[batch.status] ?? batch.status}
+                          </span>
                         </td>
                         <td className="p-3">
                           {batch.status === "em_preparacao" ? (

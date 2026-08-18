@@ -136,6 +136,20 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const activeBatch = traceability?.batches?.find(
     (batch) => batch.status === "em_consumo",
   );
+  const displayedBatch =
+    activeBatch ??
+    traceability?.batches?.find((batch) => batch.status === "pronta") ??
+    traceability?.batches?.find((batch) => batch.status === "em_preparacao") ??
+    traceability?.batches?.[0];
+  const displayedBatchText = displayedBatch
+    ? displayedBatch.status === "em_consumo"
+      ? `Batelada ${displayedBatch.numero} está sendo utilizada`
+      : displayedBatch.status === "pronta"
+        ? `Batelada ${displayedBatch.numero} está pronta`
+        : displayedBatch.status === "em_preparacao"
+          ? `Batelada ${displayedBatch.numero} está em preparação`
+          : `Batelada ${displayedBatch.numero} finalizou`
+    : "Nenhuma batelada iniciada";
   const stations = [
     { id: "prep", label: "Preparação", Icon: CookingPot },
     { id: "cut", label: "Corte a fio", Icon: Scissors },
@@ -491,6 +505,33 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             <strong className="mt-1 block text-lg font-bold text-cicopal-blue">
               {activeBatch ? `Batelada ${activeBatch.numero}` : "Não iniciada"}
             </strong>
+          </div>
+        </div>
+        <div
+          className={`mt-3 overflow-hidden border px-4 py-3 ${displayedBatch?.status === "consumida" ? "border-red-200 bg-red-50 text-red-800" : displayedBatch?.status === "pronta" ? "border-green-200 bg-green-50 text-green-800" : displayedBatch ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-slate-200 bg-slate-50 text-slate-500"}`}
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <small className="block font-bold uppercase tracking-wide opacity-70">
+                Fluxo da batelada
+              </small>
+              <b className="text-base">{displayedBatchText}</b>
+            </div>
+            {displayedBatch?.status === "em_consumo" ? (
+              <span className="size-3 shrink-0 animate-pulse rounded-full bg-green-500" />
+            ) : null}
+          </div>
+          <div className="relative mt-3 h-1 overflow-hidden bg-current/15">
+            {displayedBatch && displayedBatch.status !== "consumida" ? (
+              <span className="batch-flow-indicator absolute inset-y-0 left-0 w-1/4 bg-current" />
+            ) : null}
+          </div>
+          <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] font-bold uppercase sm:text-xs">
+            <span>Preparação</span>
+            <span>Corte</span>
+            <span>Forno</span>
+            <span>Empacotamento</span>
+            <span>Encaixotamento</span>
           </div>
         </div>
       </header>
