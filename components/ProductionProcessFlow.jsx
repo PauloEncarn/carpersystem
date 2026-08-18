@@ -86,10 +86,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
   const parameter = config?.parameters[fieldIndex];
-  const zonePair =
-    selectedCode === "forno" && parameter?.group?.startsWith("Zona")
+  const groupedParameters =
+    ["forno", "empacotamento"].includes(selectedCode) && parameter?.group
       ? config.parameters.filter((item) => item.group === parameter.group)
       : [];
+  const selectedMachineNumber = parameter?.group?.match(/^Máquina (\d+)$/)?.[1];
+  const selectedMachineRunning = selectedMachineNumber
+    ? traceability?.packers?.find(
+        (item) => item.maquina === Number(selectedMachineNumber),
+      )?.ativa
+    : true;
   const parameterContext =
     parameter?.group ??
     (parameter?.key?.match(/^maq_(\d+)_/)
@@ -247,11 +253,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     setMessage("");
   }
   function nextField() {
-    const currentParameters = zonePair.length ? zonePair : [parameter];
-    if (currentParameters.some((item) => !validValue(values[item.key])))
+    const currentParameters = groupedParameters.length
+      ? groupedParameters
+      : [parameter];
+    if (
+      selectedMachineRunning !== false &&
+      currentParameters.some((item) => !validValue(values[item.key]))
+    )
       return setMessage("Informe este valor para continuar.");
     setMessage("");
-    const step = zonePair.length ? 2 : 1;
+    const step = groupedParameters.length ? groupedParameters.length : 1;
     if (fieldIndex + step < config.parameters.length)
       setFieldIndex((value) => value + step);
     else setReview(true);
@@ -846,6 +857,31 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ))}
                     </nav>
                   ) : null}
+                  {selectedCode === "empacotamento" &&
+                  !viewOnly &&
+                  !review ? (
+                    <nav
+                      className="mt-3 grid grid-cols-4 gap-2"
+                      aria-label="Empacotadoras"
+                    >
+                      {[1, 2, 3, 4].map((machine, index) => {
+                        const running = traceability?.packers?.find(
+                          (item) => item.maquina === machine,
+                        )?.ativa;
+                        const active = parameter?.group === `Máquina ${machine}`;
+                        return (
+                          <button
+                            key={machine}
+                            type="button"
+                            onClick={() => setFieldIndex(index * 3)}
+                            className={`min-h-12 px-2 text-sm font-bold ${active ? "bg-cicopal-blue text-white" : running ? "bg-green-50 text-green-800" : "bg-slate-100 text-slate-400"}`}
+                          >
+                            M{machine}
+                          </button>
+                        );
+                      })}
+                    </nav>
+                  ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
                       className="mt-3 grid grid-cols-2 gap-2"
@@ -919,7 +955,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         {config.parameters.length}
                       </p>
                       <h4 className="mt-2 text-2xl font-black">
-                        {zonePair.length ? parameter.group : parameter.label}
+                        {groupedParameters.length
+                          ? parameter.group
+                          : parameter.label}
                       </h4>
                       {parameter.hint ? (
                         <p className="mt-2 font-semibold text-gray-600">
@@ -939,36 +977,51 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         </div>
                       ) : null}
                       <div className="mt-7">
-                        {zonePair.length ? (
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            {zonePair.map((zoneParameter) => (
+                        {selectedCode === "empacotamento" &&
+                        selectedMachineRunning === false ? (
+                          <div className="border border-slate-300 bg-slate-100 p-6 text-center text-slate-600">
+                            <b className="block text-xl">Máquina parada</b>
+                            <p className="mt-1 text-sm">
+                              Não há leitura para registrar neste horário.
+                            </p>
+                          </div>
+                        ) : groupedParameters.length ? (
+                          <div
+                            className={`grid gap-4 ${selectedCode === "forno" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
+                          >
+                            {groupedParameters.map((groupParameter) => (
                               <label
-                                key={zoneParameter.key}
+                                key={groupParameter.key}
                                 className="border-2 border-slate-300 bg-white p-4 focus-within:border-cicopal-blue"
                               >
                                 <span className="block text-sm font-bold uppercase text-slate-500">
-                                  {zoneParameter.key.endsWith("_setpoint")
-                                    ? "Setpoint"
-                                    : "Temperatura real"}
+                                  {selectedCode === "forno"
+                                    ? groupParameter.key.endsWith("_setpoint")
+                                      ? "Setpoint"
+                                      : "Temperatura real"
+                                    : groupParameter.label.replace(
+                                        /^Máquina \d+ · /,
+                                        "",
+                                      )}
                                 </span>
                                 <div className="mt-3 flex items-center">
                                   <input
-                                    autoFocus={zoneParameter.key.endsWith(
-                                      "_setpoint",
-                                    )}
+                                    autoFocus={
+                                      groupParameter === groupedParameters[0]
+                                    }
                                     type="number"
                                     inputMode="decimal"
-                                    value={values[zoneParameter.key] ?? ""}
+                                    value={values[groupParameter.key] ?? ""}
                                     onChange={(event) =>
                                       setValues((all) => ({
                                         ...all,
-                                        [zoneParameter.key]: event.target.value,
+                                        [groupParameter.key]: event.target.value,
                                       }))
                                     }
                                     className="min-h-20 min-w-0 flex-1 text-center text-4xl font-black outline-none"
                                   />
                                   <b className="px-3 text-lg text-slate-500">
-                                    {zoneParameter.unit}
+                                    {groupParameter.unit}
                                   </b>
                                 </div>
                               </label>
@@ -1170,7 +1223,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         ? setReview(false)
                         : fieldIndex
                           ? setFieldIndex((value) =>
-                              Math.max(0, value - (zonePair.length ? 2 : 1)),
+                              Math.max(
+                                0,
+                                value -
+                                  (groupedParameters.length
+                                    ? groupedParameters.length
+                                    : 1),
+                              ),
                             )
                           : setSelectedCode("")
                     }

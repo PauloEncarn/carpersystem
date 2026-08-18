@@ -30,6 +30,8 @@ export function ProductionTraceabilitySetup({
   const [saving, setSaving] = useState(false);
   const [activePacker, setActivePacker] = useState(0);
   const [packerChangeReason, setPackerChangeReason] = useState("");
+  const [packerEditing, setPackerEditing] = useState(false);
+  const [packerEditConfirm, setPackerEditConfirm] = useState(false);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchReview, setBatchReview] = useState(false);
   const [batchSelected, setBatchSelected] = useState({});
@@ -203,6 +205,8 @@ export function ProductionTraceabilitySetup({
       );
       await reload();
       setPackerChangeReason("");
+      setPackerEditing(false);
+      setPackerEditConfirm(false);
       setMessage("Configuração das quatro empacotadoras atualizada.");
     } catch (error) {
       setMessage(error.message);
@@ -680,13 +684,11 @@ export function ProductionTraceabilitySetup({
         </div>
 
         <div className="mx-auto mt-5 grid max-w-xl grid-cols-3 grid-rows-2 gap-3">
-          <div className="col-start-1 row-start-1 grid min-h-24 place-items-center border border-dashed border-slate-200 text-xs font-bold uppercase text-slate-300">
-            Fluxo
-          </div>
           {packers.map((machine) => (
             <button
               key={machine.machine}
               type="button"
+              disabled={configured && !packerEditing}
               onClick={() =>
                 setPackers((all) =>
                   all.map((item) =>
@@ -696,7 +698,7 @@ export function ProductionTraceabilitySetup({
                   ),
                 )
               }
-              className={`${machinePosition[machine.machine]} min-h-24 border-2 p-3 text-left ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+              className={`${machinePosition[machine.machine]} min-h-24 border-2 p-3 text-left disabled:cursor-default ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
             >
               <span className="text-xs font-bold uppercase">Máquina</span>
               <b className="block text-2xl">{machine.machine}</b>
@@ -707,7 +709,45 @@ export function ProductionTraceabilitySetup({
           ))}
         </div>
 
-        {configured ? (
+        {configured && !packerEditing && !packerEditConfirm ? (
+          <button
+            type="button"
+            onClick={() => setPackerEditConfirm(true)}
+            className="mx-auto mt-5 block min-h-12 w-full max-w-xl border border-slate-300 bg-white px-4 font-bold text-slate-600"
+          >
+            Alterar configuração das máquinas
+          </button>
+        ) : null}
+
+        {configured && packerEditConfirm && !packerEditing ? (
+          <div className="mx-auto mt-5 max-w-xl border border-amber-300 bg-amber-50 p-4">
+            <b className="text-amber-900">Confirmar edição?</b>
+            <p className="mt-1 text-sm text-amber-800">
+              Use esta opção somente quando uma máquina iniciar ou parar durante a produção.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPackerEditConfirm(false)}
+                className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPackerEditConfirm(false);
+                  setPackerEditing(true);
+                }}
+                className="min-h-12 bg-amber-600 font-bold text-white"
+              >
+                Continuar edição
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {configured && packerEditing ? (
           <label className="mx-auto mt-5 block max-w-xl">
             <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
               Motivo da alteração
@@ -720,14 +760,18 @@ export function ProductionTraceabilitySetup({
             />
           </label>
         ) : null}
-        <button
-          type="button"
-          onClick={savePackers}
-          disabled={saving || (configured && !packerChangeReason.trim())}
-          className="mx-auto mt-3 block min-h-14 w-full max-w-xl bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
-        >
-          {configured ? "Confirmar alteração" : "Confirmar máquinas em operação"}
-        </button>
+        {!configured || packerEditing ? (
+          <button
+            type="button"
+            onClick={savePackers}
+            disabled={saving || (configured && !packerChangeReason.trim())}
+            className="mx-auto mt-3 block min-h-14 w-full max-w-xl bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
+          >
+            {configured
+              ? "Confirmar alteração"
+              : "Confirmar máquinas em operação"}
+          </button>
+        ) : null}
         {message ? (
           <p className="mx-auto mt-3 max-w-xl bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">
             {message}
