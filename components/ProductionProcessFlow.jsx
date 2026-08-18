@@ -618,7 +618,11 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 RG.PROD.ROS.001 · produção interligada
               </p>
               <h2 className="text-2xl font-black">
-                {workspace === "cut" ? "Corte a fio" : "Apontamentos do processo"}
+                {workspace === "cut"
+                  ? "Corte a fio"
+                  : workspace === "oven"
+                    ? "Forno"
+                    : "Apontamentos do processo"}
               </h2>
             </div>
             {activeWindow ? (
@@ -648,14 +652,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             )}
           </header>
 
-          {workspace === "cut" ? (
+          {["cut", "oven"].includes(workspace) ? (
             <section className="mt-5 border-y border-slate-200 py-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-bold">Horários da produção</h3>
                 <span className="text-sm font-bold text-red-700">
                   {fixedSlots.filter(
                     (slot) =>
-                      !recordsFor("corte_fio").some(
+                      !recordsFor(
+                        workspace === "cut" ? "corte_fio" : "forno",
+                      ).some(
                         (record) => record.horario_previsto === slot,
                       ),
                   ).length} pendente(s)
@@ -663,7 +669,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               </div>
               <div className="flex gap-2 overflow-x-auto pb-2">
                 {fixedSlots.map((slot, index) => {
-                  const record = recordsFor("corte_fio").find(
+                  const processCode =
+                    workspace === "cut" ? "corte_fio" : "forno";
+                  const record = recordsFor(processCode).find(
                     (item) => item.horario_previsto === slot,
                   );
                   const isCurrent = index === fixedSlots.length - 1;
@@ -671,7 +679,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                     <button
                       key={slot}
                       type="button"
-                      onClick={() => openProcess("corte_fio", slot)}
+                      onClick={() => openProcess(processCode, slot)}
                       className={`min-h-16 min-w-24 shrink-0 border px-3 text-center ${record ? "border-green-300 bg-green-50 text-green-800" : isCurrent ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-red-300 bg-red-50 text-red-800"}`}
                     >
                       <b className="block text-lg">
@@ -728,7 +736,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             </section>
             <section>
               <div
-                className={`mb-2 items-end justify-between ${workspace === "cut" ? "hidden" : "flex"}`}
+                className={`mb-2 items-end justify-between ${["cut", "oven"].includes(workspace) ? "hidden" : "flex"}`}
               >
                 <p className="text-xs font-black uppercase text-gray-500">
                   2 · Leituras da janela de 60 minutos
