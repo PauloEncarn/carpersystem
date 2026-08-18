@@ -3,13 +3,13 @@ import "./globals.css";
 
 export const metadata = {
   title: "Carper System RG",
-  description: "Sistema de qualidade e rastreabilidade Cicopal"
+  description: "Sistema de qualidade e rastreabilidade Cicopal",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>
+      <body className="modern-ui">
         <ChunkReloadGuard />
         {children}
       </body>
