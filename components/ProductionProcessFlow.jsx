@@ -177,7 +177,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
 
   useEffect(() => {
     if (!cycle?.id) return;
-    loadProductionTraceability(cycle.id).then(setTraceability).catch(() => setTraceability(null));
+    loadProductionTraceability(cycle.id)
+      .then(setTraceability)
+      .catch(() => setTraceability(null));
   }, [cycle?.id]);
 
   function isUnlocked(code) {
@@ -447,38 +449,64 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     );
   return (
     <div className="space-y-4">
-      <section className="border border-gray-200 bg-white p-4 sm:p-5">
-        <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">
-          Minha área
-        </p>
-        <h2 className="mt-1 text-2xl font-black">Onde você vai trabalhar?</h2>
-        <p className="mt-1 font-semibold text-gray-500">
-          Cada equipe possui sua estação. Todos os registros permanecem na mesma
-          produção.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            ["overview", "Visão geral"],
-            ["prep", "Preparo"],
-            ["cut", "Corte a fio"],
-            ["oven", "Forno"],
-            ["pack", "Empacotamento"],
-            ["box", "Encaixotamento"],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setWorkspace(id)}
-              className={`min-h-20 p-3 text-left font-black transition active:scale-[.98] ${workspace === id ? "bg-cicopal-blue text-white shadow-lg" : "bg-gray-100 text-gray-700"}`}
-            >
-              <span className="block text-xs uppercase opacity-70">
-                {id === "overview" ? "Painel" : "Estação"}
-              </span>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
+      {workspace === "overview" ? (
+        <section className="border border-gray-200 bg-white p-4 sm:p-5">
+          <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">
+            Produção integrada
+          </p>
+          <h2 className="mt-1 text-2xl font-black">Escolha sua área</h2>
+          <p className="mt-1 font-semibold text-gray-500">
+            Abra somente a estação que será preenchida agora.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              ["prep", "Preparo"],
+              ["cut", "Corte a fio"],
+              ["oven", "Forno"],
+              ["pack", "Empacotamento"],
+              ["box", "Encaixotamento"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setWorkspace(id)}
+                className="min-h-24 bg-gray-100 p-4 text-left font-black text-gray-800 transition active:scale-[.98]"
+              >
+                <span className="block text-xs uppercase text-cicopal-blue">
+                  Abrir estação
+                </span>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="sticky top-2 z-30 flex min-h-16 items-center gap-3 border border-blue-100 bg-white p-3 shadow-lg">
+          <button
+            type="button"
+            onClick={() => setWorkspace("overview")}
+            className="grid size-12 shrink-0 place-items-center bg-cicopal-blue text-white"
+          >
+            <ChevronLeft />
+          </button>
+          <div>
+            <p className="text-xs font-black uppercase text-cicopal-blue">
+              Estação de trabalho
+            </p>
+            <h2 className="text-xl font-black">
+              {workspace === "prep"
+                ? "Preparo"
+                : workspace === "cut"
+                  ? "Corte a fio"
+                  : workspace === "oven"
+                    ? "Forno"
+                    : workspace === "pack"
+                      ? "Empacotamento"
+                      : "Encaixotamento"}
+            </h2>
+          </div>
+        </section>
+      )}
       {workspace === "prep" ? (
         <ProductionTraceabilitySetup
           cycle={cycle}
@@ -508,9 +536,25 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               const row = rowByCode(item.code);
               const latest = recordsFor(item.code)[0];
               return (
-                <article
+                <button
+                  type="button"
+                  onClick={() =>
+                    setWorkspace(
+                      ["automacao", "masseira"].includes(item.code)
+                        ? "prep"
+                        : item.code === "corte_fio"
+                          ? "cut"
+                          : item.code === "forno"
+                            ? "oven"
+                            : ["detector_metal", "empacotamento"].includes(
+                                  item.code,
+                                )
+                              ? "pack"
+                              : "box",
+                    )
+                  }
                   key={item.code}
-                  className="min-h-24 border-l-4 border-cicopal-blue bg-gray-50 p-3"
+                  className="min-h-24 border-l-4 border-cicopal-blue bg-gray-50 p-3 text-left"
                 >
                   <b className="block text-lg">{item.name}</b>
                   <span className="text-xs font-black uppercase text-gray-500">
@@ -521,13 +565,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ? `Último registro ${fmt(latest.preenchido_em)}`
                       : "Sem registro"}
                   </small>
-                </article>
+                </button>
               );
             })}
           </div>
         </section>
       ) : null}
-      {workspace !== "prep" ? (
+      {!["prep", "overview"].includes(workspace) ? (
         <section className="border border-gray-300 bg-white p-4 sm:p-5">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>

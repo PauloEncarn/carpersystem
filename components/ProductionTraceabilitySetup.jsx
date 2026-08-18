@@ -29,6 +29,8 @@ export function ProductionTraceabilitySetup({
   const [activePacker, setActivePacker] = useState(0);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchSelected, setBatchSelected] = useState({});
+  const [mixerStep, setMixerStep] = useState(0);
+  const [batchStep, setBatchStep] = useState(0);
   const [lot, setLot] = useState({
     supplyId: "",
     supplierLot: "",
@@ -74,6 +76,7 @@ export function ProductionTraceabilitySetup({
         userId: operatorId,
       });
       await reload();
+      setMixerStep(0);
       setLot((current) => ({ ...current, supplierLot: "" }));
       setEditingLot(false);
       if (automationStep === 0) setAutomationStep(1);
@@ -100,6 +103,7 @@ export function ProductionTraceabilitySetup({
         userId: operatorId,
       });
       await reload();
+      setMixerStep(0);
       setMessage(`${supply.nome}: lote disponível para as próximas bateladas.`);
     } catch (error) {
       setMessage(error.message);
@@ -326,93 +330,95 @@ export function ProductionTraceabilitySetup({
               })}
             </div>
             {editingLot ? (
-              <div className="mt-4 border border-blue-200 bg-white p-4">
-                <p className="mb-3 text-xs font-black uppercase text-gray-500">
-                  Como o lote anterior foi encerrado?
-                </p>
-                <div className="mb-4 grid gap-2 sm:grid-cols-3">
-                  {[
-                    ["finalizado", "Lote finalizado"],
-                    ["problema", "Problema encontrado"],
-                    ["outro", "Outro motivo"],
-                  ].map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() =>
-                        setLotClosure({ outcome: id, problem: "" })
+              <div className="fixed inset-0 z-[100] overflow-y-auto bg-white p-4 sm:p-8">
+                <div className="mx-auto max-w-2xl">
+                  <p className="mb-3 text-xs font-black uppercase text-gray-500">
+                    Como o lote anterior foi encerrado?
+                  </p>
+                  <div className="mb-4 grid gap-2 sm:grid-cols-3">
+                    {[
+                      ["finalizado", "Lote finalizado"],
+                      ["problema", "Problema encontrado"],
+                      ["outro", "Outro motivo"],
+                    ].map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() =>
+                          setLotClosure({ outcome: id, problem: "" })
+                        }
+                        className={`min-h-14 p-2 font-black ${lotClosure.outcome === id ? "bg-cicopal-blue text-white" : "bg-gray-100 text-gray-600"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {lotClosure.outcome !== "finalizado" ? (
+                    <textarea
+                      value={lotClosure.problem}
+                      onChange={(event) =>
+                        setLotClosure((current) => ({
+                          ...current,
+                          problem: event.target.value,
+                        }))
                       }
-                      className={`min-h-14 p-2 font-black ${lotClosure.outcome === id ? "bg-cicopal-blue text-white" : "bg-gray-100 text-gray-600"}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                      className="mb-4 min-h-24 w-full border-2 border-amber-300 p-3"
+                      placeholder={
+                        lotClosure.outcome === "problema"
+                          ? "Qual problema foi encontrado?"
+                          : "Qual foi o motivo?"
+                      }
+                    />
+                  ) : null}
+                  <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">
+                    Dados do novo lote
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      value={lot.supplierLot}
+                      onChange={(e) =>
+                        setLot((v) => ({ ...v, supplierLot: e.target.value }))
+                      }
+                      className="min-h-14 border px-3"
+                      placeholder="Lote do fornecedor"
+                    />
+                    <input
+                      value={lot.supplier}
+                      onChange={(e) =>
+                        setLot((v) => ({ ...v, supplier: e.target.value }))
+                      }
+                      className="min-h-14 border px-3"
+                      placeholder="Fornecedor"
+                    />
+                    <input
+                      type="date"
+                      value={lot.expiry}
+                      onChange={(e) =>
+                        setLot((v) => ({ ...v, expiry: e.target.value }))
+                      }
+                      className="min-h-14 border px-3"
+                    />
+                  </div>
+                  <button
+                    onClick={saveLot}
+                    disabled={
+                      saving ||
+                      (lotClosure.outcome !== "finalizado" &&
+                        !lotClosure.problem.trim())
+                    }
+                    className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-blue font-black text-white"
+                  >
+                    <Save />
+                    Confirmar novo lote
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingLot(false)}
+                    className="mt-2 min-h-12 w-full font-bold text-gray-600"
+                  >
+                    Cancelar
+                  </button>
                 </div>
-                {lotClosure.outcome !== "finalizado" ? (
-                  <textarea
-                    value={lotClosure.problem}
-                    onChange={(event) =>
-                      setLotClosure((current) => ({
-                        ...current,
-                        problem: event.target.value,
-                      }))
-                    }
-                    className="mb-4 min-h-24 w-full border-2 border-amber-300 p-3"
-                    placeholder={
-                      lotClosure.outcome === "problema"
-                        ? "Qual problema foi encontrado?"
-                        : "Qual foi o motivo?"
-                    }
-                  />
-                ) : null}
-                <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">
-                  Dados do novo lote
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    value={lot.supplierLot}
-                    onChange={(e) =>
-                      setLot((v) => ({ ...v, supplierLot: e.target.value }))
-                    }
-                    className="min-h-14 border px-3"
-                    placeholder="Lote do fornecedor"
-                  />
-                  <input
-                    value={lot.supplier}
-                    onChange={(e) =>
-                      setLot((v) => ({ ...v, supplier: e.target.value }))
-                    }
-                    className="min-h-14 border px-3"
-                    placeholder="Fornecedor"
-                  />
-                  <input
-                    type="date"
-                    value={lot.expiry}
-                    onChange={(e) =>
-                      setLot((v) => ({ ...v, expiry: e.target.value }))
-                    }
-                    className="min-h-14 border px-3"
-                  />
-                </div>
-                <button
-                  onClick={saveLot}
-                  disabled={
-                    saving ||
-                    (lotClosure.outcome !== "finalizado" &&
-                      !lotClosure.problem.trim())
-                  }
-                  className="mt-3 flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-blue font-black text-white"
-                >
-                  <Save />
-                  Confirmar novo lote
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingLot(false)}
-                  className="mt-2 min-h-12 w-full font-bold text-gray-600"
-                >
-                  Cancelar
-                </button>
               </div>
             ) : null}
           </div>
@@ -457,6 +463,7 @@ export function ProductionTraceabilitySetup({
                       (lotItem) => lotItem.insumo_id === item.insumos.id,
                     ),
                 )
+                .slice(mixerStep, mixerStep + 1)
                 .map((item) => {
                   const supply = item.insumos;
                   return (
@@ -504,6 +511,9 @@ export function ProductionTraceabilitySetup({
                   );
                 })}
             </div>
+            <p className="mt-3 text-center text-sm font-black text-gray-500">
+              Um insumo por vez · os cadastrados saem automaticamente da fila
+            </p>
             <button
               type="button"
               onClick={() => setBatchOpen(true)}
@@ -514,198 +524,210 @@ export function ProductionTraceabilitySetup({
           </div>
         ) : null}
         {batchOpen ? (
-          <div className="mt-5 border-t-4 border-cicopal-blue pt-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase text-cicopal-blue">
-                  Fluxo da produção · sem frequência horária
-                </p>
-                <h3 className="mt-1 text-2xl font-black">Nova batelada</h3>
-                <p className="mt-1 font-semibold text-gray-500">
-                  Escolha os insumos e informe quanto será utilizado neste
-                  preparo.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setBatchOpen(false)}
-                className="grid size-12 shrink-0 place-items-center bg-gray-100 font-black"
-              >
-                ×
-              </button>
-            </div>
-            <div className="mb-4 flex items-start justify-between gap-3 bg-blue-50 p-4">
-              <div>
-                <small className="font-black uppercase text-cicopal-blue">
-                  Receita vigente · versão {recipe?.versao}
-                </small>
-                <h3 className="text-xl font-black">{cycle.product}</h3>
-              </div>
-              <span className="font-black">
-                {data.batches.length} batelada(s)
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(recipe?.receita_insumos ?? []).map((item) => {
-                const supply = item.insumos;
-                const inherited = activeLots.find(
-                  (lotItem) => lotItem.insumo_id === supply.id,
-                );
-                return (
-                  <article key={supply.id} className="border p-3">
-                    <div className="flex justify-between">
-                      <label className="flex min-h-10 items-center gap-3">
-                        <input
-                          type="checkbox"
-                          className="size-6"
-                          checked={batchSelected[supply.id] !== false}
-                          onChange={(event) =>
-                            setBatchSelected((current) => ({
-                              ...current,
-                              [supply.id]: event.target.checked,
-                            }))
-                          }
-                        />
-                        <b>{supply.nome}</b>
-                      </label>
-                      <small className="font-black uppercase text-gray-500">
-                        {inherited
-                          ? "Herdado da Automação"
-                          : "Adicionado na Masseira"}
-                      </small>
-                    </div>
-                    {batchSelected[supply.id] === false ? (
-                      <p className="mt-2 font-bold text-gray-400">
-                        Não será utilizado nesta batelada
-                      </p>
-                    ) : inherited ? (
-                      <p className="mt-2 font-bold">
-                        Lote {inherited.lote_fornecedor} · {inherited.validade}
-                      </p>
-                    ) : (
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <input
-                          placeholder="Lote"
-                          value={batchInputs[supply.id]?.lot ?? ""}
-                          onChange={(e) =>
-                            setBatchInputs((all) => ({
-                              ...all,
-                              [supply.id]: {
-                                ...all[supply.id],
-                                lot: e.target.value,
-                              },
-                            }))
-                          }
-                          className="min-h-12 border px-2"
-                        />
-                        <input
-                          type="date"
-                          value={batchInputs[supply.id]?.expiry ?? "2027-12-31"}
-                          onChange={(e) =>
-                            setBatchInputs((all) => ({
-                              ...all,
-                              [supply.id]: {
-                                ...all[supply.id],
-                                expiry: e.target.value,
-                              },
-                            }))
-                          }
-                          className="min-h-12 border px-2"
-                        />
-                      </div>
-                    )}
-                    <label className="mt-2 flex items-center border">
-                      <span className="px-2 text-xs font-black">UTILIZADO</span>
-                      <input
-                        type="number"
-                        value={
-                          batchInputs[supply.id]?.used ?? item.quantidade ?? ""
-                        }
-                        onChange={(e) =>
-                          setBatchInputs((all) => ({
-                            ...all,
-                            [supply.id]: {
-                              ...all[supply.id],
-                              used: e.target.value,
-                            },
-                          }))
-                        }
-                        className="min-h-12 min-w-0 flex-1 px-2 font-black"
-                      />
-                      <b className="px-2">{item.unidade}</b>
-                    </label>
-                  </article>
-                );
-              })}
-            </div>
-            <button
-              onClick={addBatch}
-              disabled={
-                saving || activeLots.length < 2 || inputsForBatch().length === 0
-              }
-              className="mt-4 flex min-h-16 w-full items-center justify-center gap-2 bg-green-600 text-lg font-black text-white disabled:bg-gray-300"
-            >
-              <PackagePlus />
-              Iniciar nova batelada
-            </button>
-            <div
-              className={`mt-3 flex items-center justify-between p-4 ${Math.abs(batchTotal - 900) <= 5 ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}
-            >
-              <span>
-                <small className="block font-black uppercase">
-                  Peso da nova batelada
-                </small>
-                <b className="text-2xl">
-                  {batchTotal.toLocaleString("pt-BR")} kg
-                </b>
-              </span>
-              <span className="text-right text-sm font-black">
-                Referência: 900 kg
-                <br />
-                Diferença: {(batchTotal - 900).toLocaleString("pt-BR")} kg
-              </span>
-            </div>
-            <div className="mt-4 space-y-2">
-              {data.batches.map((batch) => (
-                <article
-                  key={batch.id}
-                  className="flex items-center justify-between border-l-4 border-green-500 bg-green-50 p-3"
+          <div className="fixed inset-0 z-[100] overflow-y-auto bg-white p-4 sm:p-8">
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase text-cicopal-blue">
+                    Fluxo da produção · sem frequência horária
+                  </p>
+                  <h3 className="mt-1 text-2xl font-black">Nova batelada</h3>
+                  <p className="mt-1 font-semibold text-gray-500">
+                    Escolha os insumos e informe quanto será utilizado neste
+                    preparo.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBatchOpen(false)}
+                  className="grid size-12 shrink-0 place-items-center bg-gray-100 font-black"
                 >
-                  <span>
-                    <b className="block">Batelada {batch.numero}</b>
-                    <small>
-                      {new Date(batch.iniciada_em).toLocaleString("pt-BR")} →{" "}
-                      {batch.finalizada_em
-                        ? new Date(batch.finalizada_em).toLocaleString("pt-BR")
-                        : "preparo em andamento"}
-                    </small>
-                    <small className="mt-1 block font-black uppercase text-cicopal-blue">
-                      {batch.status.replaceAll("_", " ")}
-                    </small>
-                  </span>
-                  {batch.status === "em_preparacao" ? (
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => completePreparation(batch.id)}
-                      className="min-h-12 bg-cicopal-blue px-3 font-black text-white"
-                    >
-                      Finalizar preparo
-                    </button>
-                  ) : batch.status === "pronta" ? (
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => consumeBatch(batch.id)}
-                      className="min-h-12 bg-green-600 px-3 font-black text-white"
-                    >
-                      Iniciar consumo
-                    </button>
-                  ) : (
-                    <Check className="text-green-700" />
-                  )}
-                </article>
-              ))}
+                  ×
+                </button>
+              </div>
+              <div className="mb-4 flex items-start justify-between gap-3 bg-blue-50 p-4">
+                <div>
+                  <small className="font-black uppercase text-cicopal-blue">
+                    Receita vigente · versão {recipe?.versao}
+                  </small>
+                  <h3 className="text-xl font-black">{cycle.product}</h3>
+                </div>
+                <span className="font-black">
+                  {data.batches.length} batelada(s)
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(recipe?.receita_insumos ?? []).map((item, itemIndex) => {
+                  if (itemIndex !== batchStep) return null;
+                  const supply = item.insumos;
+                  const inherited = activeLots.find(
+                    (lotItem) => lotItem.insumo_id === supply.id,
+                  );
+                  return (
+                    <article key={supply.id} className="border p-3">
+                      <div className="flex justify-between">
+                        <label className="flex min-h-10 items-center gap-3">
+                          <input
+                            type="checkbox"
+                            className="size-6"
+                            checked={batchSelected[supply.id] !== false}
+                            onChange={(event) =>
+                              setBatchSelected((current) => ({
+                                ...current,
+                                [supply.id]: event.target.checked,
+                              }))
+                            }
+                          />
+                          <b>{supply.nome}</b>
+                        </label>
+                        <small className="font-black uppercase text-gray-500">
+                          {inherited
+                            ? "Herdado da Automação"
+                            : "Adicionado na Masseira"}
+                        </small>
+                      </div>
+                      {batchSelected[supply.id] === false ? (
+                        <p className="mt-2 font-bold text-gray-400">
+                          Não será utilizado nesta batelada
+                        </p>
+                      ) : inherited ? (
+                        <p className="mt-2 font-bold">
+                          Lote {inherited.lote_fornecedor} ·{" "}
+                          {inherited.validade}
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBatchOpen(false);
+                            setTab("mixer");
+                          }}
+                          className="mt-2 min-h-14 w-full bg-amber-50 px-3 text-left font-black text-amber-900"
+                        >
+                          Lote ainda não cadastrado · abrir Masseira
+                        </button>
+                      )}
+                      {batchSelected[supply.id] !== false && inherited ? (
+                        <label className="mt-2 flex items-center border">
+                          <span className="px-2 text-xs font-black">
+                            UTILIZADO
+                          </span>
+                          <input
+                            type="number"
+                            value={
+                              batchInputs[supply.id]?.used ??
+                              item.quantidade ??
+                              ""
+                            }
+                            onChange={(e) =>
+                              setBatchInputs((all) => ({
+                                ...all,
+                                [supply.id]: {
+                                  ...all[supply.id],
+                                  used: e.target.value,
+                                },
+                              }))
+                            }
+                            className="min-h-12 min-w-0 flex-1 px-2 font-black"
+                          />
+                          <b className="px-2">{item.unidade}</b>
+                        </label>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="mt-4 grid grid-cols-[auto_1fr] gap-2">
+                <button
+                  type="button"
+                  disabled={batchStep === 0}
+                  onClick={() =>
+                    setBatchStep((value) => Math.max(0, value - 1))
+                  }
+                  className="min-h-16 border border-gray-300 px-5 font-black disabled:opacity-30"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={() =>
+                    batchStep < (recipe?.receita_insumos?.length ?? 1) - 1
+                      ? setBatchStep((value) => value + 1)
+                      : addBatch()
+                  }
+                  disabled={
+                    saving ||
+                    activeLots.length < 2 ||
+                    inputsForBatch().length === 0
+                  }
+                  className="flex min-h-16 w-full items-center justify-center gap-2 bg-green-600 text-lg font-black text-white disabled:bg-gray-300"
+                >
+                  <PackagePlus />
+                  {batchStep < (recipe?.receita_insumos?.length ?? 1) - 1
+                    ? "Continuar"
+                    : "Iniciar nova batelada"}
+                </button>
+              </div>
+              <div
+                className={`mt-3 flex items-center justify-between p-4 ${Math.abs(batchTotal - 900) <= 5 ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}
+              >
+                <span>
+                  <small className="block font-black uppercase">
+                    Peso da nova batelada
+                  </small>
+                  <b className="text-2xl">
+                    {batchTotal.toLocaleString("pt-BR")} kg
+                  </b>
+                </span>
+                <span className="text-right text-sm font-black">
+                  Referência: 900 kg
+                  <br />
+                  Diferença: {(batchTotal - 900).toLocaleString("pt-BR")} kg
+                </span>
+              </div>
+              <div className="mt-4 space-y-2">
+                {data.batches.map((batch) => (
+                  <article
+                    key={batch.id}
+                    className="flex items-center justify-between border-l-4 border-green-500 bg-green-50 p-3"
+                  >
+                    <span>
+                      <b className="block">Batelada {batch.numero}</b>
+                      <small>
+                        {new Date(batch.iniciada_em).toLocaleString("pt-BR")} →{" "}
+                        {batch.finalizada_em
+                          ? new Date(batch.finalizada_em).toLocaleString(
+                              "pt-BR",
+                            )
+                          : "preparo em andamento"}
+                      </small>
+                      <small className="mt-1 block font-black uppercase text-cicopal-blue">
+                        {batch.status.replaceAll("_", " ")}
+                      </small>
+                    </span>
+                    {batch.status === "em_preparacao" ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => completePreparation(batch.id)}
+                        className="min-h-12 bg-cicopal-blue px-3 font-black text-white"
+                      >
+                        Finalizar preparo
+                      </button>
+                    ) : batch.status === "pronta" ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => consumeBatch(batch.id)}
+                        className="min-h-12 bg-green-600 px-3 font-black text-white"
+                      >
+                        Iniciar consumo
+                      </button>
+                    ) : (
+                      <Check className="text-green-700" />
+                    )}
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
