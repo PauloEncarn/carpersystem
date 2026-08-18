@@ -86,6 +86,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
   const parameter = config?.parameters[fieldIndex];
+  const zonePair =
+    selectedCode === "forno" && parameter?.group?.startsWith("Zona")
+      ? config.parameters.filter((item) => item.group === parameter.group)
+      : [];
   const parameterContext =
     parameter?.group ??
     (parameter?.key?.match(/^maq_(\d+)_/)
@@ -243,11 +247,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     setMessage("");
   }
   function nextField() {
-    if (!validValue(values[parameter.key]))
+    const currentParameters = zonePair.length ? zonePair : [parameter];
+    if (currentParameters.some((item) => !validValue(values[item.key])))
       return setMessage("Informe este valor para continuar.");
     setMessage("");
-    if (fieldIndex < config.parameters.length - 1)
-      setFieldIndex((value) => value + 1);
+    const step = zonePair.length ? 2 : 1;
+    if (fieldIndex + step < config.parameters.length)
+      setFieldIndex((value) => value + step);
     else setReview(true);
   }
   async function setStatus(status) {
@@ -622,7 +628,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   ? "Corte a fio"
                   : workspace === "oven"
                     ? "Forno"
-                    : "Apontamentos do processo"}
+                    : workspace === "pack"
+                      ? "Empacotamento"
+                      : "Apontamentos do processo"}
               </h2>
             </div>
             {activeWindow ? (
@@ -652,7 +660,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             )}
           </header>
 
-          {["cut", "oven"].includes(workspace) ? (
+          {["cut", "oven", "pack"].includes(workspace) ? (
             <section className="mt-5 border-y border-slate-200 py-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-bold">Horários da produção</h3>
@@ -660,7 +668,11 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   {fixedSlots.filter(
                     (slot) =>
                       !recordsFor(
-                        workspace === "cut" ? "corte_fio" : "forno",
+                        workspace === "cut"
+                          ? "corte_fio"
+                          : workspace === "oven"
+                            ? "forno"
+                            : "empacotamento",
                       ).some(
                         (record) => record.horario_previsto === slot,
                       ),
@@ -670,7 +682,11 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               <div className="flex gap-2 overflow-x-auto pb-2">
                 {fixedSlots.map((slot, index) => {
                   const processCode =
-                    workspace === "cut" ? "corte_fio" : "forno";
+                    workspace === "cut"
+                      ? "corte_fio"
+                      : workspace === "oven"
+                        ? "forno"
+                        : "empacotamento";
                   const record = recordsFor(processCode).find(
                     (item) => item.horario_previsto === slot,
                   );
@@ -736,7 +752,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             </section>
             <section>
               <div
-                className={`mb-2 items-end justify-between ${["cut", "oven"].includes(workspace) ? "hidden" : "flex"}`}
+                className={`mb-2 items-end justify-between ${["cut", "oven", "pack"].includes(workspace) ? "hidden" : "flex"}`}
               >
                 <p className="text-xs font-black uppercase text-gray-500">
                   2 · Leituras da janela de 60 minutos
@@ -758,34 +774,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ROSCA_SUBPROCESSES.find((item) => item.code === "forno"),
                     )
                   : null}
-                {["overview", "pack"].includes(workspace) ? (
-                  <section className="border border-blue-200 bg-blue-50 p-3 sm:col-span-2">
-                    <div className="mb-3">
-                      <p className="text-xs font-black uppercase text-cicopal-blue">
-                        Processo
-                      </p>
-                      <h3 className="text-xl font-black">Empacotamento</h3>
-                      <p className="text-sm font-semibold text-gray-600">
-                        Detecção de metais e empacotadoras fazem parte deste
-                        processo.
-                      </p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {processButton(
-                        ROSCA_SUBPROCESSES.find(
-                          (item) => item.code === "detector_metal",
-                        ),
-                        true,
-                      )}
-                      {processButton(
-                        ROSCA_SUBPROCESSES.find(
-                          (item) => item.code === "empacotamento",
-                        ),
-                        true,
-                      )}
-                    </div>
-                  </section>
-                ) : null}
+                {["overview", "pack"].includes(workspace)
+                  ? processButton(
+                      ROSCA_SUBPROCESSES.find(
+                        (item) => item.code === "empacotamento",
+                      ),
+                    )
+                  : null}
                 {["overview", "box"].includes(workspace)
                   ? processButton(
                       ROSCA_SUBPROCESSES.find(
@@ -924,7 +919,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         {config.parameters.length}
                       </p>
                       <h4 className="mt-2 text-2xl font-black">
-                        {parameter.label}
+                        {zonePair.length ? parameter.group : parameter.label}
                       </h4>
                       {parameter.hint ? (
                         <p className="mt-2 font-semibold text-gray-600">
@@ -944,7 +939,42 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         </div>
                       ) : null}
                       <div className="mt-7">
-                        {parameter.type === "options" ? (
+                        {zonePair.length ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            {zonePair.map((zoneParameter) => (
+                              <label
+                                key={zoneParameter.key}
+                                className="border-2 border-slate-300 bg-white p-4 focus-within:border-cicopal-blue"
+                              >
+                                <span className="block text-sm font-bold uppercase text-slate-500">
+                                  {zoneParameter.key.endsWith("_setpoint")
+                                    ? "Setpoint"
+                                    : "Temperatura real"}
+                                </span>
+                                <div className="mt-3 flex items-center">
+                                  <input
+                                    autoFocus={zoneParameter.key.endsWith(
+                                      "_setpoint",
+                                    )}
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={values[zoneParameter.key] ?? ""}
+                                    onChange={(event) =>
+                                      setValues((all) => ({
+                                        ...all,
+                                        [zoneParameter.key]: event.target.value,
+                                      }))
+                                    }
+                                    className="min-h-20 min-w-0 flex-1 text-center text-4xl font-black outline-none"
+                                  />
+                                  <b className="px-3 text-lg text-slate-500">
+                                    {zoneParameter.unit}
+                                  </b>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        ) : parameter.type === "options" ? (
                           <div className="grid grid-cols-3 gap-3">
                             {parameter.options.map((option) => (
                               <button
@@ -1139,7 +1169,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       review
                         ? setReview(false)
                         : fieldIndex
-                          ? setFieldIndex((value) => value - 1)
+                          ? setFieldIndex((value) =>
+                              Math.max(0, value - (zonePair.length ? 2 : 1)),
+                            )
                           : setSelectedCode("")
                     }
                     className="flex min-h-16 items-center justify-center gap-2 border px-5 font-black"

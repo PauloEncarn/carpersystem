@@ -29,6 +29,7 @@ export function ProductionTraceabilitySetup({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [activePacker, setActivePacker] = useState(0);
+  const [packerChangeReason, setPackerChangeReason] = useState("");
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchReview, setBatchReview] = useState(false);
   const [batchSelected, setBatchSelected] = useState({});
@@ -44,9 +45,9 @@ export function ProductionTraceabilitySetup({
   const [packers, setPackers] = useState(
     Array.from({ length: 4 }, (_, index) => ({
       machine: index + 1,
-      active: index < 3,
-      grammage: index === 0 ? "90" : index < 3 ? "600" : "",
-      packagesPerBox: index === 0 ? "40" : "12",
+      active: false,
+      grammage: "",
+      packagesPerBox: "",
     })),
   );
   async function reload() {
@@ -81,6 +82,20 @@ export function ProductionTraceabilitySetup({
       return next;
     });
   }, [data?.batches]);
+  useEffect(() => {
+    if (!data?.packers?.length) return;
+    setPackers(
+      Array.from({ length: 4 }, (_, index) => {
+        const saved = data.packers.find((item) => item.maquina === index + 1);
+        return {
+          machine: index + 1,
+          active: Boolean(saved?.ativa),
+          grammage: "",
+          packagesPerBox: "",
+        };
+      }),
+    );
+  }, [data?.packers]);
   async function saveLot() {
     if (!lot.supplyId || !lot.supplierLot || !lot.supplier || !lot.expiry)
       return setMessage("Preencha insumo, lote, fornecedor e validade.");
@@ -180,8 +195,14 @@ export function ProductionTraceabilitySetup({
   async function savePackers() {
     setSaving(true);
     try {
-      await savePackerConfiguration(cycle.id, packers, operatorId);
+      await savePackerConfiguration(
+        cycle.id,
+        packers,
+        operatorId,
+        packerChangeReason,
+      );
       await reload();
+      setPackerChangeReason("");
       setMessage("Configuração das quatro empacotadoras atualizada.");
     } catch (error) {
       setMessage(error.message);
@@ -635,6 +656,86 @@ export function ProductionTraceabilitySetup({
         ) : null}
       </section>
     );
+  if (mode === "pack") {
+    const configured = data.packers.length > 0;
+    const runningCount = packers.filter((item) => item.active).length;
+    const machinePosition = {
+      1: "col-start-2 row-start-1",
+      2: "col-start-2 row-start-2",
+      3: "col-start-3 row-start-1",
+      4: "col-start-1 row-start-2",
+    };
+    return (
+      <section className="border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase text-cicopal-blue">
+              Empacotamento
+            </p>
+            <h2 className="text-xl font-bold">Empacotadoras</h2>
+          </div>
+          <b className="text-sm text-slate-600">
+            {runningCount} de 4 rodando
+          </b>
+        </div>
+
+        <div className="mx-auto mt-5 grid max-w-xl grid-cols-3 grid-rows-2 gap-3">
+          <div className="col-start-1 row-start-1 grid min-h-24 place-items-center border border-dashed border-slate-200 text-xs font-bold uppercase text-slate-300">
+            Fluxo
+          </div>
+          {packers.map((machine) => (
+            <button
+              key={machine.machine}
+              type="button"
+              onClick={() =>
+                setPackers((all) =>
+                  all.map((item) =>
+                    item.machine === machine.machine
+                      ? { ...item, active: !item.active }
+                      : item,
+                  ),
+                )
+              }
+              className={`${machinePosition[machine.machine]} min-h-24 border-2 p-3 text-left ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+            >
+              <span className="text-xs font-bold uppercase">Máquina</span>
+              <b className="block text-2xl">{machine.machine}</b>
+              <span className="mt-2 block text-sm font-bold uppercase">
+                {machine.active ? "Rodando" : "Parada"}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {configured ? (
+          <label className="mx-auto mt-5 block max-w-xl">
+            <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
+              Motivo da alteração
+            </span>
+            <textarea
+              value={packerChangeReason}
+              onChange={(event) => setPackerChangeReason(event.target.value)}
+              className="min-h-20 w-full border border-slate-300 p-3"
+              placeholder="Informe por que a configuração das máquinas mudou"
+            />
+          </label>
+        ) : null}
+        <button
+          type="button"
+          onClick={savePackers}
+          disabled={saving || (configured && !packerChangeReason.trim())}
+          className="mx-auto mt-3 block min-h-14 w-full max-w-xl bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
+        >
+          {configured ? "Confirmar alteração" : "Confirmar máquinas em operação"}
+        </button>
+        {message ? (
+          <p className="mx-auto mt-3 max-w-xl bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">
+            {message}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
   return (
     <section className="border border-gray-300 bg-white">
       <header className="border-b p-4">
