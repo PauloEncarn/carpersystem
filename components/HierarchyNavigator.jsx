@@ -34,6 +34,7 @@ import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
 import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
+import { finishActiveBatch } from "@/lib/productionTraceabilityPersistence";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -1660,6 +1661,7 @@ function Rg003ProductionControl({
       });
       if (!ended) return;
       await finishCycleSubprocesses(cycle.id, operatorId);
+      await finishActiveBatch(cycle.id, operatorId);
       await prepare("Troca de produto", nextProduct);
     } else if (stopMode === "cancel") {
       const saved = await transition(
@@ -1677,6 +1679,7 @@ function Rg003ProductionControl({
       });
       if (!saved) return;
       await finishCycleSubprocesses(cycle.id, operatorId);
+      await finishActiveBatch(cycle.id, operatorId);
       store(null);
       setProduct("");
     }

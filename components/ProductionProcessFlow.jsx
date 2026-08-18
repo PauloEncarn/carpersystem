@@ -20,7 +20,13 @@ import {
   saveSubprocessRecord,
 } from "@/lib/productionProcessPersistence";
 import { ProductionTraceabilitySetup } from "@/components/ProductionTraceabilitySetup";
-import { interruptWholeProduction, rectifyHourlyRecord, resumeWholeProduction, saveFixedHourlyRecord } from "@/lib/productionTraceabilityPersistence";
+import {
+  interruptWholeProduction,
+  loadProductionTraceability,
+  rectifyHourlyRecord,
+  resumeWholeProduction,
+  saveFixedHourlyRecord,
+} from "@/lib/productionTraceabilityPersistence";
 
 const labels = {
   nao_iniciado: "Aguardando",
@@ -73,10 +79,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const [message, setMessage] = useState("");
   const [viewOnly, setViewOnly] = useState(false);
   const [interruptOpen, setInterruptOpen] = useState(false);
+  const [workspace, setWorkspace] = useState("overview");
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
   const parameter = config?.parameters[fieldIndex];
-  const parameterContext = parameter?.group ?? (parameter?.key?.match(/^maq_(\d+)_/) ? `Empacotadora ${parameter.key.match(/^maq_(\d+)_/)[1]}` : config?.equipment);
+  const parameterContext =
+    parameter?.group ??
+    (parameter?.key?.match(/^maq_(\d+)_/)
+      ? `Empacotadora ${parameter.key.match(/^maq_(\d+)_/)[1]}`
+      : config?.equipment);
   const rowByCode = (code) => rows.find((item) => item.codigo === code);
   const recordsFor = (code) => {
     const row = rowByCode(code);
@@ -117,12 +128,28 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           ? "warning"
           : "ok";
   const latestSelected = selectedCode ? recordsFor(selectedCode)[0] : null;
-  const hasFinishedBatch = Boolean(traceability?.batches?.some((batch) => batch.status === "finalizada"));
+  const activeBatch = traceability?.batches?.find(
+    (batch) => batch.status === "em_consumo",
+  );
   const canInterrupt = ["qualidade", "admin"].includes(profileCode);
-  const openInterruption = traceability?.interruptions?.find((item) => !item.encerrada_em);
+  const openInterruption = traceability?.interruptions?.find(
+    (item) => !item.encerrada_em,
+  );
   const fixedSlots = useMemo(() => {
-    const start = new Date(cycle.productionStartedAt); start.setMinutes(0,0,0); if (start < new Date(cycle.productionStartedAt)) start.setHours(start.getHours()+1);
-    const end = new Date(now); end.setMinutes(0,0,0); const slots=[]; for(let cursor=new Date(start);cursor<=end;cursor=new Date(cursor.getTime()+3600000)) slots.push(cursor.toISOString()); return slots;
+    const start = new Date(cycle.productionStartedAt);
+    start.setMinutes(0, 0, 0);
+    if (start < new Date(cycle.productionStartedAt))
+      start.setHours(start.getHours() + 1);
+    const end = new Date(now);
+    end.setMinutes(0, 0, 0);
+    const slots = [];
+    for (
+      let cursor = new Date(start);
+      cursor <= end;
+      cursor = new Date(cursor.getTime() + 3600000)
+    )
+      slots.push(cursor.toISOString());
+    return slots;
   }, [cycle.productionStartedAt, now.getHours()]);
 
   useEffect(() => {
@@ -148,16 +175,26 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     };
   }, [cycle?.id, operatorId]);
 
+  useEffect(() => {
+    if (!cycle?.id) return;
+    loadProductionTraceability(cycle.id).then(setTraceability).catch(() => setTraceability(null));
+  }, [cycle?.id]);
+
   function isUnlocked(code) {
-    if (["automacao","masseira"].includes(code)) return true;
-    return hasFinishedBatch;
+    if (["automacao", "masseira"].includes(code)) return true;
+    return Boolean(activeBatch);
   }
   function openProcess(code) {
     if (!isUnlocked(code)) return;
     const cfg = ROSCA_SUBPROCESSES.find((item) => item.code === code);
     const existing = recordsFor(code)[0];
-    const processRecords=recordsFor(code); const pending=fixedSlots.find((slot)=>!processRecords.some((record)=>record.horario_previsto===slot));
-    const filledWindow = cfg?.frequency === "hourly" && !pending && Boolean(existing);
+    const processRecords = recordsFor(code);
+    const pending = fixedSlots.find(
+      (slot) =>
+        !processRecords.some((record) => record.horario_previsto === slot),
+    );
+    const filledWindow =
+      cfg?.frequency === "hourly" && !pending && Boolean(existing);
     const sameWindow = cfg?.frequency === "lot" || filledWindow;
     setSelectedCode(code);
     setScheduledAt(pending ?? existing?.horario_previsto ?? "");
@@ -181,15 +218,40 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   async function setStatus(status) {
     if (!selected || saving) return;
     if (status === "operando" && openInterruption) {
-      if (!canInterrupt) return setMessage("Somente a Qualidade pode retomar a produção.");
+      if (!canInterrupt)
+        return setMessage("Somente a Qualidade pode retomar a produção.");
       setSaving(true);
       try {
-        await resumeWholeProduction({ cycleId: cycle.id, observation: reason || "Retomada confirmada pela Qualidade", userId: operatorId });
-        setRows((all) => all.map((item) => item.status === "pausado" ? { ...item, status: "operando", estado_iniciado_em: new Date().toISOString() } : item));
-        setTraceability((current) => ({ ...current, interruptions: current.interruptions.map((item) => item.id === openInterruption.id ? { ...item, encerrada_em: new Date().toISOString() } : item) }));
+        await resumeWholeProduction({
+          cycleId: cycle.id,
+          observation: reason || "Retomada confirmada pela Qualidade",
+          userId: operatorId,
+        });
+        setRows((all) =>
+          all.map((item) =>
+            item.status === "pausado"
+              ? {
+                  ...item,
+                  status: "operando",
+                  estado_iniciado_em: new Date().toISOString(),
+                }
+              : item,
+          ),
+        );
+        setTraceability((current) => ({
+          ...current,
+          interruptions: current.interruptions.map((item) =>
+            item.id === openInterruption.id
+              ? { ...item, encerrada_em: new Date().toISOString() }
+              : item,
+          ),
+        }));
         setMessage("Produção e subprocessos retomados.");
-      } catch (error) { setMessage(error?.message ?? "Não foi possível retomar."); }
-      finally { setSaving(false); }
+      } catch (error) {
+        setMessage(error?.message ?? "Não foi possível retomar.");
+      } finally {
+        setSaving(false);
+      }
       return;
     }
     if (["pausado", "parado"].includes(status) && !reason.trim())
@@ -255,13 +317,29 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         );
       }
       const saved = remote
-        ? rectifying ? await rectifyHourlyRecord({ recordId: latestSelected.id, values, reason: correctionReason, userId: operatorId }) : config.frequency === "hourly" ? await saveFixedHourlyRecord({ processId: process.id, cycleId: cycle.id, scheduledAt, values, batchId: traceability?.batches?.find((batch)=>batch.status==="finalizada")?.id ?? null, userId: operatorId }) : await saveSubprocessRecord({
-            process,
-            cycleId: cycle.id,
-            values,
-            operatorId,
-            frequency: config.frequency,
-          })
+        ? rectifying
+          ? await rectifyHourlyRecord({
+              recordId: latestSelected.id,
+              values,
+              reason: correctionReason,
+              userId: operatorId,
+            })
+          : config.frequency === "hourly"
+            ? await saveFixedHourlyRecord({
+                processId: process.id,
+                cycleId: cycle.id,
+                scheduledAt,
+                values,
+                batchId: activeBatch?.id ?? null,
+                userId: operatorId,
+              })
+            : await saveSubprocessRecord({
+                process,
+                cycleId: cycle.id,
+                values,
+                operatorId,
+                frequency: config.frequency,
+              })
         : {
             id: Date.now(),
             subprocesso_id: process.id,
@@ -310,14 +388,21 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   function processButton(item, nested = false) {
     const row = rowByCode(item.code);
     const latest = recordsFor(item.code)[0];
-    const pendingCount = fixedSlots.filter((slot) => !recordsFor(item.code).some((record) => record.horario_previsto === slot)).length;
-    const filledCurrent = activeWindow && latest?.janela_indice === activeWindow.janela_indice;
+    const pendingCount = fixedSlots.filter(
+      (slot) =>
+        !recordsFor(item.code).some(
+          (record) => record.horario_previsto === slot,
+        ),
+    ).length;
+    const filledCurrent =
+      activeWindow && latest?.janela_indice === activeWindow.janela_indice;
     const unlocked = isUnlocked(item.code);
-    const pendingTone = windowUrgency === "late" || windowUrgency === "danger"
-      ? "border-red-600 bg-red-50"
-      : windowUrgency === "warning"
-        ? "border-amber-500 bg-amber-50"
-        : "border-cicopal-blue bg-white";
+    const pendingTone =
+      windowUrgency === "late" || windowUrgency === "danger"
+        ? "border-red-600 bg-red-50"
+        : windowUrgency === "warning"
+          ? "border-amber-500 bg-amber-50"
+          : "border-cicopal-blue bg-white";
     return (
       <button
         key={item.code}
@@ -326,15 +411,26 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         className={`min-h-28 border-l-4 p-4 text-left shadow-sm ${nested ? "bg-white" : ""} ${filledCurrent ? "border-green-500 bg-green-50" : unlocked ? pendingTone : "border-gray-200 bg-gray-50 opacity-50"}`}
       >
         <div className="flex justify-between gap-2">
-          <span><b className="block text-lg">{item.name}</b><small className="font-bold text-gray-500">{item.equipment}</small></span>
-          <span className={`h-fit px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+          <span>
+            <b className="block text-lg">{item.name}</b>
+            <small className="font-bold text-gray-500">{item.equipment}</small>
+          </span>
+          <span
+            className={`h-fit px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}
+          >
             {pendingCount ? `${pendingCount} pendente(s)` : "Em dia"}
           </span>
         </div>
         <p className="mt-2 text-sm font-semibold text-gray-500">
-          {!unlocked ? "Finalize uma batelada na Masseira" : latest ? `Resultado anterior · ${fmt(latest.preenchido_em)}` : "Sem resultado anterior · início em zero"}
+          {!unlocked
+            ? "Finalize uma batelada na Masseira"
+            : latest
+              ? `Resultado anterior · ${fmt(latest.preenchido_em)}`
+              : "Sem resultado anterior · início em zero"}
         </p>
-        <small className="mt-2 block font-black uppercase text-gray-500">{labels[row?.status ?? "nao_iniciado"]}</small>
+        <small className="mt-2 block font-black uppercase text-gray-500">
+          {labels[row?.status ?? "nao_iniciado"]}
+        </small>
       </button>
     );
   }
@@ -351,463 +447,671 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     );
   return (
     <div className="space-y-4">
-    <ProductionTraceabilitySetup cycle={cycle} operatorId={operatorId} onChange={setTraceability} />
-    <section className="border border-gray-300 bg-white p-4 sm:p-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase text-cicopal-blue">
-            RG.PROD.ROS.001 · produção interligada
-          </p>
-          <h2 className="text-2xl font-black">Apontamentos do processo</h2>
-          <p className="mt-1 font-semibold text-gray-600">
-            Informe leituras das máquinas. As projeções por minuto são
-            calculadas pelo sistema.
-          </p>
+      <section className="border border-gray-200 bg-white p-4 sm:p-5">
+        <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">
+          Minha área
+        </p>
+        <h2 className="mt-1 text-2xl font-black">Onde você vai trabalhar?</h2>
+        <p className="mt-1 font-semibold text-gray-500">
+          Cada equipe possui sua estação. Todos os registros permanecem na mesma
+          produção.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            ["overview", "Visão geral"],
+            ["prep", "Preparo"],
+            ["cut", "Corte a fio"],
+            ["oven", "Forno"],
+            ["pack", "Empacotamento"],
+            ["box", "Encaixotamento"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setWorkspace(id)}
+              className={`min-h-20 p-3 text-left font-black transition active:scale-[.98] ${workspace === id ? "bg-cicopal-blue text-white shadow-lg" : "bg-gray-100 text-gray-700"}`}
+            >
+              <span className="block text-xs uppercase opacity-70">
+                {id === "overview" ? "Painel" : "Estação"}
+              </span>
+              {label}
+            </button>
+          ))}
         </div>
-        {activeWindow ? (
-          <div
-            className={`border-l-4 px-4 py-3 ${windowUrgency === "danger" ? "border-red-600 bg-red-50 text-red-700" : windowUrgency === "warning" ? "border-amber-500 bg-amber-50 text-amber-800" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}
-          >
-            <small className="block font-black uppercase">
-              Janela atual · {fmt(activeWindow.janela_inicio)}–
-              {fmt(activeWindow.janela_fim)}
-            </small>
-            <b className="font-mono text-xl">
-              {remaining(activeWindow.janela_fim, now)}
-            </b>
-            <span className="ml-2 text-xs font-bold">até a próxima</span>
-          </div>
-        ) : lastWindow ? (
-          <div className="animate-pulse border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-700">
-            <small className="block font-black uppercase">
-              Nova atualização disponível
-            </small>
-            <b>Apontamentos pendentes</b>
-          </div>
-        ) : (
-          <div className="bg-gray-100 px-4 py-3 text-sm font-bold text-gray-600">
-            O primeiro apontamento abrirá a janela de 60 min
-          </div>
-        )}
-      </header>
-
-      <div className="mt-6 grid gap-5">
-        <section className="hidden">
-          <p className="mb-2 text-xs font-black uppercase text-gray-500">
-            1 · Preparação dos lotes
+      </section>
+      {workspace === "prep" ? (
+        <ProductionTraceabilitySetup
+          cycle={cycle}
+          operatorId={operatorId}
+          onChange={setTraceability}
+          mode="prep"
+        />
+      ) : null}
+      {workspace === "pack" ? (
+        <ProductionTraceabilitySetup
+          cycle={cycle}
+          operatorId={operatorId}
+          onChange={setTraceability}
+          mode="pack"
+        />
+      ) : null}
+      {workspace === "overview" ? (
+        <section className="border border-gray-200 bg-white p-4">
+          <p className="text-xs font-black uppercase text-cicopal-blue">
+            Visão geral
           </p>
-          <div className="space-y-2">
-            {ROSCA_SUBPROCESSES.slice(0, 2).map((item, index) => {
-              const done = index === 0 ? automationLot : mixerLot;
-              const unlocked = isUnlocked(item.code);
+          <h3 className="mb-3 text-xl font-black">
+            Situação de toda a produção
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {ROSCA_SUBPROCESSES.map((item) => {
+              const row = rowByCode(item.code);
+              const latest = recordsFor(item.code)[0];
               return (
-                <button
+                <article
                   key={item.code}
-                  disabled={!unlocked}
-                  onClick={() => openProcess(item.code)}
-                  className={`flex min-h-20 w-full items-center gap-3 border p-3 text-left ${done ? "border-green-400 bg-green-50" : unlocked ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50 opacity-50"}`}
+                  className="min-h-24 border-l-4 border-cicopal-blue bg-gray-50 p-3"
                 >
-                  <span
-                    className={`grid h-10 w-10 shrink-0 place-items-center font-black ${done ? "bg-green-600 text-white" : "bg-white text-cicopal-blue"}`}
-                  >
-                    {done ? <Check /> : index + 1}
+                  <b className="block text-lg">{item.name}</b>
+                  <span className="text-xs font-black uppercase text-gray-500">
+                    {labels[row?.status ?? "nao_iniciado"]}
                   </span>
-                  <span>
-                    <b className="block">{item.name}</b>
-                    <small className="font-semibold text-gray-600">
-                      {done
-                        ? `Lote ${done}`
-                        : unlocked
-                          ? "Preencher lote"
-                          : "Aguardando lote da Automação"}
-                    </small>
-                  </span>
-                </button>
+                  <small className="mt-2 block font-semibold text-gray-500">
+                    {latest
+                      ? `Último registro ${fmt(latest.preenchido_em)}`
+                      : "Sem registro"}
+                  </small>
+                </article>
               );
             })}
           </div>
         </section>
-        <section>
-          <div className="mb-2 flex items-end justify-between">
-            <p className="text-xs font-black uppercase text-gray-500">
-              2 · Leituras da janela de 60 minutos
-            </p>
-            <small className="font-bold text-gray-500">
-              Confirmados não podem ser alterados
-            </small>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "corte_fio"))}
-            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "forno"))}
-            <section className="border border-blue-200 bg-blue-50 p-3 sm:col-span-2">
-              <div className="mb-3"><p className="text-xs font-black uppercase text-cicopal-blue">Processo</p><h3 className="text-xl font-black">Empacotamento</h3><p className="text-sm font-semibold text-gray-600">Detecção de metais e empacotadoras fazem parte deste processo.</p></div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "detector_metal"), true)}
-                {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "empacotamento"), true)}
+      ) : null}
+      {workspace !== "prep" ? (
+        <section className="border border-gray-300 bg-white p-4 sm:p-5">
+          <header className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-cicopal-blue">
+                RG.PROD.ROS.001 · produção interligada
+              </p>
+              <h2 className="text-2xl font-black">Apontamentos do processo</h2>
+              <p className="mt-1 font-semibold text-gray-600">
+                Informe leituras das máquinas. As projeções por minuto são
+                calculadas pelo sistema.
+              </p>
+            </div>
+            {activeWindow ? (
+              <div
+                className={`border-l-4 px-4 py-3 ${windowUrgency === "danger" ? "border-red-600 bg-red-50 text-red-700" : windowUrgency === "warning" ? "border-amber-500 bg-amber-50 text-amber-800" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}
+              >
+                <small className="block font-black uppercase">
+                  Janela atual · {fmt(activeWindow.janela_inicio)}–
+                  {fmt(activeWindow.janela_fim)}
+                </small>
+                <b className="font-mono text-xl">
+                  {remaining(activeWindow.janela_fim, now)}
+                </b>
+                <span className="ml-2 text-xs font-bold">até a próxima</span>
+              </div>
+            ) : lastWindow ? (
+              <div className="animate-pulse border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-700">
+                <small className="block font-black uppercase">
+                  Nova atualização disponível
+                </small>
+                <b>Apontamentos pendentes</b>
+              </div>
+            ) : (
+              <div className="bg-gray-100 px-4 py-3 text-sm font-bold text-gray-600">
+                O primeiro apontamento abrirá a janela de 60 min
+              </div>
+            )}
+          </header>
+
+          <div className="mt-6 grid gap-5">
+            <section className="hidden">
+              <p className="mb-2 text-xs font-black uppercase text-gray-500">
+                1 · Preparação dos lotes
+              </p>
+              <div className="space-y-2">
+                {ROSCA_SUBPROCESSES.slice(0, 2).map((item, index) => {
+                  const done = index === 0 ? automationLot : mixerLot;
+                  const unlocked = isUnlocked(item.code);
+                  return (
+                    <button
+                      key={item.code}
+                      disabled={!unlocked}
+                      onClick={() => openProcess(item.code)}
+                      className={`flex min-h-20 w-full items-center gap-3 border p-3 text-left ${done ? "border-green-400 bg-green-50" : unlocked ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50 opacity-50"}`}
+                    >
+                      <span
+                        className={`grid h-10 w-10 shrink-0 place-items-center font-black ${done ? "bg-green-600 text-white" : "bg-white text-cicopal-blue"}`}
+                      >
+                        {done ? <Check /> : index + 1}
+                      </span>
+                      <span>
+                        <b className="block">{item.name}</b>
+                        <small className="font-semibold text-gray-600">
+                          {done
+                            ? `Lote ${done}`
+                            : unlocked
+                              ? "Preencher lote"
+                              : "Aguardando lote da Automação"}
+                        </small>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
-            {processButton(ROSCA_SUBPROCESSES.find((item) => item.code === "encaixotamento"))}
-          </div>
-        </section>
-      </div>
-
-      {selected && config ? (
-        <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
-          <article className="flex h-dvh w-full flex-col bg-white sm:h-[94dvh] sm:max-w-3xl">
-            <header className="shrink-0 border-b bg-white p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase text-cicopal-blue">
-                  {config.frequency === "lot"
-                    ? "Lote vigente na produção"
-                    : `Horário de referência ${scheduledAt ? new Date(scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"}`}
+            <section>
+              <div className="mb-2 flex items-end justify-between">
+                <p className="text-xs font-black uppercase text-gray-500">
+                  2 · Leituras da janela de 60 minutos
                 </p>
-                <h3 className="text-2xl font-black">{config.name}</h3>
+                <small className="font-bold text-gray-500">
+                  Confirmados não podem ser alterados
+                </small>
               </div>
-              <button
-                onClick={() => setSelectedCode("")}
-                className="grid h-11 w-11 place-items-center bg-gray-100"
-              >
-                <X />
-              </button>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {["overview", "cut"].includes(workspace)
+                  ? processButton(
+                      ROSCA_SUBPROCESSES.find(
+                        (item) => item.code === "corte_fio",
+                      ),
+                    )
+                  : null}
+                {["overview", "oven"].includes(workspace)
+                  ? processButton(
+                      ROSCA_SUBPROCESSES.find((item) => item.code === "forno"),
+                    )
+                  : null}
+                {["overview", "pack"].includes(workspace) ? (
+                  <section className="border border-blue-200 bg-blue-50 p-3 sm:col-span-2">
+                    <div className="mb-3">
+                      <p className="text-xs font-black uppercase text-cicopal-blue">
+                        Processo
+                      </p>
+                      <h3 className="text-xl font-black">Empacotamento</h3>
+                      <p className="text-sm font-semibold text-gray-600">
+                        Detecção de metais e empacotadoras fazem parte deste
+                        processo.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {processButton(
+                        ROSCA_SUBPROCESSES.find(
+                          (item) => item.code === "detector_metal",
+                        ),
+                        true,
+                      )}
+                      {processButton(
+                        ROSCA_SUBPROCESSES.find(
+                          (item) => item.code === "empacotamento",
+                        ),
+                        true,
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+                {["overview", "box"].includes(workspace)
+                  ? processButton(
+                      ROSCA_SUBPROCESSES.find(
+                        (item) => item.code === "encaixotamento",
+                      ),
+                    )
+                  : null}
               </div>
-              {!viewOnly && !review ? <div className="mt-3 flex items-center justify-between gap-3"><span className="bg-blue-50 px-3 py-2 text-xs font-black uppercase text-cicopal-blue">{parameterContext}</span><span className="text-sm font-black text-gray-500">{fieldIndex + 1}/{config.parameters.length}</span></div> : null}
-            </header>
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">
-              {viewOnly ? (
-                <section>
-                  <p className="text-xs font-black uppercase text-green-700">
-                    Resultado confirmado · somente leitura
-                  </p>
-                  <h4 className="mt-1 text-2xl font-black">
-                    Apontamento desta janela
-                  </h4>
-                  <div className="mt-5 divide-y border">
-                    {config.parameters.map((item) => (
-                      <div
-                        key={item.key}
-                        className="flex min-h-16 items-center justify-between gap-4 p-3"
-                      >
-                        <span className="font-bold text-gray-600">
-                          {item.label}
-                        </span>
-                        <b>
-                          {values[item.key]} {item.unit}
-                        </b>
-                      </div>
-                    ))}
+            </section>
+          </div>
+
+          {selected && config ? (
+            <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
+              <article className="flex h-dvh w-full flex-col bg-white sm:h-[94dvh] sm:max-w-3xl">
+                <header className="shrink-0 border-b bg-white p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase text-cicopal-blue">
+                        {config.frequency === "lot"
+                          ? "Lote vigente na produção"
+                          : `Horário de referência ${scheduledAt ? new Date(scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"}`}
+                      </p>
+                      <h3 className="text-2xl font-black">{config.name}</h3>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCode("")}
+                      className="grid h-11 w-11 place-items-center bg-gray-100"
+                    >
+                      <X />
+                    </button>
                   </div>
-                  <p className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3 font-bold text-cicopal-blue">
-                    O original está protegido. Para corrigir, faça uma retificação auditada.
-                  </p>
-                  <button type="button" onClick={()=>{setViewOnly(false);setRectifying(true);setReview(false);}} className="mt-3 min-h-14 w-full border-2 border-amber-500 bg-amber-50 font-black text-amber-900">Retificar este registro</button>
-                </section>
-              ) : !review ? (
-                <>
-                  <div className="mb-6 flex gap-1">
-                    {config.parameters.map((item, index) => (
-                      <span
-                        key={item.key}
-                        className={`h-1.5 flex-1 ${index <= fieldIndex ? "bg-cicopal-blue" : "bg-gray-200"}`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs font-black uppercase text-gray-500">
-                    Informação {fieldIndex + 1} de {config.parameters.length}
-                  </p>
-                  <h4 className="mt-2 text-2xl font-black">
-                    {parameter.label}
-                  </h4>
-                  {parameter.hint ? (
-                    <p className="mt-2 font-semibold text-gray-600">
-                      {parameter.hint}
-                    </p>
+                  {!viewOnly && !review ? (
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className="bg-blue-50 px-3 py-2 text-xs font-black uppercase text-cicopal-blue">
+                        {parameterContext}
+                      </span>
+                      <span className="text-sm font-black text-gray-500">
+                        {fieldIndex + 1}/{config.parameters.length}
+                      </span>
+                    </div>
                   ) : null}
-                  {latestSelected?.valores?.[parameter.key] !== undefined && !rectifying ? <div className="mt-4 flex items-center justify-between bg-gray-100 p-3"><span className="text-xs font-black uppercase text-gray-500">Resultado anterior</span><b className="text-lg text-gray-800">{latestSelected.valores[parameter.key]} {parameter.unit}</b></div> : null}
-                  <div className="mt-7">
-                    {parameter.type === "options" ? (
-                      <div className="grid grid-cols-3 gap-3">{parameter.options.map((option)=><button key={option} type="button" onClick={()=>setValues((all)=>({...all,[parameter.key]:option}))} className={`min-h-20 border-2 text-2xl font-black ${values[parameter.key]===option?option==="NC"?"border-red-600 bg-red-50 text-red-700":option==="NA"?"border-gray-500 bg-gray-100":"border-green-600 bg-green-50 text-green-700":"border-gray-200"}`}>{option}</button>)}</div>
-                    ) : parameter.type === "automation-lot" ? (
-                      <div className="grid gap-2">
-                        {automationLots.map((lot) => (
-                          <button
-                            key={lot}
-                            onClick={() =>
-                              setValues((all) => ({
-                                ...all,
-                                [parameter.key]: lot,
-                              }))
-                            }
-                            className={`min-h-20 border-2 p-4 text-left ${values[parameter.key] === lot ? "border-cicopal-blue bg-blue-50" : "border-gray-300"}`}
+                </header>
+                <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">
+                  {viewOnly ? (
+                    <section>
+                      <p className="text-xs font-black uppercase text-green-700">
+                        Resultado confirmado · somente leitura
+                      </p>
+                      <h4 className="mt-1 text-2xl font-black">
+                        Apontamento desta janela
+                      </h4>
+                      <div className="mt-5 divide-y border">
+                        {config.parameters.map((item) => (
+                          <div
+                            key={item.key}
+                            className="flex min-h-16 items-center justify-between gap-4 p-3"
                           >
-                            <small className="font-black uppercase text-gray-500">
-                              Registrado na Automação
-                            </small>
-                            <b className="mt-1 block text-xl">{lot}</b>
+                            <span className="font-bold text-gray-600">
+                              {item.label}
+                            </span>
+                            <b>
+                              {values[item.key]} {item.unit}
+                            </b>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3 font-bold text-cicopal-blue">
+                        O original está protegido. Para corrigir, faça uma
+                        retificação auditada.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewOnly(false);
+                          setRectifying(true);
+                          setReview(false);
+                        }}
+                        className="mt-3 min-h-14 w-full border-2 border-amber-500 bg-amber-50 font-black text-amber-900"
+                      >
+                        Retificar este registro
+                      </button>
+                    </section>
+                  ) : !review ? (
+                    <>
+                      <div className="mb-6 flex gap-1">
+                        {config.parameters.map((item, index) => (
+                          <span
+                            key={item.key}
+                            className={`h-1.5 flex-1 ${index <= fieldIndex ? "bg-cicopal-blue" : "bg-gray-200"}`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs font-black uppercase text-gray-500">
+                        Informação {fieldIndex + 1} de{" "}
+                        {config.parameters.length}
+                      </p>
+                      <h4 className="mt-2 text-2xl font-black">
+                        {parameter.label}
+                      </h4>
+                      {parameter.hint ? (
+                        <p className="mt-2 font-semibold text-gray-600">
+                          {parameter.hint}
+                        </p>
+                      ) : null}
+                      {latestSelected?.valores?.[parameter.key] !== undefined &&
+                      !rectifying ? (
+                        <div className="mt-4 flex items-center justify-between bg-gray-100 p-3">
+                          <span className="text-xs font-black uppercase text-gray-500">
+                            Resultado anterior
+                          </span>
+                          <b className="text-lg text-gray-800">
+                            {latestSelected.valores[parameter.key]}{" "}
+                            {parameter.unit}
+                          </b>
+                        </div>
+                      ) : null}
+                      <div className="mt-7">
+                        {parameter.type === "options" ? (
+                          <div className="grid grid-cols-3 gap-3">
+                            {parameter.options.map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setValues((all) => ({
+                                    ...all,
+                                    [parameter.key]: option,
+                                  }))
+                                }
+                                className={`min-h-20 border-2 text-2xl font-black ${values[parameter.key] === option ? (option === "NC" ? "border-red-600 bg-red-50 text-red-700" : option === "NA" ? "border-gray-500 bg-gray-100" : "border-green-600 bg-green-50 text-green-700") : "border-gray-200"}`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        ) : parameter.type === "automation-lot" ? (
+                          <div className="grid gap-2">
+                            {automationLots.map((lot) => (
+                              <button
+                                key={lot}
+                                onClick={() =>
+                                  setValues((all) => ({
+                                    ...all,
+                                    [parameter.key]: lot,
+                                  }))
+                                }
+                                className={`min-h-20 border-2 p-4 text-left ${values[parameter.key] === lot ? "border-cicopal-blue bg-blue-50" : "border-gray-300"}`}
+                              >
+                                <small className="font-black uppercase text-gray-500">
+                                  Registrado na Automação
+                                </small>
+                                <b className="mt-1 block text-xl">{lot}</b>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex border-2 border-gray-300 focus-within:border-cicopal-blue">
+                            {parameter.type !== "text" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setValues((all) => ({
+                                    ...all,
+                                    [parameter.key]: Math.max(
+                                      0,
+                                      (Number(all[parameter.key]) || 0) - 1,
+                                    ),
+                                  }))
+                                }
+                                className="min-w-16 border-r bg-gray-100 text-3xl font-black"
+                                aria-label={`Diminuir ${parameter.label}`}
+                              >
+                                −
+                              </button>
+                            ) : null}
+                            <input
+                              autoFocus
+                              type={
+                                parameter.type === "text" ? "text" : "number"
+                              }
+                              inputMode={
+                                parameter.type === "text" ? "text" : "decimal"
+                              }
+                              value={values[parameter.key] ?? ""}
+                              onChange={(event) =>
+                                setValues((all) => ({
+                                  ...all,
+                                  [parameter.key]: event.target.value,
+                                }))
+                              }
+                              className="min-h-24 min-w-0 flex-1 px-4 text-center text-4xl font-black outline-none"
+                            />
+                            {parameter.type !== "text" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setValues((all) => ({
+                                    ...all,
+                                    [parameter.key]:
+                                      (Number(all[parameter.key]) || 0) + 1,
+                                  }))
+                                }
+                                className="min-w-16 border-l bg-gray-100 text-3xl font-black"
+                                aria-label={`Aumentar ${parameter.label}`}
+                              >
+                                +
+                              </button>
+                            ) : null}
+                            {parameter.unit ? (
+                              <span className="grid min-w-28 place-items-center bg-gray-100 px-3 font-black text-gray-600">
+                                {parameter.unit}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-black uppercase text-green-700">
+                        Revisão antes de confirmar
+                      </p>
+                      <h4 className="mt-1 text-2xl font-black">
+                        Confira as leituras
+                      </h4>
+                      <div className="mt-5 divide-y border">
+                        {config.parameters.map((item) => (
+                          <button
+                            key={item.key}
+                            onClick={() => {
+                              setFieldIndex(config.parameters.indexOf(item));
+                              setReview(false);
+                            }}
+                            className="flex min-h-16 w-full items-center justify-between gap-4 p-3 text-left"
+                          >
+                            <span className="font-bold text-gray-600">
+                              {item.label}
+                            </span>
+                            <b>
+                              {values[item.key]} {item.unit}
+                            </b>
                           </button>
                         ))}
                       </div>
-                    ) : (
-                      <div className="flex border-2 border-gray-300 focus-within:border-cicopal-blue">
-                        {parameter.type !== "text" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setValues((all) => ({
-                                ...all,
-                                [parameter.key]: Math.max(
-                                  0,
-                                  (Number(all[parameter.key]) || 0) - 1,
-                                ),
-                              }))
-                            }
-                            className="min-w-16 border-r bg-gray-100 text-3xl font-black"
-                            aria-label={`Diminuir ${parameter.label}`}
-                          >
-                            −
-                          </button>
-                        ) : null}
-                        <input
-                          autoFocus
-                          type={parameter.type === "text" ? "text" : "number"}
-                          inputMode={
-                            parameter.type === "text" ? "text" : "decimal"
-                          }
-                          value={values[parameter.key] ?? ""}
-                          onChange={(event) =>
-                            setValues((all) => ({
-                              ...all,
-                              [parameter.key]: event.target.value,
-                            }))
-                          }
-                          className="min-h-24 min-w-0 flex-1 px-4 text-center text-4xl font-black outline-none"
-                        />
-                        {parameter.type !== "text" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setValues((all) => ({
-                                ...all,
-                                [parameter.key]:
-                                  (Number(all[parameter.key]) || 0) + 1,
-                              }))
-                            }
-                            className="min-w-16 border-l bg-gray-100 text-3xl font-black"
-                            aria-label={`Aumentar ${parameter.label}`}
-                          >
-                            +
-                          </button>
-                        ) : null}
-                        {parameter.unit ? (
-                          <span className="grid min-w-28 place-items-center bg-gray-100 px-3 font-black text-gray-600">
-                            {parameter.unit}
+                      {rectifying ? (
+                        <label className="mt-4 block">
+                          <span className="mb-1 block text-xs font-black uppercase text-amber-800">
+                            Justificativa obrigatória da retificação
                           </span>
-                        ) : null}
+                          <textarea
+                            value={correctionReason}
+                            onChange={(event) =>
+                              setCorrectionReason(event.target.value)
+                            }
+                            className="min-h-24 w-full border-2 border-amber-400 p-3"
+                            placeholder="Explique por que o valor original precisa ser corrigido"
+                          />
+                        </label>
+                      ) : null}
+                      {config.liveMetrics?.length ? (
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          {config.liveMetrics.map((metric) => (
+                            <div
+                              key={metric.key}
+                              className="bg-slate-950 p-4 text-white"
+                            >
+                              <small className="font-black uppercase text-slate-400">
+                                {metric.label}
+                              </small>
+                              <b className="mt-1 block text-2xl">
+                                {projection(metric)}{" "}
+                                <span className="text-sm">{metric.unit}</span>
+                              </b>
+                              {metric.divisor ? (
+                                <small className="text-slate-400">
+                                  Calculado automaticamente
+                                </small>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                  {message ? (
+                    <p className="mt-4 bg-amber-50 p-3 font-bold text-amber-900">
+                      <AlertTriangle className="mr-2 inline" size={18} />
+                      {message}
+                    </p>
+                  ) : null}
+                  {config.frequency === "hourly" &&
+                  selected.status !== "nao_iniciado" ? (
+                    <div className="mt-5 border-t pt-4">
+                      <p className="mb-2 text-xs font-black uppercase text-gray-500">
+                        Estado desta área
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setStatus("operando")}
+                          className="min-h-12 bg-green-600 font-black text-white"
+                        >
+                          <Play className="mx-auto" size={17} />
+                          Operando
+                        </button>
+                        <button
+                          disabled={!canInterrupt}
+                          onClick={() => setInterruptOpen(true)}
+                          className="min-h-12 bg-red-600 font-black text-white disabled:bg-gray-300"
+                        >
+                          <Pause className="mx-auto" size={17} />
+                          {canInterrupt
+                            ? "Interromper produção"
+                            : "Interrupção · Qualidade"}
+                        </button>
                       </div>
-                    )}
+                    </div>
+                  ) : null}
+                </div>
+                <footer className="sticky bottom-0 grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,.08)] sm:p-4">
+                  <button
+                    onClick={() =>
+                      review
+                        ? setReview(false)
+                        : fieldIndex
+                          ? setFieldIndex((value) => value - 1)
+                          : setSelectedCode("")
+                    }
+                    className="flex min-h-16 items-center justify-center gap-2 border px-5 font-black"
+                  >
+                    <ChevronLeft />
+                    Voltar
+                  </button>
+                  {viewOnly ? (
+                    <button
+                      onClick={() => setSelectedCode("")}
+                      className="flex min-h-16 items-center justify-center bg-cicopal-blue px-5 font-black text-white"
+                    >
+                      Fechar resultado
+                    </button>
+                  ) : review ? (
+                    <button
+                      disabled={saving}
+                      onClick={confirm}
+                      className="flex min-h-16 items-center justify-center gap-2 bg-green-600 px-5 font-black text-white"
+                    >
+                      <Save />
+                      Confirmar apontamento
+                    </button>
+                  ) : (
+                    <button
+                      onClick={nextField}
+                      className="flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-5 font-black text-white"
+                    >
+                      Continuar
+                      <ChevronRight />
+                    </button>
+                  )}
+                </footer>
+              </article>
+            </div>
+          ) : null}
+          {interruptOpen ? (
+            <div className="fixed inset-0 z-[120] grid place-items-center bg-black/70 p-3">
+              <section className="w-full max-w-lg border-t-8 border-red-600 bg-white shadow-2xl">
+                <header className="flex items-start justify-between border-b p-5">
+                  <div>
+                    <p className="text-xs font-black uppercase text-red-600">
+                      Interrupção · {config?.name}
+                    </p>
+                    <h3 className="text-2xl font-black">
+                      Por que a operação foi interrompida?
+                    </h3>
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs font-black uppercase text-green-700">
-                    Revisão antes de confirmar
-                  </p>
-                  <h4 className="mt-1 text-2xl font-black">
-                    Confira as leituras
-                  </h4>
-                  <div className="mt-5 divide-y border">
-                    {config.parameters.map((item) => (
+                  <button
+                    onClick={() => setInterruptOpen(false)}
+                    className="grid size-11 place-items-center bg-gray-100"
+                  >
+                    <X />
+                  </button>
+                </header>
+                <div className="p-5">
+                  <div className="grid gap-2">
+                    {[
+                      "Defeito identificado",
+                      "Manutenção corretiva",
+                      "Falta de matéria-prima",
+                      "Ajuste de máquina",
+                      "Falta de operador",
+                      "Limpeza não programada",
+                      "Outro motivo",
+                    ].map((option) => (
                       <button
-                        key={item.key}
-                        onClick={() => {
-                          setFieldIndex(config.parameters.indexOf(item));
-                          setReview(false);
-                        }}
-                        className="flex min-h-16 w-full items-center justify-between gap-4 p-3 text-left"
+                        key={option}
+                        onClick={() => setReason(option)}
+                        className={`min-h-14 border-2 p-3 text-left font-black ${reason === option ? "border-red-600 bg-red-50 text-red-700" : "border-gray-200"}`}
                       >
-                        <span className="font-bold text-gray-600">
-                          {item.label}
-                        </span>
-                        <b>
-                          {values[item.key]} {item.unit}
-                        </b>
+                        {option}
                       </button>
                     ))}
                   </div>
-                  {rectifying ? <label className="mt-4 block"><span className="mb-1 block text-xs font-black uppercase text-amber-800">Justificativa obrigatória da retificação</span><textarea value={correctionReason} onChange={(event)=>setCorrectionReason(event.target.value)} className="min-h-24 w-full border-2 border-amber-400 p-3" placeholder="Explique por que o valor original precisa ser corrigido" /></label> : null}
-                  {config.liveMetrics?.length ? (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      {config.liveMetrics.map((metric) => (
-                        <div
-                          key={metric.key}
-                          className="bg-slate-950 p-4 text-white"
-                        >
-                          <small className="font-black uppercase text-slate-400">
-                            {metric.label}
-                          </small>
-                          <b className="mt-1 block text-2xl">
-                            {projection(metric)}{" "}
-                            <span className="text-sm">{metric.unit}</span>
-                          </b>
-                          {metric.divisor ? (
-                            <small className="text-slate-400">
-                              Calculado automaticamente
-                            </small>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              )}
-              {message ? (
-                <p className="mt-4 bg-amber-50 p-3 font-bold text-amber-900">
-                  <AlertTriangle className="mr-2 inline" size={18} />
-                  {message}
-                </p>
-              ) : null}
-              {config.frequency === "hourly" &&
-              selected.status !== "nao_iniciado" ? (
-                <div className="mt-5 border-t pt-4">
-                  <p className="mb-2 text-xs font-black uppercase text-gray-500">
-                    Estado desta área
+                  <textarea
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    className="mt-3 min-h-24 w-full border p-3"
+                    placeholder="Descreva o motivo ou complemente a opção"
+                  />
+                  <p className="mt-2 text-sm font-semibold text-gray-500">
+                    O tempo parado será contado até a retomada desta operação.
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setStatus("operando")}
-                      className="min-h-12 bg-green-600 font-black text-white"
-                    >
-                      <Play className="mx-auto" size={17} />
-                      Operando
-                    </button>
-                    <button
-                      disabled={!canInterrupt}
-                      onClick={() => setInterruptOpen(true)}
-                      className="min-h-12 bg-red-600 font-black text-white disabled:bg-gray-300"
-                    >
-                      <Pause className="mx-auto" size={17} />
-                      {canInterrupt ? "Interromper produção" : "Interrupção · Qualidade"}
-                    </button>
-                  </div>
                 </div>
-              ) : null}
-            </div>
-            <footer className="sticky bottom-0 grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,.08)] sm:p-4">
-              <button
-                onClick={() =>
-                  review
-                    ? setReview(false)
-                    : fieldIndex
-                      ? setFieldIndex((value) => value - 1)
-                      : setSelectedCode("")
-                }
-                className="flex min-h-16 items-center justify-center gap-2 border px-5 font-black"
-              >
-                <ChevronLeft />
-                Voltar
-              </button>
-              {viewOnly ? (
-                <button
-                  onClick={() => setSelectedCode("")}
-                  className="flex min-h-16 items-center justify-center bg-cicopal-blue px-5 font-black text-white"
-                >
-                  Fechar resultado
-                </button>
-              ) : review ? (
-                <button
-                  disabled={saving}
-                  onClick={confirm}
-                  className="flex min-h-16 items-center justify-center gap-2 bg-green-600 px-5 font-black text-white"
-                >
-                  <Save />
-                  Confirmar apontamento
-                </button>
-              ) : (
-                <button
-                  onClick={nextField}
-                  className="flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-5 font-black text-white"
-                >
-                  Continuar
-                  <ChevronRight />
-                </button>
-              )}
-            </footer>
-          </article>
-        </div>
-      ) : null}
-      {interruptOpen ? (
-        <div className="fixed inset-0 z-[120] grid place-items-center bg-black/70 p-3">
-          <section className="w-full max-w-lg border-t-8 border-red-600 bg-white shadow-2xl">
-            <header className="flex items-start justify-between border-b p-5">
-              <div>
-                <p className="text-xs font-black uppercase text-red-600">
-                  Interrupção · {config?.name}
-                </p>
-                <h3 className="text-2xl font-black">
-                  Por que a operação foi interrompida?
-                </h3>
-              </div>
-              <button
-                onClick={() => setInterruptOpen(false)}
-                className="grid size-11 place-items-center bg-gray-100"
-              >
-                <X />
-              </button>
-            </header>
-            <div className="p-5">
-              <div className="grid gap-2">
-                {[
-                  "Defeito identificado",
-                  "Manutenção corretiva",
-                  "Falta de matéria-prima",
-                  "Ajuste de máquina",
-                  "Falta de operador",
-                  "Limpeza não programada",
-                  "Outro motivo",
-                ].map((option) => (
+                <footer className="grid grid-cols-2 gap-2 border-t p-4">
                   <button
-                    key={option}
-                    onClick={() => setReason(option)}
-                    className={`min-h-14 border-2 p-3 text-left font-black ${reason === option ? "border-red-600 bg-red-50 text-red-700" : "border-gray-200"}`}
+                    onClick={() => setInterruptOpen(false)}
+                    className="min-h-14 border font-black"
                   >
-                    {option}
+                    Cancelar
                   </button>
-                ))}
-              </div>
-              <textarea
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                className="mt-3 min-h-24 w-full border p-3"
-                placeholder="Descreva o motivo ou complemente a opção"
-              />
-              <p className="mt-2 text-sm font-semibold text-gray-500">
-                O tempo parado será contado até a retomada desta operação.
-              </p>
+                  <button
+                    disabled={!reason.trim() || saving}
+                    onClick={async () => {
+                      const interruption = await interruptWholeProduction({
+                        cycleId: cycle.id,
+                        originProcessId: selected?.id,
+                        classification: reason.toLowerCase().includes("program")
+                          ? "pausa"
+                          : "parada",
+                        reason,
+                        userId: operatorId,
+                      });
+                      setTraceability((current) => ({
+                        ...current,
+                        interruptions: [
+                          interruption,
+                          ...(current?.interruptions ?? []),
+                        ],
+                      }));
+                      setRows((all) =>
+                        all.map((item) =>
+                          ["nao_iniciado", "finalizado"].includes(item.status)
+                            ? item
+                            : {
+                                ...item,
+                                status: "pausado",
+                                estado_iniciado_em: new Date().toISOString(),
+                              },
+                        ),
+                      );
+                      setInterruptOpen(false);
+                    }}
+                    className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300"
+                  >
+                    Confirmar interrupção
+                  </button>
+                </footer>
+              </section>
             </div>
-            <footer className="grid grid-cols-2 gap-2 border-t p-4">
-              <button
-                onClick={() => setInterruptOpen(false)}
-                className="min-h-14 border font-black"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={!reason.trim() || saving}
-                onClick={async () => {
-                  const interruption = await interruptWholeProduction({ cycleId: cycle.id, originProcessId: selected?.id, classification: reason.toLowerCase().includes("program") ? "pausa" : "parada", reason, userId: operatorId });
-                  setTraceability((current)=>({...current,interruptions:[interruption,...(current?.interruptions??[])]}));
-                  setRows((all) => all.map((item) => ["nao_iniciado", "finalizado"].includes(item.status) ? item : { ...item, status: "pausado", estado_iniciado_em: new Date().toISOString() }));
-                  setInterruptOpen(false);
-                }}
-                className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300"
-              >
-                Confirmar interrupção
-              </button>
-            </footer>
-          </section>
-        </div>
+          ) : null}
+        </section>
       ) : null}
-    </section>
     </div>
   );
 }
