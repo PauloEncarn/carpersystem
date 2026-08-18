@@ -18,6 +18,8 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [activePacker, setActivePacker] = useState(0);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchSelected, setBatchSelected] = useState({});
   const [lot, setLot] = useState({
     supplyId: "",
     supplierLot: "",
@@ -74,8 +76,19 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
       setSaving(false);
     }
   }
+  async function saveMixerSupply(supply) {
+    const input = batchInputs[supply.id] ?? {};
+    if (!input.lot || !input.expiry) return setMessage(`Informe lote e validade de ${supply.nome}.`);
+    setSaving(true);
+    try {
+      await replaceAutomationLot({ cycleId: cycle.id, supplyId: supply.id, supplierLot: input.lot, supplier: input.supplier || "Interno", expiry: input.expiry, userId: operatorId });
+      await reload();
+      setMessage(`${supply.nome}: lote disponível para as próximas bateladas.`);
+    } catch (error) { setMessage(error.message); }
+    finally { setSaving(false); }
+  }
   function inputsForBatch() {
-    return (recipe?.receita_insumos ?? []).map((recipeInput) => {
+    return (recipe?.receita_insumos ?? []).filter((recipeInput) => batchSelected[recipeInput.insumos.id] !== false).map((recipeInput) => {
       const supply = recipeInput.insumos;
       const inherited = activeLots.find((item) => item.insumo_id === supply.id);
       const manual = batchInputs[supply.id] ?? {};
@@ -88,7 +101,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
         expected: recipeInput.quantidade,
         used: manual.used ?? recipeInput.quantidade,
         unit: recipeInput.unidade,
-        origin: inherited ? "automacao" : "masseira",
+        origin: ["FARINHA", "ACUCAR"].includes(supply.codigo) ? "automacao" : "masseira",
       };
     });
   }
@@ -106,6 +119,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
       });
       await finishBatch(batch.id, operatorId);
       await reload();
+      setBatchOpen(false);
       setMessage(
         `Batelada ${batch.numero} iniciada e finalizada com horário registrado.`,
       );
@@ -140,7 +154,6 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
           {[
             ["lots", "Automação"],
             ["mixer", "Masseira"],
-            ["batches", "Batelada"],
             ["packers", "Empacotamento"],
           ].map(([id, label]) => (
             <button
@@ -235,13 +248,14 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
         {tab === "mixer" ? (
           <div>
             <div className="mb-5"><p className="text-xs font-black uppercase text-cicopal-blue">Etapa 2 de 3 · Masseira</p><h3 className="mt-1 text-2xl font-black">Insumos específicos da receita</h3><p className="mt-1 font-semibold text-gray-500">Farinha e açúcar são herdados da Automação. Informe os demais lotes usados nesta preparação.</p></div>
-            <div className="space-y-3">{(recipe?.receita_insumos ?? []).filter((item) => !activeLots.some((lotItem) => lotItem.insumo_id === item.insumos.id)).map((item) => { const supply=item.insumos; return <article key={supply.id} className="bg-gray-50 p-4"><b className="text-lg">{supply.nome}</b><div className="mt-3 grid gap-2 sm:grid-cols-2"><input placeholder="Lote" value={batchInputs[supply.id]?.lot ?? ""} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],lot:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/><input type="date" value={batchInputs[supply.id]?.expiry ?? "2027-12-31"} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],expiry:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/></div></article>;})}</div>
-            <button type="button" onClick={() => setTab("batches")} className="mt-4 min-h-16 w-full bg-cicopal-blue text-lg font-black text-white">Revisar e criar batelada</button>
+            <div className="mb-4 grid gap-2 sm:grid-cols-2">{activeLots.filter((lotItem)=>!["FARINHA","ACUCAR"].includes(lotItem.insumos?.codigo)).map((lotItem)=><article key={lotItem.id} className="bg-green-50 p-3"><small className="font-black uppercase text-green-700">Disponível</small><b className="block">{lotItem.insumos?.nome}</b><span className="text-sm font-semibold">Lote {lotItem.lote_fornecedor} · {lotItem.validade}</span></article>)}</div>
+            <div className="space-y-3">{(recipe?.receita_insumos ?? []).filter((item) => !activeLots.some((lotItem) => lotItem.insumo_id === item.insumos.id)).map((item) => { const supply=item.insumos; return <article key={supply.id} className="bg-gray-50 p-4"><b className="text-lg">{supply.nome}</b><div className="mt-3 grid gap-2 sm:grid-cols-2"><input placeholder="Lote" value={batchInputs[supply.id]?.lot ?? ""} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],lot:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/><input type="date" value={batchInputs[supply.id]?.expiry ?? "2027-12-31"} onChange={(e)=>setBatchInputs((all)=>({...all,[supply.id]:{...all[supply.id],expiry:e.target.value}}))} className="min-h-16 border px-3 text-lg font-bold"/></div><button type="button" disabled={saving} onClick={()=>saveMixerSupply(supply)} className="mt-3 min-h-14 w-full bg-cicopal-blue font-black text-white">Cadastrar lote para bateladas</button></article>;})}</div>
+            <button type="button" onClick={() => setBatchOpen(true)} className="mt-4 min-h-16 w-full bg-cicopal-blue text-lg font-black text-white">Continuar para o fluxo da produção</button>
           </div>
         ) : null}
-        {tab === "batches" ? (
-          <div>
-            <p className="mb-3 text-xs font-black uppercase text-cicopal-blue">Etapa 3 de 3 · Controle de bateladas</p>
+        {batchOpen ? (
+          <div className="mt-5 border-t-4 border-cicopal-blue pt-5">
+            <div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-cicopal-blue">Fluxo da produção · sem frequência horária</p><h3 className="mt-1 text-2xl font-black">Nova batelada</h3><p className="mt-1 font-semibold text-gray-500">Escolha os insumos e informe quanto será utilizado neste preparo.</p></div><button type="button" onClick={()=>setBatchOpen(false)} className="grid size-12 shrink-0 place-items-center bg-gray-100 font-black">×</button></div>
             <div className="mb-4 flex items-start justify-between gap-3 bg-blue-50 p-4">
               <div>
                 <small className="font-black uppercase text-cicopal-blue">
@@ -262,14 +276,14 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
                 return (
                   <article key={supply.id} className="border p-3">
                     <div className="flex justify-between">
-                      <b>{supply.nome}</b>
+                      <label className="flex min-h-10 items-center gap-3"><input type="checkbox" className="size-6" checked={batchSelected[supply.id] !== false} onChange={(event)=>setBatchSelected((current)=>({...current,[supply.id]:event.target.checked}))}/><b>{supply.nome}</b></label>
                       <small className="font-black uppercase text-gray-500">
                         {inherited
                           ? "Herdado da Automação"
                           : "Adicionado na Masseira"}
                       </small>
                     </div>
-                    {inherited ? (
+                    {batchSelected[supply.id] === false ? <p className="mt-2 font-bold text-gray-400">Não será utilizado nesta batelada</p> : inherited ? (
                       <p className="mt-2 font-bold">
                         Lote {inherited.lote_fornecedor} · {inherited.validade}
                       </p>
@@ -331,11 +345,11 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
             </div>
             <button
               onClick={addBatch}
-              disabled={saving || activeLots.length < 2}
+              disabled={saving || activeLots.length < 2 || inputsForBatch().length === 0}
               className="mt-4 flex min-h-16 w-full items-center justify-center gap-2 bg-green-600 text-lg font-black text-white disabled:bg-gray-300"
             >
               <PackagePlus />
-              Adicionar e finalizar batelada
+              Iniciar nova batelada
             </button>
             <div className="mt-4 space-y-2">
               {data.batches.map((batch) => (
@@ -438,6 +452,7 @@ export function ProductionTraceabilitySetup({ cycle, operatorId, onChange }) {
             </button>
           </div>
         ) : null}
+        {!batchOpen ? <section className="mt-5 bg-slate-950 p-5 text-white"><p className="text-xs font-black uppercase tracking-wider text-blue-200">Controle por necessidade</p><div className="mt-1 flex flex-wrap items-center justify-between gap-4"><div><h3 className="text-2xl font-black">Controle de bateladas</h3><p className="mt-1 font-semibold text-slate-300">Sem horário fixo · inicie sempre que um novo preparo for realizado.</p></div><button type="button" onClick={()=>setBatchOpen(true)} className="min-h-16 bg-white px-6 text-lg font-black text-cicopal-blue">INICIAR NOVA BATELADA</button></div>{data.batches.length?<p className="mt-4 border-t border-white/20 pt-3 text-sm font-bold text-slate-300">Última: batelada {data.batches[0].numero} · {data.batches[0].finalizada_em?"finalizada":"em preparação"}</p>:null}</section> : null}
         {message ? (
           <p className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3 font-bold">
             {message}
