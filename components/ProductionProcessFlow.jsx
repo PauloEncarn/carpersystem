@@ -81,6 +81,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const [review, setReview] = useState(false);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [viewOnly, setViewOnly] = useState(false);
   const [interruptOpen, setInterruptOpen] = useState(false);
@@ -462,6 +463,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     if (rectifying && correctionReason.trim().length < 5)
       return setMessage("Explique o motivo da retificação.");
     setSaving(true);
+    setSaveFeedback("saving");
     setMessage("");
     try {
       const valuesToSave = { ...values };
@@ -559,7 +561,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       setReview(false);
       setRectifying(false);
       setCorrectionReason("");
+      setSaveFeedback("success");
+      window.setTimeout(() => {
+        setSelectedCode("");
+        setSaveFeedback("");
+        setMessage("");
+      }, 850);
     } catch (error) {
+      setSaveFeedback("");
       setMessage(error?.message ?? "Não foi possível confirmar.");
     } finally {
       setSaving(false);
@@ -939,6 +948,33 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
 
           {selected && config ? (
             <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
+              {saveFeedback ? (
+                <div className="fixed inset-0 z-[180] grid place-items-center bg-white/95 p-6 text-center">
+                  {saveFeedback === "saving" ? (
+                    <>
+                      <span className="size-14 animate-spin rounded-full border-4 border-blue-100 border-t-cicopal-blue" />
+                      <h3 className="mt-5 text-2xl font-bold text-slate-950">
+                        Salvando registro
+                      </h3>
+                      <p className="mt-1 text-slate-500">
+                        Aguarde a confirmação do banco.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="grid size-16 place-items-center rounded-full bg-green-600 text-white">
+                        <Check size={34} strokeWidth={3} />
+                      </span>
+                      <h3 className="mt-5 text-2xl font-bold text-green-800">
+                        Registro confirmado
+                      </h3>
+                      <p className="mt-1 text-slate-500">
+                        Retornando aos horários.
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : null}
               <article className="flex h-dvh w-full flex-col bg-white sm:h-[94dvh] sm:max-w-3xl">
                 <header className="shrink-0 border-b bg-white p-4 sm:p-5">
                   <div className="flex items-center justify-between gap-3">

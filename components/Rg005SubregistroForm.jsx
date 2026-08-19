@@ -3281,6 +3281,37 @@ function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
   );
 }
 
+function HourlySaveOverlay({ state }) {
+  if (!state) return null;
+  return (
+    <div className="fixed inset-0 z-[200] grid place-items-center bg-white/95 p-6 text-center">
+      {state === "saving" ? (
+        <>
+          <RotateCcw size={52} className="animate-spin text-cicopal-blue" />
+          <h3 className="mt-5 text-2xl font-black text-gray-950">
+            Salvando registro
+          </h3>
+          <p className="mt-1 font-semibold text-gray-500">
+            Aguarde a confirmação do banco.
+          </p>
+        </>
+      ) : (
+        <>
+          <span className="grid size-16 place-items-center rounded-full bg-cicopal-green text-white">
+            <CheckCircle2 size={36} />
+          </span>
+          <h3 className="mt-5 text-2xl font-black text-cicopal-green">
+            Registro confirmado
+          </h3>
+          <p className="mt-1 font-semibold text-gray-500">
+            Retornando aos horários.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Rg005SubregistroForm({
   lineId = "ROS",
   documentName,
@@ -3301,6 +3332,7 @@ export function Rg005SubregistroForm({
   const [openPrerequisiteNcs, setOpenPrerequisiteNcs] = useState([]);
   const [hygieneRounds, setHygieneRounds] = useState([]);
   const [hygieneLoading, setHygieneLoading] = useState(false);
+  const [hourlySaveFeedback, setHourlySaveFeedback] = useState("");
   const confirmationResolver = useRef(null);
   const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
     documentName,
@@ -3678,7 +3710,10 @@ export function Rg005SubregistroForm({
       }))
     )
       return false;
-    const saveResult = await onSave?.({
+    if (isHourlyRg003) setHourlySaveFeedback("saving");
+    let saveResult;
+    try {
+      saveResult = await onSave?.({
       registro: {
         ...effectiveRegistro,
         status: "Gravado",
@@ -3698,8 +3733,13 @@ export function Rg005SubregistroForm({
           : {}),
         status: payload.ncs?.length ? "Com NC" : "Gravado",
       },
-    });
+      });
+    } catch (error) {
+      setHourlySaveFeedback("");
+      throw error;
+    }
     if (saveResult === false) {
+      setHourlySaveFeedback("");
       // Um conflito significa que a versão local ficou obsoleta. Recarregamos
       // imediatamente para impedir novas tentativas com a mesma versão antiga.
       try {
@@ -3879,6 +3919,15 @@ export function Rg005SubregistroForm({
         minute: "2-digit",
       }),
     );
+    if (isHourlyRg003) {
+      setHourlySaveFeedback("success");
+      window.setTimeout(() => {
+        setHourlySaveFeedback("");
+        window.dispatchEvent(
+          new CustomEvent("rg003-advance-process", { detail: {} }),
+        );
+      }, 850);
+    }
     return true;
   }
 
@@ -4065,6 +4114,7 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "produto_avaliacao") {
     return (
       <>
+        <HourlySaveOverlay state={hourlySaveFeedback} />
         {isRg003 ? (
           <TabletHourNavigator
             activeHour={activeHour}
@@ -4143,6 +4193,7 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "processo") {
     return (
       <>
+        <HourlySaveOverlay state={hourlySaveFeedback} />
         {isRg003 ? (
           <TabletHourNavigator
             activeHour={activeHour}
@@ -4196,6 +4247,7 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "fotografico") {
     return (
       <>
+        <HourlySaveOverlay state={hourlySaveFeedback} />
         {isRg003 ? (
           <TabletHourNavigator
             activeHour={activeHour}
