@@ -900,7 +900,10 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
   const [savedAt, setSavedAt] = useState("");
   const [saveFeedback, setSaveFeedback] = useState("");
   const [index, setIndex] = useState(0);
+  const saveInFlightRef = useRef(false);
   async function save() {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     const apontamentos = columns
       .filter((item) => values[item])
       .map((item) => ({ horario: activeHour, item, resultado: values[item] }));
@@ -915,13 +918,17 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
         operador: registro?.operador ?? "",
         produto: registro?.produto ?? "-",
       }));
-    setSaveFeedback("saving");
     let confirmed;
     try {
-      confirmed = await onSave?.({ apontamentos, ncs });
+      confirmed = await onSave?.(
+        { apontamentos, ncs },
+        { onConfirmed: () => setSaveFeedback("saving") },
+      );
     } catch (error) {
       setSaveFeedback("");
       throw error;
+    } finally {
+      saveInFlightRef.current = false;
     }
     if (confirmed === false) {
       setSaveFeedback("");
@@ -3922,7 +3929,7 @@ export function Rg005SubregistroForm({
     return true;
   }
 
-  async function saveProcesso(payload = {}) {
+  async function saveProcesso(payload = {}, lifecycle = {}) {
     if (
       isRg003 &&
       subregistro.id === "higienizacao" &&
@@ -3945,6 +3952,7 @@ export function Rg005SubregistroForm({
       }))
     )
       return false;
+    lifecycle.onConfirmed?.();
     if (isHourlyRg003) setHourlySaveFeedback("saving");
     let saveResult;
     try {
