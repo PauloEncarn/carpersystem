@@ -46,6 +46,9 @@ export function ProductionTraceabilitySetup({
     expiry: "2027-12-31",
   });
   const [batchInputs, setBatchInputs] = useState({});
+  const [batchFormulaEditing, setBatchFormulaEditing] = useState(false);
+  const [batchDeviationReason, setBatchDeviationReason] = useState("");
+  const [batchDeviationConfirm, setBatchDeviationConfirm] = useState(false);
   const [packers, setPackers] = useState(
     Array.from({ length: 4 }, (_, index) => ({
       machine: index + 1,
@@ -191,6 +194,9 @@ export function ProductionTraceabilitySetup({
         recipeId: recipe?.id,
         inputs,
         userId: operatorId,
+        observation: batchDeviationReason.trim()
+          ? `Desvio da fórmula: ${batchDeviationReason.trim()}`
+          : "Fórmula padrão confirmada",
       });
       if (!cycle.productionStartedAt) {
         const productionStartedAt = new Date().toISOString();
@@ -227,6 +233,9 @@ export function ProductionTraceabilitySetup({
       await reload();
       setBatchOpen(false);
       setBatchReview(false);
+      setBatchFormulaEditing(false);
+      setBatchDeviationReason("");
+      setBatchDeviationConfirm(false);
       setMessage(
         `Batelada ${batch.numero} em preparação. Finalize o preparo quando a massa estiver pronta.`,
       );
@@ -235,6 +244,16 @@ export function ProductionTraceabilitySetup({
     } finally {
       setSaving(false);
     }
+  }
+  function startBatchWithFormulaCheck() {
+    const hasDeviation = inputsForBatch().some(
+      (item) => Number(item.used) !== Number(item.expected),
+    );
+    if (!hasDeviation) {
+      addBatch();
+      return;
+    }
+    setBatchDeviationConfirm(true);
   }
   async function savePackers() {
     setSaving(true);
@@ -1243,6 +1262,17 @@ export function ProductionTraceabilitySetup({
                   {data.batches.length} batelada(s)
                 </span>
               </div>
+              <div className={`mb-4 border-l-4 p-4 ${batchFormulaEditing ? "border-amber-500 bg-amber-50 text-amber-900" : "border-green-500 bg-green-50 text-green-900"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <b className="block">Quantidades definidas pela fórmula</b>
+                    <span className="text-sm font-semibold">O operador normalmente apenas confirma os lotes e inicia a batelada.</span>
+                  </div>
+                  <button type="button" onClick={() => setBatchFormulaEditing((value) => !value)} className="min-h-11 border border-current bg-white px-3 font-black">
+                    {batchFormulaEditing ? "Manter fórmula" : "Alterar quantidades"}
+                  </button>
+                </div>
+              </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {(recipe?.receita_insumos ?? []).map((item, itemIndex) => {
                   if (itemIndex !== batchStep) return null;
@@ -1301,6 +1331,7 @@ export function ProductionTraceabilitySetup({
                           </span>
                           <input
                             type="number"
+                            readOnly={!batchFormulaEditing}
                             value={
                               batchInputs[supply.id]?.used ??
                               item.quantidade ??
@@ -1315,7 +1346,7 @@ export function ProductionTraceabilitySetup({
                                 },
                               }))
                             }
-                            className="min-h-12 min-w-0 flex-1 px-2 font-black"
+                            className={`min-h-12 min-w-0 flex-1 px-2 font-black ${batchFormulaEditing ? "bg-amber-50" : "bg-gray-100 text-gray-700"}`}
                           />
                           <b className="px-2">{item.unidade}</b>
                         </label>
@@ -1339,7 +1370,7 @@ export function ProductionTraceabilitySetup({
                   onClick={() =>
                     batchStep < (recipe?.receita_insumos?.length ?? 1) - 1
                       ? setBatchStep((value) => value + 1)
-                      : addBatch()
+                      : startBatchWithFormulaCheck()
                   }
                   disabled={
                     saving ||
@@ -1354,6 +1385,15 @@ export function ProductionTraceabilitySetup({
                     : "Iniciar nova batelada"}
                 </button>
               </div>
+              {batchDeviationConfirm ? (
+                <div className="fixed inset-0 z-[160] grid place-items-center bg-slate-950/65 p-4">
+                  <section className="w-full max-w-xl border-t-8 border-amber-500 bg-white shadow-2xl">
+                    <header className="border-b p-5"><p className="text-xs font-black uppercase text-amber-700">Desvio da fórmula</p><h3 className="mt-1 text-2xl font-black">Confirmar quantidades diferentes?</h3><p className="mt-2 font-semibold text-gray-600">A fórmula desta batelada foi alterada. A justificativa ficará vinculada ao registro para rastreabilidade.</p></header>
+                    <div className="p-5"><label><span className="mb-1 block text-xs font-black uppercase text-gray-500">Motivo da alteração</span><textarea value={batchDeviationReason} onChange={(event) => setBatchDeviationReason(event.target.value)} className="min-h-28 w-full border border-gray-300 p-3" placeholder="Descreva por que a quantidade da fórmula foi alterada" /></label></div>
+                    <footer className="grid grid-cols-2 gap-3 border-t p-4"><button type="button" onClick={() => setBatchDeviationConfirm(false)} className="min-h-14 border border-gray-300 font-black">Cancelar</button><button type="button" disabled={batchDeviationReason.trim().length < 5 || saving} onClick={addBatch} className="min-h-14 bg-amber-600 font-black text-white disabled:bg-gray-300">Confirmar desvio e iniciar</button></footer>
+                  </section>
+                </div>
+              ) : null}
               <div
                 className={`mt-3 flex items-center justify-between p-4 ${Math.abs(batchTotal - 900) <= 5 ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}
               >

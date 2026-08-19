@@ -240,6 +240,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       cycle.productionEndedAt ?? cycle.endedAt ?? now,
     );
     end.setMinutes(0, 0, 0);
+    if (!cycle.productionEndedAt && !cycle.endedAt) {
+      const minimumEnd = new Date(start.getTime() + 3_600_000);
+      const nextCurrentHour = new Date(now);
+      nextCurrentHour.setMinutes(0, 0, 0);
+      nextCurrentHour.setHours(nextCurrentHour.getHours() + 1);
+      end.setTime(Math.max(end.getTime(), minimumEnd.getTime(), nextCurrentHour.getTime()));
+    }
     const slots = [];
     for (
       let cursor = new Date(start);
@@ -254,6 +261,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     cycle.endedAt,
     now.getHours(),
   ]);
+  const visibleSlots = fixedSlots.slice(-2);
 
   useEffect(() => {
     if (!cycle?.id) return;
@@ -873,7 +881,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 </span>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {fixedSlots.map((slot, index) => {
+                {visibleSlots.map((slot, index) => {
                   const processCode =
                     workspace === "cut"
                       ? "corte_fio"
@@ -883,7 +891,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   const record = recordsFor(processCode).find(
                     (item) => sameInstant(item.horario_previsto, slot),
                   );
-                  const isCurrent = index === fixedSlots.length - 1;
+                  const isCurrent = index === 0;
                   return (
                     <button
                       key={slot}
@@ -898,7 +906,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         })}
                       </b>
                       <small className="font-bold uppercase">
-                        {record ? "Preenchido" : isCurrent ? "Atual" : "Pendente"}
+                        {record ? "Preenchido" : isCurrent ? "Atual" : "Próximo"}
                       </small>
                     </button>
                   );

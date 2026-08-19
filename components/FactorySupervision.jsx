@@ -148,23 +148,26 @@ const controlMetric = {
     label: "Cortes projetados",
     unit: "cortes/min",
     divisor: 60,
+    ranges: [60, 80, 120, 140],
   },
-  forno: { key: "umidade", label: "Umidade", unit: "%", divisor: 1 },
+  forno: { key: "umidade", label: "Umidade", unit: "%", divisor: 1, ranges: [1.5, 2, 4, 4.5] },
   empacotamento: {
     key: "maq_1_pacotes_min",
     label: "Pacotes · máquina 1",
     unit: "pacotes/min",
     divisor: 1,
+    ranges: [25, 35, 55, 65],
   },
   encaixotamento: {
     key: "caixas_min",
     label: "Caixas",
     unit: "caixas/min",
     divisor: 1,
+    ranges: [3, 4, 8, 9],
   },
 };
-function ControlChart({ process, now }) {
-  const metric = controlMetric[process.codigo];
+function ControlChart({ process, now, metricOverride = null }) {
+  const metric = metricOverride ?? controlMetric[process.codigo];
   if (!metric) return null;
   const history = [...(process.recordHistory ?? [])].sort(
     (a, b) => new Date(a.horario_referencia) - new Date(b.horario_referencia),
@@ -176,11 +179,16 @@ function ControlChart({ process, now }) {
       value: (Number(record.valores?.[metric.key]) || 0) / metric.divisor,
     })),
   ];
-  const max = Math.max(1, ...samples.map((item) => item.value));
+  const max = Math.max(
+    1,
+    ...(metric.ranges ?? []),
+    ...samples.map((item) => item.value),
+  ) * 1.08;
+  const yFor = (value) => 155 - (value / max) * 120;
   const points = samples
     .map(
       (item, index) =>
-        `${30 + (index * 500) / Math.max(1, samples.length - 1)},${155 - (item.value / max) * 120}`,
+        `${30 + (index * 500) / Math.max(1, samples.length - 1)},${yFor(item.value)}`,
     )
     .join(" ");
   const latest = history.at(-1);
@@ -215,6 +223,15 @@ function ControlChart({ process, now }) {
         role="img"
         aria-label={`Gráfico de ${metric.label}`}
       >
+        {metric.ranges ? (
+          <>
+            <rect x="30" y="25" width="500" height={Math.max(0, yFor(metric.ranges[3]) - 25)} fill="#fee2e2" />
+            <rect x="30" y={yFor(metric.ranges[3])} width="500" height={Math.max(0, yFor(metric.ranges[2]) - yFor(metric.ranges[3]))} fill="#fef3c7" />
+            <rect x="30" y={yFor(metric.ranges[2])} width="500" height={Math.max(0, yFor(metric.ranges[1]) - yFor(metric.ranges[2]))} fill="#dcfce7" />
+            <rect x="30" y={yFor(metric.ranges[1])} width="500" height={Math.max(0, yFor(metric.ranges[0]) - yFor(metric.ranges[1]))} fill="#fef3c7" />
+            <rect x="30" y={yFor(metric.ranges[0])} width="500" height={Math.max(0, 155 - yFor(metric.ranges[0]))} fill="#fee2e2" />
+          </>
+        ) : null}
         <line x1="30" y1="155" x2="530" y2="155" stroke="#cbd5e1" />
         <line x1="30" y1="25" x2="30" y2="155" stroke="#cbd5e1" />
         <polyline
@@ -226,7 +243,7 @@ function ControlChart({ process, now }) {
         />
         {samples.map((item, index) => {
           const x = 30 + (index * 500) / Math.max(1, samples.length - 1);
-          const y = 155 - (item.value / max) * 120;
+          const y = yFor(item.value);
           return (
             <g key={`${item.label}-${index}`}>
               <circle cx={x} cy={y} r="5" fill="#e30613" />
@@ -254,6 +271,13 @@ function ControlChart({ process, now }) {
           );
         })}
       </svg>
+      {metric.ranges ? (
+        <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black uppercase">
+          <span className="bg-red-100 px-2 py-1 text-red-800">Fora do limite</span>
+          <span className="bg-amber-100 px-2 py-1 text-amber-800">Atenção</span>
+          <span className="bg-green-100 px-2 py-1 text-green-800">Faixa ideal</span>
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 text-white">
         <span>
           <small className="block text-slate-400">ESTIMADO DESDE ZERO</small>
@@ -271,6 +295,39 @@ function ControlChart({ process, now }) {
       </div>
     </article>
   );
+}
+function qualityControlSeries(records = []) {
+  const groups = new Map();
+  [...records]
+    .filter((record) => record.contexto_tipo === "produto_avaliacao")
+    .reverse()
+    .forEach((record) => {
+      (record.valores?.apontamentos ?? []).forEach((item) => {
+        const value = Number(item.resultado ?? item.valor);
+        if (!Number.isFinite(value)) return;
+        const label = item.item ?? "Parâmetro da Qualidade";
+        const normalized = label.toLocaleLowerCase("pt-BR");
+        if (!/(umidade|ph|temperatura)/i.test(normalized)) return;
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push({
+          horario_referencia: record.preenchido_em,
+          janela_inicio: record.preenchido_em,
+          valores: { quality_value: value },
+        });
+      });
+    });
+  return [...groups.entries()].slice(0, 3).map(([label, recordHistory]) => {
+    const normalized = label.toLocaleLowerCase("pt-BR");
+    const ranges = normalized.includes("umidade")
+      ? [1.5, 2, 4, 4.5]
+      : normalized.includes("ph")
+        ? [6, 6.5, 7.5, 8]
+        : [25, 30, 40, 45];
+    return {
+      process: { id: `quality-${label}`, nome: `Qualidade · ${label}`, recordHistory },
+      metric: { key: "quality_value", label, unit: normalized.includes("ph") ? "pH" : normalized.includes("umidade") ? "%" : "°C", divisor: 1, ranges },
+    };
+  });
 }
 function isOpenNc(nc) {
   return ![
@@ -714,6 +771,27 @@ export function FactorySupervision({ variant = "classic" }) {
                       <ControlChart
                         key={process.id}
                         process={process}
+                        now={now}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {qualityControlSeries(selected.records).length ? (
+                <section>
+                  <Title
+                    icon={<Gauge size={17} />}
+                    text="Gráficos de controle da Qualidade"
+                  />
+                  <p className="mt-1 text-xs font-bold text-gray-500">
+                    Faixas provisórias para visualização. Os limites definitivos poderão ser configurados por produto.
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {qualityControlSeries(selected.records).map(({ process, metric }) => (
+                      <ControlChart
+                        key={process.id}
+                        process={process}
+                        metricOverride={metric}
                         now={now}
                       />
                     ))}
