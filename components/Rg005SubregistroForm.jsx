@@ -1430,6 +1430,8 @@ function ProductEvaluationTabletFlow({
   const [packerChangeReason, setPackerChangeReason] = useState("");
   const [packerMessage, setPackerMessage] = useState("");
   const [packerSaving, setPackerSaving] = useState(false);
+  const [packerConfiguredByProduction, setPackerConfiguredByProduction] =
+    useState(false);
 
   async function refreshPackerConfiguration() {
     if (!cycleId) {
@@ -1440,6 +1442,7 @@ function ProductEvaluationTabletFlow({
     try {
       const traceability = await loadProductionTraceability(cycleId);
       const targetTime = activeSlot ? new Date(activeSlot).getTime() : Date.now();
+      let matchedConfiguration = false;
       const current = [1, 2, 3, 4].map((machine) => {
         const saved = (traceability.packers ?? []).find((item) => {
           if (item.maquina !== machine) return false;
@@ -1449,25 +1452,40 @@ function ProductEvaluationTabletFlow({
             : Number.POSITIVE_INFINITY;
           return startsAt <= targetTime && targetTime < endsAt;
         });
+        if (saved) matchedConfiguration = true;
         return {
           machine,
           active: Boolean(saved?.ativa),
           grammage: saved?.gramatura ?? "",
         };
       });
-      if (current.some((item) => item.active || item.grammage)) {
-        setPackerConfiguration(current);
-        setActiveCount(String(current.filter((item) => item.active).length));
-        setMachineGrams(
-          Object.fromEntries(
-            current.map((item) => [
-              machines[item.machine - 1]?.label,
-              item.grammage,
-            ]),
-          ),
-        );
-        setConfigured(true);
-      }
+      const fallbackCount = Math.min(
+        4,
+        Math.max(1, Number(initialConfiguration?.quantidade) || 4),
+      );
+      const configuration = matchedConfiguration
+        ? current
+        : [1, 2, 3, 4].map((machine) => ({
+            machine,
+            active: machine <= fallbackCount,
+            grammage:
+              initialConfiguration?.gramaturas?.[machines[machine - 1]?.label] ??
+              "",
+          }));
+      setPackerConfiguredByProduction(matchedConfiguration);
+      setPackerConfiguration(configuration);
+      setActiveCount(
+        String(configuration.filter((item) => item.active).length),
+      );
+      setMachineGrams(
+        Object.fromEntries(
+          configuration.map((item) => [
+            machines[item.machine - 1]?.label,
+            item.grammage,
+          ]),
+        ),
+      );
+      setConfigured(true);
     } catch (error) {
       setPackerMessage(error?.message ?? "Não foi possível carregar as máquinas da Produção.");
     } finally {
@@ -1477,7 +1495,7 @@ function ProductEvaluationTabletFlow({
 
   useEffect(() => {
     refreshPackerConfiguration();
-  }, [activeSlot, cycleId]);
+  }, [activeSlot, cycleId, initialConfiguration, machines]);
   useEffect(() => {
     try {
       const saved = JSON.parse(
@@ -1594,15 +1612,6 @@ function ProductEvaluationTabletFlow({
       </section>
     );
 
-  if (cycleId && !productionConfigurationAvailable)
-    return (
-      <section className="border-l-4 border-amber-500 bg-amber-50 p-5">
-        <h3 className="text-xl font-bold text-amber-950">Aguardando configuração da Produção</h3>
-        <p className="mt-2 font-semibold text-amber-800">A Produção deve informar inicialmente quais das quatro empacotadoras estão rodando. Depois disso, a Qualidade poderá avaliar e alterar a situação, quando necessário.</p>
-        <button type="button" onClick={refreshPackerConfiguration} className="mt-4 min-h-12 border border-amber-400 bg-white px-4 font-bold text-amber-900">Atualizar máquinas</button>
-      </section>
-    );
-
   if (!configured)
     return (
       <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
@@ -1710,7 +1719,7 @@ function ProductEvaluationTabletFlow({
         </button>
         <MachineEvaluationWizard
           key={`${activeHour}-${selectedMachine.label}`}
-          title={`Avaliação do produto · ${selectedMachine.label} · ${machineGrams[selectedMachine.label]}`}
+          title={`Avaliação do produto · ${selectedMachine.label}${machineGrams[selectedMachine.label] ? ` · ${machineGrams[selectedMachine.label]}` : ""}`}
           machines={[selectedMachine]}
           activeHour={activeHour}
           onSave={(payload) => {
@@ -1764,7 +1773,7 @@ function ProductEvaluationTabletFlow({
         <div className="mt-4 border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase text-cicopal-blue">Sincronizado com o empacotamento</p>
+              <p className="text-xs font-bold uppercase text-cicopal-blue">{packerConfiguredByProduction ? "Sincronizado com o empacotamento" : "Máquinas disponíveis para avaliação"}</p>
               <h4 className="text-lg font-bold">{activeMachines.length} de 4 máquinas rodando</h4>
             </div>
             <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
@@ -1834,7 +1843,9 @@ function ProductEvaluationTabletFlow({
           >
             <span className="block text-lg font-bold">Máquina {index + 1}</span>
             <span className="mt-1 block text-sm font-semibold">
-              {machineGrams[machine.label]} ·{" "}
+              {machineGrams[machine.label]
+                ? `${machineGrams[machine.label]} · `
+                : ""}
               {machineResults[machine.label] ? "✓ Preenchida" : "Pendente"}
             </span>
           </button>
