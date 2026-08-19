@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Factory,
+  Lock,
   Boxes,
   CookingPot,
   Flame,
@@ -52,7 +53,10 @@ const validValue = (value) =>
   value !== undefined && value !== null && value !== "";
 function remaining(end, now) {
   const seconds = Math.max(0, Math.ceil((new Date(end) - now) / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const totalMinutes = Math.ceil(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}min`;
 }
 function localRows(cycleId) {
   return ROSCA_SUBPROCESSES.map((item, index) => ({
@@ -262,6 +266,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     now.getHours(),
   ]);
   const visibleSlots = fixedSlots.slice(-2);
+  const isSlotReleased = (slot) =>
+    Boolean(slot) && new Date(slot).getTime() <= now.getTime();
 
   useEffect(() => {
     if (!cycle?.id) return;
@@ -323,6 +329,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   }
   function openProcess(code, requestedSlot = null) {
     if (!isUnlocked(code)) return;
+    if (requestedSlot && !isSlotReleased(requestedSlot)) {
+      setMessage("Este horário ainda não foi liberado.");
+      return;
+    }
     const cfg = ROSCA_SUBPROCESSES.find((item) => item.code === code);
     const processRecords = recordsFor(code);
     const requestedRecord = requestedSlot
@@ -337,6 +347,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         : requestedSlot
       : fixedSlots.find(
           (slot) =>
+            isSlotReleased(slot) &&
             !processRecords.some((record) =>
               sameInstant(record.horario_previsto, slot),
             ),
@@ -640,6 +651,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const latest = recordsFor(item.code)[0];
     const pendingCount = fixedSlots.filter(
       (slot) =>
+        isSlotReleased(slot) &&
         !recordsFor(item.code).some(
           (record) => sameInstant(record.horario_previsto, slot),
         ),
@@ -868,6 +880,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 <span className="text-sm font-bold text-red-700">
                   {fixedSlots.filter(
                     (slot) =>
+                      isSlotReleased(slot) &&
                       !recordsFor(
                         workspace === "cut"
                           ? "corte_fio"
@@ -895,13 +908,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   const record = recordsFor(processCode).find(
                     (item) => sameInstant(item.horario_previsto, slot),
                   );
-                  const isCurrent = index === 0;
+                  const released = isSlotReleased(slot);
+                  const isCurrent = released && index === 0;
                   return (
                     <button
                       key={slot}
                       type="button"
+                      disabled={!released}
                       onClick={() => openProcess(processCode, slot)}
-                      className={`min-h-16 min-w-24 shrink-0 border px-3 text-center ${record ? "border-green-300 bg-green-50 text-green-800" : isCurrent ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-red-300 bg-red-50 text-red-800"}`}
+                      className={`min-h-16 min-w-24 shrink-0 border px-3 text-center ${record ? "border-green-300 bg-green-50 text-green-800" : !released ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : isCurrent ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-red-300 bg-red-50 text-red-800"}`}
                     >
                       <b className="block text-lg">
                         {new Date(slot).toLocaleTimeString("pt-BR", {
@@ -909,8 +924,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                           minute: "2-digit",
                         })}
                       </b>
-                      <small className="font-bold uppercase">
-                        {record ? "Preenchido" : isCurrent ? "Atual" : "Próximo"}
+                      <small className="flex items-center justify-center gap-1 font-bold uppercase">
+                        {!released ? <Lock size={12} /> : null}
+                        {record
+                          ? "Preenchido"
+                          : !released
+                            ? "Bloqueado"
+                            : isCurrent
+                              ? "Atual"
+                              : "Pendente"}
                       </small>
                     </button>
                   );
