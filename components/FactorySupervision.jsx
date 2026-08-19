@@ -732,6 +732,7 @@ export function FactorySupervision({ variant = "classic" }) {
               </div>
               <button
                 type="button"
+                aria-label="Fechar detalhes da linha"
                 className="grid size-11 place-items-center rounded-full bg-gray-100"
                 onClick={() => setSelectedId("")}
               >

@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { HierarchyNavigator } from "@/components/HierarchyNavigator";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Rg005SubregistroForm } from "@/components/Rg005SubregistroForm";
-import { CicopalLogo } from "@/components/CicopalLogo";
-import { BarChart3, Factory, FileCog } from "lucide-react";
 import {
   findSelection,
   getInitialSelection,
@@ -303,57 +301,20 @@ export default function HomePage() {
 
   return (
     <main className="modern-ui min-h-screen">
-      <header className="app-topbar sticky top-0 z-20 shadow-sm">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <CicopalLogo className="h-12 w-auto" priority />
-            <div>
-              <p className="text-xs font-semibold text-gray-500">
-                Sistema RG Qualidade
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
-            <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-gray-700 sm:inline">
-              Olá, {loggedUser.nome}
-            </span>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-cicopal-blue">
-              {loggedUser.perfil?.nome ?? "Operador"}
-            </span>
-            <Link
-              href="/supervisao"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700"
-            >
-              <Factory size={17} /> Supervisão
-            </Link>
-            <Link
-              href="/relatorios"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700"
-            >
-              <BarChart3 size={17} /> Relatórios
-            </Link>
-            {canAccessConfigurator ? (
-              <Link
-                href="/configurador"
-                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-cicopal-blue px-3 py-2 text-white shadow-sm"
-              >
-                <FileCog size={17} /> Configurador
-              </Link>
-            ) : null}
-            <button
-              type="button"
-              className="min-h-10 border border-gray-200 bg-white px-3 py-2 text-gray-600"
-              onClick={handleLogout}
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        title="Operação de Qualidade"
+        subtitle={`Sistema RG · ${loggedUser.perfil?.nome ?? "Operador"}`}
+        user={loggedUser}
+        canAccessConfigurator={canAccessConfigurator}
+        onLogout={handleLogout}
+        maxWidth="max-w-7xl"
+      />
 
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-4">
         {databaseStatus ? (
           <div
+            role="status"
+            aria-live="polite"
             className={`rounded-md border px-4 py-2 text-sm font-bold ${["error", "conflict"].includes(databaseStatus) ? "border-red-200 bg-red-50 text-cicopal-red" : databaseStatus === "saving" ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-green-200 bg-green-50 text-cicopal-green"}`}
           >
             {databaseStatus === "saving"

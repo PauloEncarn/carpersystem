@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Factory, LogOut, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { AppHeader } from "@/components/AppHeader";
 import { LoginScreen } from "@/components/LoginScreen";
-import { CicopalLogo } from "@/components/CicopalLogo";
 import { ProductSpecificationsConfigurator } from "@/components/ProductSpecificationsConfigurator";
 import {
   clearUserSession,
@@ -69,42 +69,13 @@ export default function ConfiguradorPage() {
 
   return (
     <main className="modern-ui min-h-screen">
-      <header className="app-topbar sticky top-0 z-20 shadow-sm">
-        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <CicopalLogo className="h-12 w-auto" priority />
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-cicopal-blue">
-                Configurador de RG
-              </h1>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 sm:inline">
-              {loggedUser.nome}
-            </span>
-            <Link
-              href="/"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"
-            >
-              <ArrowLeft size={17} /> Operação
-            </Link>
-            <Link
-              href="/supervisao"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"
-            >
-              <Factory size={17} /> Supervisão
-            </Link>
-            <button
-              type="button"
-              className="inline-flex min-h-10 items-center gap-2 border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600"
-              onClick={handleLogout}
-            >
-              <LogOut size={17} /> Sair
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        title="Configuração de Qualidade"
+        subtitle="Produtos, parâmetros e especificações dos RGs"
+        user={loggedUser}
+        canAccessConfigurator
+        onLogout={handleLogout}
+      />
       <div className="mx-auto max-w-[1500px] px-4 py-5">
         <ProductSpecificationsConfigurator />
       </div>

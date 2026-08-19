@@ -232,12 +232,35 @@ button {
 
 .modern-ui button:focus-visible,
 .modern-login button:focus-visible,
+.modern-ui a:focus-visible,
 .modern-ui input:focus-visible,
 .modern-login input:focus-visible,
 .modern-ui select:focus-visible,
 .modern-ui textarea:focus-visible {
   outline: 3px solid rgba(76, 82, 230, 0.22);
   outline-offset: 2px;
+}
+
+.modern-ui a {
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.modern-ui button:disabled {
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-ui *,
+  .modern-login * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .modern-ui input,

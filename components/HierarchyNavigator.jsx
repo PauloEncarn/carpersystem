@@ -256,7 +256,8 @@ function Stepper({ currentStep, hideDates = false }) {
     ? steps.filter((step) => ![2, 5].includes(step.id))
     : steps;
   return (
-    <div
+    <ol
+      aria-label="Progresso da seleção do registro"
       className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-6"}`}
     >
       {visibleSteps.map((step) => {
@@ -269,15 +270,19 @@ function Stepper({ currentStep, hideDates = false }) {
             : "border-gray-200 bg-white text-gray-500";
 
         return (
-          <div
+          <li
             key={step.id}
-            className={`rounded-md border border-t-[5px] px-3 py-3 text-center text-sm font-bold shadow-soft ${tone}`}
+            aria-current={active ? "step" : undefined}
+            className={`relative rounded-md border px-3 py-3 text-left text-sm font-bold shadow-soft ${tone}`}
           >
-            {step.label}
-          </div>
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider opacity-70">
+              {done ? "Concluída" : active ? "Etapa atual" : `Etapa ${step.id}`}
+            </span>
+            <span className="block">{step.label}</span>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -3506,7 +3511,7 @@ export function HierarchyNavigator({
                         className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 text-base font-bold text-white shadow-soft"
                         onClick={novoRegistroProcesso}
                       >
-                        NOVO REGISTRO
+                        Criar registro
                       </button>
                     </div>
                     {registrosDoProcesso.map((registro) => (
@@ -3537,7 +3542,7 @@ export function HierarchyNavigator({
                       className="inline-flex min-h-24 items-center justify-center rounded-md bg-cicopal-blue px-5 text-xl font-bold text-white shadow-soft"
                       onClick={novoRegistroProcesso}
                     >
-                      NOVO REGISTRO
+                      Criar primeiro registro
                     </button>
                   </div>
                 )}

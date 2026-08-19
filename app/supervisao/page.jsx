@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, Boxes, Image as ImageIcon, LogOut } from "lucide-react";
+import { Boxes, Image as ImageIcon } from "lucide-react";
+import { AppHeader } from "@/components/AppHeader";
 import { FactorySupervision } from "@/components/FactorySupervision";
-import { CicopalLogo } from "@/components/CicopalLogo";
 import { LoginScreen } from "@/components/LoginScreen";
 import {
   clearUserSession,
@@ -31,55 +30,29 @@ export default function SupervisaoPage() {
   }
   if (!sessionReady) return <main className="min-h-screen bg-[#f6f7fb]" />;
   if (!loggedUser) return <LoginScreen onLogin={handleLogin} />;
+  const canAccessConfigurator =
+    loggedUser?.permissoes?.includes("configurador:acessar") ||
+    loggedUser?.permissoes?.includes("admin:acessar");
   return (
     <main className="modern-ui min-h-screen">
-      <header className="app-topbar sticky top-0 z-20 shadow-sm">
-        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <CicopalLogo className="h-12 w-auto" priority />
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-cicopal-blue">
-                Supervisão da fábrica
-              </h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden rounded-full bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 sm:inline">
-              {loggedUser.nome}
-            </span>
-            <Link
-              href="/relatorios"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"
-            >
-              <BarChart3 size={17} /> Relatórios
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700"
-            >
-              <ArrowLeft size={17} /> Operação
-            </Link>
-            <button
-              type="button"
-              className="inline-flex min-h-10 items-center gap-2 border border-gray-200 bg-white px-3 text-sm font-bold text-gray-600"
-              onClick={handleLogout}
-            >
-              <LogOut size={17} /> Sair
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        title="Supervisão da Fábrica"
+        subtitle="Acompanhamento operacional em tempo real"
+        user={loggedUser}
+        canAccessConfigurator={canAccessConfigurator}
+        onLogout={handleLogout}
+      />
       <div className="mx-auto max-w-[1500px] px-4 py-5">
-        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-gray-200 bg-white p-3 shadow-sm">
+        <section className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="factory-view-title">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Modo de visualização</p>
-            <p className="text-sm font-semibold text-gray-500">As duas telas usam os mesmos dados em tempo real.</p>
+            <p id="factory-view-title" className="text-sm font-black text-slate-900">Visualização da planta</p>
+            <p className="mt-0.5 text-sm font-semibold text-gray-500">Alterne a representação sem perder os dados ou a seleção atual.</p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => { setView("classic"); window.localStorage.setItem("carper_supervision_view", "classic"); }} className={`inline-flex min-h-12 items-center gap-2 px-4 font-black ${view === "classic" ? "bg-cicopal-blue text-white" : "border border-gray-200 bg-gray-50 text-gray-600"}`}>
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="group" aria-label="Visualização da planta">
+            <button type="button" aria-pressed={view === "classic"} onClick={() => { setView("classic"); window.localStorage.setItem("carper_supervision_view", "classic"); }} className={`inline-flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-black ${view === "classic" ? "bg-white text-cicopal-blue shadow-sm" : "text-gray-600"}`}>
               <ImageIcon size={19} /> Planta clássica
             </button>
-            <button type="button" onClick={() => { setView("vector"); window.localStorage.setItem("carper_supervision_view", "vector"); }} className={`inline-flex min-h-12 items-center gap-2 px-4 font-black ${view === "vector" ? "bg-cicopal-blue text-white" : "border border-gray-200 bg-gray-50 text-gray-600"}`}>
+            <button type="button" aria-pressed={view === "vector"} onClick={() => { setView("vector"); window.localStorage.setItem("carper_supervision_view", "vector"); }} className={`inline-flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-black ${view === "vector" ? "bg-white text-cicopal-blue shadow-sm" : "text-gray-600"}`}>
               <Boxes size={19} /> Planta profissional
             </button>
           </div>

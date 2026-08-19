@@ -790,6 +790,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         <section className="sticky top-2 z-30 flex min-h-16 items-center gap-3 border border-blue-100 bg-white p-3 shadow-lg">
           <button
             type="button"
+            aria-label="Voltar à visão geral da produção"
             onClick={() => setWorkspace("overview")}
             className="grid size-12 shrink-0 place-items-center bg-cicopal-blue text-white"
           >
@@ -1060,6 +1061,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       <h3 className="text-2xl font-black">{config.name}</h3>
                     </div>
                     <button
+                      type="button"
+                      aria-label={`Fechar ${config.name}`}
                       onClick={() => setSelectedCode("")}
                       className="grid h-11 w-11 place-items-center bg-gray-100"
                     >
@@ -1494,6 +1497,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 </div>
                 <footer className="sticky bottom-0 grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,.08)] sm:p-4">
                   <button
+                    type="button"
                     onClick={() =>
                       review ? setReview(false) : previousField()
                     }
@@ -1544,6 +1548,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                     </h3>
                   </div>
                   <button
+                    type="button"
+                    aria-label="Fechar interrupção"
                     onClick={() => setInterruptOpen(false)}
                     className="grid size-11 place-items-center bg-gray-100"
                   >
