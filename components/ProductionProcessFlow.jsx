@@ -336,7 +336,22 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const filledWindow =
       cfg?.frequency === "hourly" && !pending && Boolean(existing);
     const sameWindow = cfg?.frequency === "lot" || filledWindow;
-    const targetSlot = pending ?? existing?.horario_previsto ?? "";
+    let fallbackSlot = "";
+    if (cfg?.frequency === "hourly") {
+      const reference = new Date(
+        firstBatchStartedAt ?? cycle.productionStartedAt ?? Date.now(),
+      );
+      if (Number.isFinite(reference.getTime())) {
+        reference.setMinutes(0, 0, 0);
+        const original = new Date(
+          firstBatchStartedAt ?? cycle.productionStartedAt ?? Date.now(),
+        );
+        if (reference < original) reference.setHours(reference.getHours() + 1);
+        fallbackSlot = reference.toISOString();
+      }
+    }
+    const targetSlot =
+      pending ?? existing?.horario_previsto ?? fallbackSlot;
     const firstVisibleMachine =
       code === "empacotamento"
         ? [1, 2, 3, 4].find(
@@ -476,6 +491,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     }
   }
   async function confirm() {
+    if (
+      config.frequency === "hourly" &&
+      (!scheduledAt || !Number.isFinite(new Date(scheduledAt).getTime()))
+    )
+      return setMessage(
+        "O horário deste controle ainda não foi liberado. Volte aos horários e abra novamente o próximo controle.",
+      );
     const requiredParameters = config.parameters.filter((item) => {
       if (config.code !== "empacotamento") return true;
       const machine = Number(item.key.match(/^maq_(\d+)_/)?.[1]);
