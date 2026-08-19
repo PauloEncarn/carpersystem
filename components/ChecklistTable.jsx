@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -250,6 +250,7 @@ export function ChecklistTable({
   groups = checklistGroups,
   onSave,
   onNextStep,
+  autoAdvanceAfterSave = false,
   nextStepLabel = "Ir para a próxima etapa",
   stepByStep = false,
   flowTitle = "Higienização · RG 003",
@@ -268,6 +269,12 @@ export function ChecklistTable({
     ),
   );
   const choiceTapRef = useRef({ value: "", at: 0 });
+
+  useEffect(() => {
+    if (!savedAt || !autoAdvanceAfterSave || !onNextStep) return undefined;
+    const timeoutId = window.setTimeout(onNextStep, 850);
+    return () => window.clearTimeout(timeoutId);
+  }, [autoAdvanceAfterSave, onNextStep, savedAt]);
 
   const totals = useMemo(() => {
     return rows.reduce(

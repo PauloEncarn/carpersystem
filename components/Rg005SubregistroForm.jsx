@@ -894,6 +894,7 @@ function TabletProductMetrics({ columns, activeHour, onSave }) {
 function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState("");
   const [index, setIndex] = useState(0);
   async function save() {
     const apontamentos = columns
@@ -910,14 +911,29 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
         operador: registro?.operador ?? "",
         produto: registro?.produto ?? "-",
       }));
-    const confirmed = await onSave?.({ apontamentos, ncs });
-    if (confirmed === false) return;
+    setSaveFeedback("saving");
+    let confirmed;
+    try {
+      confirmed = await onSave?.({ apontamentos, ncs });
+    } catch (error) {
+      setSaveFeedback("");
+      throw error;
+    }
+    if (confirmed === false) {
+      setSaveFeedback("");
+      return;
+    }
     setSavedAt(
       new Date().toLocaleTimeString("pt-BR", {
         hour: "2-digit",
         minute: "2-digit",
       }),
     );
+    setSaveFeedback("success");
+    window.setTimeout(() => {
+      setSaveFeedback("");
+      onNextStep?.();
+    }, 850);
   }
   const column = columns[index];
   function choose(value) {
@@ -925,7 +941,9 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
   }
   if (savedAt) {
     return (
-      <section className="mx-auto max-w-5xl border border-green-200 bg-white p-6 text-center shadow-sm">
+      <>
+        <HourlySaveOverlay state={saveFeedback} />
+        <section className="mx-auto max-w-5xl border border-green-200 bg-white p-6 text-center shadow-sm">
         <CheckCircle2 size={46} className="mx-auto text-cicopal-green" />
         <p className="mt-4 text-xs font-bold uppercase tracking-wider text-cicopal-green">
           Registro confirmado
@@ -945,11 +963,14 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
           Voltar ao fluxo para iniciar produção
           <ArrowRight size={22} />
         </button>
-      </section>
+        </section>
+      </>
     );
   }
   return (
-    <section className="inspection-focus">
+    <>
+      <HourlySaveOverlay state={saveFeedback} />
+      <section className="inspection-focus">
       <aside className="inspection-progress">
         <p>{activeHour}</p>
         <strong>{index + 1}</strong>
@@ -1006,7 +1027,8 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
           </p>
         ) : null}
       </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -4026,6 +4048,12 @@ export function Rg005SubregistroForm({
             subregistro={{ ...subregistro, avaliacoes: [] }}
             groups={qualityChecklistGroups}
             onSave={saveQualityInspection}
+            onNextStep={() =>
+              window.dispatchEvent(
+                new CustomEvent("rg003-advance-process", { detail: {} }),
+              )
+            }
+            autoAdvanceAfterSave
             stepByStep
             flowTitle={`${isFocusedReinspection ? "Reinspeção das NCs" : "Inspeção da Qualidade"} · Rodada ${latestHygieneRound.numero}`}
             successTitle={isFocusedReinspection ? "Reinspeção das NCs registrada" : "Inspeção da Qualidade registrada"}
@@ -4045,6 +4073,12 @@ export function Rg005SubregistroForm({
           subregistro={subregistro}
           groups={config.checklistGroups}
           onSave={saveOperationalHygiene}
+          onNextStep={() =>
+            window.dispatchEvent(
+              new CustomEvent("rg003-advance-process", { detail: {} }),
+            )
+          }
+          autoAdvanceAfterSave
           stepByStep={isRg003}
           flowTitle="Execução da higienização · Operação"
           successTitle="Higienização enviada para a Qualidade"
