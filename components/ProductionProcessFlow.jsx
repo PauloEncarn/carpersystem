@@ -26,6 +26,7 @@ import { CicopalLogo } from "@/components/CicopalLogo";
 import {
   interruptWholeProduction,
   loadProductionTraceability,
+  loadPackerConfigurations,
   rectifyHourlyRecord,
   resumeWholeProduction,
   saveFixedHourlyRecord,
@@ -282,6 +283,29 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     loadProductionTraceability(cycle.id)
       .then(setTraceability)
       .catch(() => setTraceability(null));
+  }, [cycle?.id]);
+
+  useEffect(() => {
+    if (!cycle?.id) return undefined;
+    function refreshPackers(event) {
+      if (event.detail?.cycleId && event.detail.cycleId !== cycle.id) return;
+      loadPackerConfigurations(cycle.id)
+        .then((packers) =>
+          setTraceability((current) => ({ ...(current ?? {}), packers })),
+        )
+        .catch(() => {});
+    }
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") refreshPackers({ detail: {} });
+    }
+    window.addEventListener("production-packers-updated", refreshPackers);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const timer = window.setInterval(refreshWhenVisible, 60_000);
+    return () => {
+      window.removeEventListener("production-packers-updated", refreshPackers);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.clearInterval(timer);
+    };
   }, [cycle?.id]);
 
   function isUnlocked(code) {

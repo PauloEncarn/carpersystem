@@ -35,6 +35,10 @@ import {
   matchSpecification,
   specificationTone,
 } from "@/lib/productSpecifications";
+import {
+  loadProductionTraceability,
+  savePackerConfiguration,
+} from "@/lib/productionTraceabilityPersistence";
 
 const hours = Array.from(
   { length: 24 },
@@ -1407,6 +1411,9 @@ function ProductEvaluationTabletFlow({
   activeHour,
   onSave,
   initialConfiguration,
+  cycleId,
+  operatorId,
+  activeSlot,
 }) {
   const storageKey = `rg003-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
   const [activeCount, setActiveCount] = useState("");
@@ -1415,6 +1422,62 @@ function ProductEvaluationTabletFlow({
   const [view, setView] = useState("menu");
   const [generalResult, setGeneralResult] = useState(null);
   const [machineResults, setMachineResults] = useState({});
+  const [packerConfiguration, setPackerConfiguration] = useState([]);
+  const [packerLoading, setPackerLoading] = useState(Boolean(cycleId));
+  const [packerEditing, setPackerEditing] = useState(false);
+  const [packerEditConfirm, setPackerEditConfirm] = useState(false);
+  const [pendingMachineChange, setPendingMachineChange] = useState(null);
+  const [packerChangeReason, setPackerChangeReason] = useState("");
+  const [packerMessage, setPackerMessage] = useState("");
+  const [packerSaving, setPackerSaving] = useState(false);
+
+  async function refreshPackerConfiguration() {
+    if (!cycleId) {
+      setPackerLoading(false);
+      return;
+    }
+    setPackerLoading(true);
+    try {
+      const traceability = await loadProductionTraceability(cycleId);
+      const targetTime = activeSlot ? new Date(activeSlot).getTime() : Date.now();
+      const current = [1, 2, 3, 4].map((machine) => {
+        const saved = (traceability.packers ?? []).find((item) => {
+          if (item.maquina !== machine) return false;
+          const startsAt = new Date(item.vigente_desde).getTime();
+          const endsAt = item.vigente_ate
+            ? new Date(item.vigente_ate).getTime()
+            : Number.POSITIVE_INFINITY;
+          return startsAt <= targetTime && targetTime < endsAt;
+        });
+        return {
+          machine,
+          active: Boolean(saved?.ativa),
+          grammage: saved?.gramatura ?? "",
+        };
+      });
+      if (current.some((item) => item.active || item.grammage)) {
+        setPackerConfiguration(current);
+        setActiveCount(String(current.filter((item) => item.active).length));
+        setMachineGrams(
+          Object.fromEntries(
+            current.map((item) => [
+              machines[item.machine - 1]?.label,
+              item.grammage,
+            ]),
+          ),
+        );
+        setConfigured(true);
+      }
+    } catch (error) {
+      setPackerMessage(error?.message ?? "Não foi possível carregar as máquinas da Produção.");
+    } finally {
+      setPackerLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshPackerConfiguration();
+  }, [activeSlot, cycleId]);
   useEffect(() => {
     try {
       const saved = JSON.parse(
@@ -1430,7 +1493,12 @@ function ProductEvaluationTabletFlow({
       /* inicia uma configuração limpa */
     }
   }, [initialConfiguration, storageKey]);
-  const activeMachines = machines.slice(0, Number(activeCount || 0));
+  const productionConfigurationAvailable = packerConfiguration.length > 0;
+  const canChangeMachines =
+    !activeSlot || new Date(activeSlot).getTime() + 3600000 > Date.now();
+  const activeMachines = productionConfigurationAvailable
+    ? machines.filter((_, index) => packerConfiguration[index]?.active)
+    : machines.slice(0, Number(activeCount || 0));
   const allGramsDefined =
     activeMachines.length > 0 &&
     activeMachines.every((machine) => machineGrams[machine.label]);
@@ -1474,6 +1542,66 @@ function ProductEvaluationTabletFlow({
       },
     });
   }
+
+  async function confirmPackerConfigurationChange() {
+    if (!packerChangeReason.trim() || packerSaving) return;
+    setPackerSaving(true);
+    setPackerMessage("");
+    try {
+      const saved = await savePackerConfiguration(
+        cycleId,
+        packerConfiguration.map((item) => ({
+          machine: item.machine,
+          active: item.active,
+          grammage: item.grammage,
+        })),
+        operatorId,
+        `Qualidade: ${packerChangeReason.trim()}`,
+      );
+      setPackerConfiguration(
+        [1, 2, 3, 4].map((machine) => {
+          const item = saved?.find((entry) => entry.maquina === machine);
+          return {
+            machine,
+            active: Boolean(item?.ativa),
+            grammage: item?.gramatura ?? "",
+          };
+        }),
+      );
+      setPackerEditing(false);
+      setPackerChangeReason("");
+      setPackerMessage("Configuração sincronizada com a Produção.");
+      window.dispatchEvent(
+        new CustomEvent("production-packers-updated", {
+          detail: { cycleId },
+        }),
+      );
+    } catch (error) {
+      setPackerMessage(error?.message ?? "Não foi possível alterar as máquinas.");
+    } finally {
+      setPackerSaving(false);
+    }
+  }
+
+  if (packerLoading)
+    return (
+      <section className="grid min-h-56 place-items-center border border-blue-100 bg-white p-6 text-center">
+        <div>
+          <RotateCcw className="mx-auto animate-spin text-cicopal-blue" size={34} />
+          <h3 className="mt-3 text-xl font-bold">Carregando empacotadoras</h3>
+          <p className="mt-1 font-semibold text-gray-500">Sincronizando a configuração definida pela Produção.</p>
+        </div>
+      </section>
+    );
+
+  if (cycleId && !productionConfigurationAvailable)
+    return (
+      <section className="border-l-4 border-amber-500 bg-amber-50 p-5">
+        <h3 className="text-xl font-bold text-amber-950">Aguardando configuração da Produção</h3>
+        <p className="mt-2 font-semibold text-amber-800">A Produção deve informar inicialmente quais das quatro empacotadoras estão rodando. Depois disso, a Qualidade poderá avaliar e alterar a situação, quando necessário.</p>
+        <button type="button" onClick={refreshPackerConfiguration} className="mt-4 min-h-12 border border-amber-400 bg-white px-4 font-bold text-amber-900">Atualizar máquinas</button>
+      </section>
+    );
 
   if (!configured)
     return (
@@ -1620,11 +1748,72 @@ function ProductEvaluationTabletFlow({
         <button
           type="button"
           className="min-h-11 rounded-md border border-gray-300 bg-white px-4 font-bold"
-          onClick={() => setConfigured(false)}
+          onClick={() =>
+            productionConfigurationAvailable
+              ? setPackerEditConfirm(true)
+              : setConfigured(false)
+          }
+          disabled={productionConfigurationAvailable && !canChangeMachines}
         >
-          Alterar máquinas
+          {canChangeMachines
+            ? "Alterar situação das máquinas"
+            : "Histórico preservado"}
         </button>
       </div>
+      {productionConfigurationAvailable ? (
+        <div className="mt-4 border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase text-cicopal-blue">Sincronizado com o empacotamento</p>
+              <h4 className="text-lg font-bold">{activeMachines.length} de 4 máquinas rodando</h4>
+            </div>
+            <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
+          </div>
+          <div className="mx-auto mt-4 grid max-w-md grid-cols-2 grid-rows-2 gap-3">
+            {packerConfiguration.map((machine) => {
+              const position = {
+                1: "col-start-1 row-start-1",
+                2: "col-start-2 row-start-2",
+                3: "col-start-2 row-start-1",
+                4: "col-start-1 row-start-2",
+              }[machine.machine];
+              return (
+                <button
+                  key={machine.machine}
+                  type="button"
+                  disabled={!packerEditing}
+                  onClick={() =>
+                    setPendingMachineChange({
+                      machine: machine.machine,
+                      from: machine.active,
+                      to: !machine.active,
+                      at: new Date(),
+                    })
+                  }
+                  className={`${position} min-h-24 border-2 p-3 text-left disabled:cursor-default ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+                >
+                  <span className="text-xs font-bold uppercase">Máquina</span>
+                  <b className="block text-2xl">{machine.machine}</b>
+                  <span className="mt-2 block text-sm font-bold uppercase">{machine.active ? "● ON · Rodando" : "○ OFF · Parada"}</span>
+                </button>
+              );
+            })}
+          </div>
+          {packerEditing ? (
+            <div className="mx-auto mt-4 max-w-xl">
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold uppercase text-slate-500">Motivo da alteração pela Qualidade</span>
+                <textarea value={packerChangeReason} onChange={(event) => setPackerChangeReason(event.target.value)} className="min-h-20 w-full border border-slate-300 bg-white p-3" placeholder="Informe por que uma máquina foi ligada ou desligada" />
+              </label>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => { setPackerEditing(false); refreshPackerConfiguration(); }} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
+                <button type="button" disabled={!packerChangeReason.trim() || packerSaving} onClick={confirmPackerConfigurationChange} className="min-h-12 bg-cicopal-blue font-bold text-white disabled:bg-slate-300">{packerSaving ? "Salvando..." : "Confirmar alteração"}</button>
+              </div>
+            </div>
+          ) : null}
+          {packerMessage ? <p className="mx-auto mt-3 max-w-xl bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">{packerMessage}</p> : null}
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <button
           type="button"
@@ -1659,6 +1848,35 @@ function ProductEvaluationTabletFlow({
       >
         Confirmar avaliação completa de {activeHour}
       </button>
+      {packerEditConfirm ? (
+        <div className="fixed inset-0 z-[140] grid place-items-center bg-slate-950/60 p-4">
+          <section className="w-full max-w-lg border border-slate-200 bg-white p-5 shadow-2xl">
+            <p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto</p>
+            <h3 className="mt-1 text-2xl font-bold">Alterar máquinas em operação?</h3>
+            <p className="mt-3 text-slate-600">A mudança será compartilhada com o Empacotamento e valerá somente a partir da confirmação. Os horários anteriores permanecerão preservados.</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setPackerEditConfirm(false)} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
+              <button type="button" onClick={() => { setPackerEditConfirm(false); setPackerEditing(true); }} className="min-h-12 bg-amber-600 font-bold text-white">Continuar edição</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {pendingMachineChange ? (
+        <div className="fixed inset-0 z-[150] grid place-items-center bg-slate-950/60 p-4">
+          <section className="w-full max-w-lg border border-slate-200 bg-white p-5 shadow-2xl">
+            <p className="text-xs font-bold uppercase text-cicopal-blue">Confirmação da Máquina {pendingMachineChange.machine}</p>
+            <h3 className="mt-1 text-2xl font-bold">{pendingMachineChange.to ? "Confirmar retorno da máquina?" : "Confirmar parada da máquina?"}</h3>
+            <p className="mt-3 text-slate-600">Horário do evento: {pendingMachineChange.at.toLocaleString("pt-BR")}</p>
+            <div className={`mt-4 border-l-4 p-4 text-sm ${pendingMachineChange.to ? "border-green-500 bg-green-50 text-green-900" : "border-amber-500 bg-amber-50 text-amber-900"}`}>
+              {pendingMachineChange.to ? "A máquina será incluída somente nos próximos horários." : "O horário imediatamente posterior solicitará a última avaliação. Depois disso, a máquina ficará indisponível enquanto permanecer desligada."}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setPendingMachineChange(null)} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
+              <button type="button" onClick={() => { setPackerConfiguration((all) => all.map((item) => item.machine === pendingMachineChange.machine ? { ...item, active: pendingMachineChange.to } : item)); setPackerChangeReason(pendingMachineChange.to ? `Máquina ${pendingMachineChange.machine} retornou à operação` : `Máquina ${pendingMachineChange.machine} parou durante a produção`); setPendingMachineChange(null); }} className={`min-h-12 font-bold text-white ${pendingMachineChange.to ? "bg-green-600" : "bg-red-600"}`}>{pendingMachineChange.to ? "Confirmar ON" : "Confirmar OFF"}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -4197,8 +4415,11 @@ export function Rg005SubregistroForm({
               gramaturas={config.produtoOptions.gramaturas}
               registro={effectiveRegistro}
               activeHour={activeHourLabel}
+              activeSlot={activeHour}
               onSave={saveProcesso}
               initialConfiguration={latestMachineConfiguration}
+              cycleId={cycleContext?.id}
+              operatorId={effectiveRegistro.operadorId}
             />
           </div>
         ) : (
