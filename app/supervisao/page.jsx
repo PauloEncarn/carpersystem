@@ -15,10 +15,10 @@ import {
 export default function SupervisaoPage() {
   const [loggedUser, setLoggedUser] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
-  const [view, setView] = useState("classic");
+  const [view, setView] = useState("vector");
   useEffect(() => {
     setLoggedUser(loadUserSession());
-    setView(window.localStorage.getItem("carper_supervision_view") ?? "classic");
+    setView(window.localStorage.getItem("carper_supervision_view") ?? "vector");
     setSessionReady(true);
   }, []);
   function handleLogin(user) {
@@ -80,7 +80,7 @@ export default function SupervisaoPage() {
               <ImageIcon size={19} /> Planta clássica
             </button>
             <button type="button" onClick={() => { setView("vector"); window.localStorage.setItem("carper_supervision_view", "vector"); }} className={`inline-flex min-h-12 items-center gap-2 px-4 font-black ${view === "vector" ? "bg-cicopal-blue text-white" : "border border-gray-200 bg-gray-50 text-gray-600"}`}>
-              <Boxes size={19} /> Planta animada
+              <Boxes size={19} /> Planta profissional
             </button>
           </div>
         </section>

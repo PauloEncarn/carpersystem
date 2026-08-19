@@ -68,6 +68,103 @@
   }
 }
 
+/* Digital twin da supervisão: movimento restrito aos sinais operacionais. */
+.professional-factory {
+  isolation: isolate;
+  background: #07101f;
+}
+.professional-factory::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 18%, rgb(34 211 238 / 9%), transparent 28%),
+    linear-gradient(115deg, transparent 42%, rgb(255 255 255 / 3%) 50%, transparent 58%);
+}
+.professional-line {
+  background: linear-gradient(100deg, rgb(15 23 42 / 92%), rgb(15 23 42 / 72%));
+  transform: perspective(1000px) rotateX(0.7deg);
+}
+.professional-line::after {
+  content: "";
+  position: absolute;
+  inset: auto 2% 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+  opacity: 0.35;
+}
+.professional-line--blocked {
+  box-shadow: inset 0 0 0 1px rgb(244 63 94 / 52%), 0 16px 36px rgb(2 6 23 / 34%);
+}
+.professional-line--blocked::after {
+  background: linear-gradient(90deg, transparent, #f43f5e, transparent);
+  opacity: 0.9;
+  animation: professional-alert 1.5s ease-in-out infinite;
+}
+.professional-belt {
+  animation: professional-belt 1.15s linear infinite;
+}
+.professional-product-flow {
+  animation: professional-flow 5.75s linear infinite;
+  animation-delay: var(--line-delay);
+}
+.professional-machine-gear {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: professional-spin 2.2s linear infinite;
+}
+.professional-steam {
+  animation: professional-steam 2.4s ease-in-out infinite;
+}
+.professional-signal {
+  animation: professional-signal 1.6s ease-in-out infinite;
+}
+.professional-telemetry-track {
+  display: flex;
+  width: max-content;
+  animation: professional-telemetry 42s linear infinite;
+  animation-delay: var(--line-delay);
+}
+.professional-line:hover .professional-telemetry-track,
+.professional-line:focus-visible .professional-telemetry-track {
+  animation-play-state: paused;
+}
+@keyframes professional-belt {
+  to { stroke-dashoffset: -23; }
+}
+@keyframes professional-flow {
+  to { transform: translateX(135px); }
+}
+@keyframes professional-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes professional-steam {
+  0%, 100% { opacity: 0.15; transform: translateY(5px); }
+  50% { opacity: 0.9; transform: translateY(-4px); }
+}
+@keyframes professional-signal {
+  50% { opacity: 0.3; filter: drop-shadow(0 0 7px currentColor); }
+}
+@keyframes professional-alert {
+  50% { opacity: 0.25; }
+}
+@keyframes professional-telemetry {
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .professional-factory *,
+  .professional-line::after {
+    animation: none !important;
+  }
+  .professional-telemetry {
+    overflow-x: auto;
+  }
+  .professional-telemetry-track > [data-copy="true"] {
+    display: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

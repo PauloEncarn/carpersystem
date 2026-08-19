@@ -1039,7 +1039,204 @@ function Title({ icon, text }) {
   );
 }
 
-function VectorFactoryScene({
+function FactorySceneMetric({ label, value, tone = "slate" }) {
+  const color = tone === "green" ? "text-emerald-300" : tone === "cyan" ? "text-cyan-300" : "text-white";
+  return (
+    <span className="min-w-24 border-r border-white/10 px-4 py-3 text-center last:border-r-0">
+      <small className="block text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</small>
+      <b className={`mt-0.5 block text-xl tabular-nums ${color}`}>{value}</b>
+    </span>
+  );
+}
+
+const fallbackStages = {
+  PUR: ["Preparação", "Fritura", "Tempero", "Empacotamento"],
+  SAL: ["Extrusão", "Forno", "Aplicação", "Empacotamento"],
+  ROS: ["Masseira", "Formação", "Forno", "Empacotamento"],
+};
+
+function humanizeProductionKey(value) {
+  return String(value ?? "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toLocaleUpperCase("pt-BR"));
+}
+
+function formatProductionValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (typeof value === "number") return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  if (typeof value === "object") {
+    if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+    return Object.entries(value)
+      .map(([key, item]) => `${humanizeProductionKey(key)}: ${formatProductionValue(item)}`)
+      .join(" · ");
+  }
+  return String(value);
+}
+
+function productionTelemetry(line) {
+  const telemetry = [
+    { label: "Produto", value: line.cycle?.produto ?? "Sem produção" },
+    { label: "Status", value: statusLabel(line.cycle?.status) },
+    { label: "Registros hoje", value: line.records.length },
+    { label: "NCs abertas", value: line.ncs.length },
+    { label: "Qualidade em atenção", value: line.attentionParameters.length },
+  ];
+  if (line.cycle?.metadata?.productionCode)
+    telemetry.push({ label: "Código de produção", value: line.cycle.metadata.productionCode });
+  if (line.cycle?.hygieneRound)
+    telemetry.push({
+      label: `Higienização R${line.cycle.hygieneRound.numero}`,
+      value: humanizeProductionKey(line.cycle.hygieneRound.status),
+    });
+  (line.cycle?.productionProcesses ?? []).forEach((process) => {
+    telemetry.push({ label: process.nome, value: humanizeProductionKey(process.status) });
+    Object.entries(process.latestRecord?.valores ?? {}).forEach(([key, value]) => {
+      telemetry.push({
+        label: `${process.nome} · ${humanizeProductionKey(key)}`,
+        value: formatProductionValue(value),
+      });
+    });
+  });
+  const seenRecordMetrics = new Set();
+  line.records.forEach((record) => {
+    Object.entries(record.valores ?? {}).forEach(([key, value]) => {
+      const identity = `${record.contexto_tipo}:${key}`;
+      if (seenRecordMetrics.has(identity)) return;
+      seenRecordMetrics.add(identity);
+      telemetry.push({
+        label: `${humanizeProductionKey(record.contexto_tipo)} · ${humanizeProductionKey(key)}`,
+        value: formatProductionValue(value),
+      });
+    });
+  });
+  const productRecord = line.records.find((record) => record.contexto_tipo === "produto_avaliacao");
+  [...(productRecord?.valores?.apontamentos ?? []), ...(productRecord?.valores?.avaliacoes ?? [])].forEach((item) => {
+    telemetry.push({
+      label: `Qualidade · ${item.item ?? "Parâmetro"}`,
+      value: `${formatProductionValue(item.resultado ?? item.valor)}${item.unidade ? ` ${item.unidade}` : ""}`,
+    });
+  });
+  return telemetry;
+}
+
+function ProfessionalProductionLine({ line, index, focused, onSelect, onHover }) {
+  const visual = statusVisual(line.cycle?.status);
+  const processes = line.cycle?.productionProcesses?.length
+    ? line.cycle.productionProcesses
+    : fallbackStages[line.id].map((name, stageIndex) => ({ id: `${line.id}-${stageIndex}`, nome: name, status: "nao_iniciado" }));
+  const stages = processes.slice(0, 5);
+  const telemetry = productionTelemetry(line);
+  const isRunning = ["produzindo", "producing"].includes(line.cycle?.status);
+  const isBlocked = ["bloqueado", "blocked"].includes(line.cycle?.status);
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => onHover(line.id)}
+      onMouseLeave={() => onHover("")}
+      onFocus={() => onHover(line.id)}
+      onBlur={() => onHover("")}
+      onClick={() => onSelect(line.id)}
+      className={`professional-line group relative grid min-h-0 grid-cols-[190px_1fr] overflow-hidden rounded-2xl border text-left text-white transition duration-300 ${focused ? "-translate-y-1 border-cyan-300/80 shadow-[0_20px_48px_rgba(6,182,212,.22)]" : "border-white/10 shadow-[0_16px_36px_rgba(2,6,23,.34)]"} ${isBlocked ? "professional-line--blocked" : ""}`}
+      style={{ "--line-delay": `${index * -1.15}s` }}
+      aria-label={`Linha ${line.name}, ${statusLabel(line.cycle?.status)}. Abrir detalhes.`}
+    >
+      <span className="relative z-10 flex flex-col justify-between border-r border-white/10 bg-slate-950/90 p-4 backdrop-blur-xl">
+        <span>
+          <span className="flex items-center justify-between gap-2">
+            <small className="font-black uppercase tracking-[.18em] text-cyan-300">{rgByLine[line.id]}</small>
+            <i className={`size-2.5 rounded-full ${visual.dot} ${line.active ? "animate-pulse motion-reduce:animate-none" : ""}`} />
+          </span>
+          <strong className="mt-1 block text-xl">{line.name}</strong>
+          <span className="mt-1 block truncate text-xs font-bold text-slate-400">{line.cycle?.produto ?? "Sem produção programada"}</span>
+        </span>
+        <span className="flex items-end justify-between gap-2">
+          <span className="rounded-lg bg-white/5 px-2 py-1 text-[10px] font-black uppercase text-slate-300">{statusLabel(line.cycle?.status)}</span>
+          {line.ncs.length ? <b className="rounded-lg bg-rose-500 px-2 py-1 text-[10px]">{line.ncs.length} NC</b> : null}
+        </span>
+      </span>
+      <span className="relative min-w-0 bg-slate-900/[.78] backdrop-blur-md">
+        <span className="absolute inset-x-0 top-0 flex h-[calc(100%-42px)] items-center px-5">
+          <svg viewBox="0 0 820 122" className="h-full w-full overflow-visible" aria-hidden="true">
+            <defs>
+              <linearGradient id={`steel-${line.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop stopColor="#f8fafc" />
+                <stop offset=".48" stopColor="#94a3b8" />
+                <stop offset="1" stopColor="#334155" />
+              </linearGradient>
+            </defs>
+            <path d="M35 82H785" stroke="#0f172a" strokeWidth="18" />
+            <path className={isRunning ? "professional-belt" : ""} d="M35 76H785" stroke="#64748b" strokeWidth="9" strokeDasharray="13 10" />
+            <g className={isRunning ? "professional-product-flow" : ""} fill="#f7b928">
+              {[70, 205, 340, 475, 610].map((x) => <rect key={x} x={x} y="67" width="18" height="13" rx="4" />)}
+            </g>
+            {stages.map((process, stageIndex) => {
+              const x = 55 + stageIndex * (690 / Math.max(1, stages.length - 1));
+              const processRunning = process.status === "operando";
+              const processStopped = ["parado", "pausado", "bloqueado"].includes(process.status);
+              return (
+                <g key={process.id ?? process.nome} transform={`translate(${x} 0)`}>
+                  <ellipse cx="0" cy="101" rx="52" ry="9" fill="#020617" opacity=".45" />
+                  <path d="M-43 32h75l15 13v39h-90z" fill={`url(#steel-${line.id})`} stroke="#cbd5e1" strokeWidth="2" />
+                  <path d="m-43 32 17-12h74L32 32z" fill="#e2e8f0" stroke="#f8fafc" strokeWidth="2" />
+                  <rect x="-29" y="43" width="39" height="25" rx="4" fill="#15233a" stroke="#38bdf8" strokeOpacity=".5" />
+                  <circle className={processRunning ? "professional-machine-gear" : ""} cx="25" cy="55" r="11" fill="#334155" stroke="#e2e8f0" strokeWidth="3" strokeDasharray="4 3" />
+                  <circle cx="36" cy="31" r="5" fill={processStopped ? "#f43f5e" : processRunning ? "#34d399" : "#94a3b8"} className={processStopped || processRunning ? "professional-signal" : ""} />
+                  {processRunning ? <path className="professional-steam" d="M-17 18c-13-10 10-13-2-26M7 18C-6 8 17 5 5-8" fill="none" stroke="#bae6fd" strokeWidth="3" strokeLinecap="round" /> : null}
+                  <text x="0" y="116" textAnchor="middle" fill="#e2e8f0" fontSize="10" fontWeight="800">{process.nome.length > 18 ? `${process.nome.slice(0, 16)}…` : process.nome}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </span>
+        <span className="professional-telemetry absolute inset-x-0 bottom-0 h-[42px] overflow-hidden border-t border-white/10 bg-slate-950/[.88]">
+          <span className="professional-telemetry-track">
+            {[...telemetry, ...telemetry].map((metric, metricIndex) => (
+              <span data-copy={metricIndex >= telemetry.length ? "true" : undefined} key={`${metric.label}-${metricIndex}`} className="inline-flex h-[42px] shrink-0 items-center gap-2 border-r border-white/10 px-4 text-[10px]">
+                <b className="uppercase tracking-wider text-slate-500">{metric.label}</b>
+                <strong className="max-w-48 truncate text-slate-100">{metric.value}</strong>
+              </span>
+            ))}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function VectorFactoryScene({ lines, selectedId, hoveredId, onSelect, onHover }) {
+  const activeLines = lines.filter((line) => line.active).length;
+  const processTotal = lines.reduce((total, line) => total + (line.cycle?.productionProcesses?.length ?? 0), 0);
+  const operatingTotal = lines.reduce((total, line) => total + (line.cycle?.productionProcesses ?? []).filter((process) => process.status === "operando").length, 0);
+  return (
+    <div className="professional-factory relative mx-auto min-h-[760px] w-full overflow-hidden rounded-[26px] border border-slate-700/70 shadow-2xl lg:min-h-[850px]">
+      <svg className="absolute inset-0 size-full" viewBox="0 0 1200 820" preserveAspectRatio="none" role="img" aria-labelledby="professional-factory-title professional-factory-description">
+        <title id="professional-factory-title">Planta industrial Cicopal em tempo real</title>
+        <desc id="professional-factory-description">Visão operacional das linhas Pururuca, Salgadinho e Rosca, com fluxo, máquinas, estados, alertas e variáveis de produção.</desc>
+        <defs>
+          <linearGradient id="pro-floor" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#17233a" /><stop offset="1" stopColor="#07101f" /></linearGradient>
+          <linearGradient id="pro-wall" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#dbe7f4" /><stop offset="1" stopColor="#708098" /></linearGradient>
+          <pattern id="pro-grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0v48" fill="none" stroke="#5d7391" strokeOpacity=".14" /></pattern>
+        </defs>
+        <rect width="1200" height="820" fill="#07101f" />
+        <path d="M0 0h1200v165L0 310z" fill="url(#pro-wall)" opacity=".34" />
+        <path d="M0 310 1200 165v655H0z" fill="url(#pro-floor)" />
+        <path d="M0 310 1200 165v655H0z" fill="url(#pro-grid)" />
+        <g opacity=".56"><path d="M0 98 1200 12" stroke="#e2e8f0" strokeWidth="8" /><path d="M0 124 1200 38" stroke="#2563eb" strokeWidth="5" /><path d="M0 151 1200 65" stroke="#dc2626" strokeWidth="5" />{[120, 340, 560, 780, 1000].map((x) => <path key={x} d={`M${x} 0v178`} stroke="#9aa9bc" strokeWidth="7" />)}</g>
+        <g fill="none" stroke="#f7b928" strokeWidth="3" opacity=".45" strokeDasharray="16 12"><path d="m35 374 1080-133 50 104L90 478z" /><path d="m35 536 1080-105 50 104L90 640z" /><path d="m35 694 1080-72 50 104L90 798z" /></g>
+      </svg>
+      <div className="absolute inset-x-5 top-5 z-10 flex items-start justify-between gap-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/[.85] px-5 py-4 text-white shadow-2xl backdrop-blur-xl"><p className="text-[10px] font-black uppercase tracking-[.22em] text-cyan-300">Digital twin · operação em tempo real</p><strong className="mt-1 block text-xl">Chão de fábrica Cicopal</strong></div>
+        <div className="grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/[.85] text-white shadow-2xl backdrop-blur-xl"><FactorySceneMetric label="Linhas ativas" value={`${activeLines}/3`} tone="cyan" /><FactorySceneMetric label="Processos" value={processTotal} /><FactorySceneMetric label="Operando" value={operatingTotal} tone="green" /></div>
+      </div>
+      <div className="absolute inset-x-[3%] bottom-[3%] top-[15%] grid grid-rows-3 gap-3">
+        {lines.map((line, index) => <ProfessionalProductionLine key={line.id} line={line} index={index} focused={selectedId === line.id || hoveredId === line.id} onSelect={onSelect} onHover={onHover} />)}
+      </div>
+    </div>
+  );
+}
+
+function LegacyVectorFactoryScene({
   lines,
   selectedId,
   hoveredId,
