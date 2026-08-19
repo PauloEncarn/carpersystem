@@ -9,7 +9,9 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Cog,
   FileSignature,
+  Power,
   Plus,
   RotateCcw,
   Upload,
@@ -1223,7 +1225,6 @@ function MachineHourlySections({
   const currentMachine = activeMachines.find(
     (machine) => machine.label === selectedMachine,
   );
-
   function changeCount(value) {
     setActiveCount(value);
     setMachineGrams((current) =>
@@ -1773,14 +1774,8 @@ function ProductEvaluationTabletFlow({
             </div>
             <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
           </div>
-          <div className="mx-auto mt-4 grid max-w-md grid-cols-2 grid-rows-2 gap-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {packerConfiguration.map((machine) => {
-              const position = {
-                1: "col-start-1 row-start-1",
-                2: "col-start-2 row-start-2",
-                3: "col-start-2 row-start-1",
-                4: "col-start-1 row-start-2",
-              }[machine.machine];
               return (
                 <button
                   key={machine.machine}
@@ -1796,18 +1791,23 @@ function ProductEvaluationTabletFlow({
                       at: new Date(),
                     })
                   }
-                  className={`${position} min-h-28 border-2 p-3 text-left disabled:cursor-default disabled:opacity-60 ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+                  className={`group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-default disabled:hover:translate-y-0 ${machine.active ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-emerald-950" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-500"}`}
                 >
+                  <span className={`absolute inset-x-0 top-0 h-1 ${machine.active ? "bg-emerald-500" : "bg-slate-300"}`} />
                   <span className="flex items-start justify-between gap-3">
-                    <span>
-                      <span className="block text-xs font-bold uppercase">Máquina</span>
-                      <b className="block text-2xl">{machine.machine}</b>
+                    <span className={`grid size-11 place-items-center rounded-xl ${machine.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                      <Cog size={23} className={machine.active ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
                     </span>
-                    <span className={`relative mt-1 h-9 w-16 shrink-0 border-2 p-1 transition ${machine.active ? "border-green-600 bg-green-600" : "border-slate-400 bg-slate-300"}`}>
-                      <span className={`block size-6 bg-white shadow transition-transform ${machine.active ? "translate-x-7" : "translate-x-0"}`} />
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${machine.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                      <Power size={12} /> {machine.active ? "Em operação" : "Desligada"}
                     </span>
                   </span>
-                  <span className="mt-3 block text-sm font-black uppercase">{machine.active ? "ON · Rodando" : "OFF · Parada"}</span>
+                  <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Empacotadeira</span>
+                  <b className="mt-0.5 block text-2xl text-slate-950">Máquina {String(machine.machine).padStart(2, "0")}</b>
+                  <span className="mt-2 flex items-center justify-between border-t border-slate-200/80 pt-2 text-xs font-bold">
+                    <span className="text-slate-500">Gramatura</span>
+                    <strong className="text-cicopal-blue">{machine.grammage || "Não definida"}</strong>
+                  </span>
                 </button>
               );
             })}
@@ -1890,32 +1890,95 @@ function ProcessEvaluationTabletFlow({
   activeHour,
   onSave,
   initialConfiguration,
+  cycleId,
+  activeSlot,
 }) {
-  const storageKey = `rg003-machines-${registro?.cicloId ?? registro?.id ?? "current"}`;
   const [activeCount, setActiveCount] = useState("");
   const [machineGrams, setMachineGrams] = useState({});
   const [configured, setConfigured] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState("");
   const [machineResults, setMachineResults] = useState({});
+  const [packerConfiguration, setPackerConfiguration] = useState([]);
+  const [packerLoading, setPackerLoading] = useState(Boolean(cycleId));
+  const [packerConfiguredByProduction, setPackerConfiguredByProduction] =
+    useState(false);
+  const [packerMessage, setPackerMessage] = useState("");
   useEffect(() => {
-    try {
-      const saved = JSON.parse(
-        window.localStorage.getItem(storageKey) ?? "null",
-      );
-      const configuration = saved?.quantidade ? saved : initialConfiguration;
-      if (configuration?.quantidade) {
-        setActiveCount(String(configuration.quantidade));
-        setMachineGrams(configuration.gramaturas ?? {});
+    let cancelled = false;
+    async function synchronizePackers() {
+      setPackerLoading(Boolean(cycleId));
+      setPackerMessage("");
+      try {
+        const traceability = cycleId
+          ? await loadProductionTraceability(cycleId)
+          : { packers: [] };
+        if (cancelled) return;
+        const targetTime = activeSlot ? new Date(activeSlot).getTime() : Date.now();
+        let matchedConfiguration = false;
+        const current = [1, 2, 3, 4].map((machine) => {
+          const saved = (traceability.packers ?? []).find((item) => {
+            if (item.maquina !== machine) return false;
+            const startsAt = new Date(item.vigente_desde).getTime();
+            const endsAt = item.vigente_ate
+              ? new Date(item.vigente_ate).getTime()
+              : Number.POSITIVE_INFINITY;
+            return startsAt <= targetTime && targetTime < endsAt;
+          });
+          if (saved) matchedConfiguration = true;
+          return {
+            machine,
+            active: Boolean(saved?.ativa),
+            grammage: saved?.gramatura ?? "",
+          };
+        });
+        const fallbackCount = Math.min(
+          4,
+          Math.max(1, Number(initialConfiguration?.quantidade) || 4),
+        );
+        const configuration = matchedConfiguration
+          ? current
+          : [1, 2, 3, 4].map((machine) => ({
+              machine,
+              active: machine <= fallbackCount,
+              grammage:
+                initialConfiguration?.gramaturas?.[machines[machine - 1]?.label] ?? "",
+            }));
+        setPackerConfiguration(configuration);
+        setPackerConfiguredByProduction(matchedConfiguration);
+        setActiveCount(String(configuration.filter((item) => item.active).length));
+        setMachineGrams(
+          Object.fromEntries(
+            configuration.map((item) => [
+              machines[item.machine - 1]?.label,
+              item.grammage,
+            ]),
+          ),
+        );
         setConfigured(true);
+      } catch (error) {
+        if (!cancelled)
+          setPackerMessage(
+            error?.message ??
+              "Não foi possível sincronizar as empacotadeiras da Produção.",
+          );
+      } finally {
+        if (!cancelled) setPackerLoading(false);
       }
-    } catch {
-      /* configuração será solicitada novamente */
     }
-  }, [initialConfiguration, storageKey]);
-  const activeMachines = machines.slice(0, Number(activeCount || 0));
+    synchronizePackers();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSlot, cycleId, initialConfiguration, machines]);
+  const activeMachines = packerConfiguration.length
+    ? machines.filter((_, index) => packerConfiguration[index]?.active)
+    : machines.slice(0, Number(activeCount || 0));
   const currentMachine = activeMachines.find(
     (machine) => machine.label === selectedMachine,
   );
+  const currentMachineNumber = currentMachine
+    ? machines.findIndex((machine) => machine.label === currentMachine.label) + 1
+    : 0;
   const allGramsDefined =
     activeMachines.length > 0 &&
     activeMachines.every((machine) => machineGrams[machine.label]);
@@ -1930,13 +1993,6 @@ function ProcessEvaluationTabletFlow({
 
   function confirmSetup() {
     if (!allGramsDefined) return;
-    window.localStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        quantidade: Number(activeCount),
-        gramaturas: machineGrams,
-      }),
-    );
     setConfigured(true);
     setSelectedMachine(activeMachines[0]?.label ?? "");
   }
@@ -1953,6 +2009,18 @@ function ProcessEvaluationTabletFlow({
       },
     });
   }
+  if (packerLoading)
+    return (
+      <section className="grid min-h-56 place-items-center rounded-2xl border border-blue-100 bg-white p-6 text-center shadow-sm">
+        <div>
+          <RotateCcw className="mx-auto animate-spin text-cicopal-blue" size={34} />
+          <h3 className="mt-3 text-xl font-black">Sincronizando empacotadeiras</h3>
+          <p className="mt-1 font-semibold text-gray-500">
+            Consultando a configuração vigente para este horário.
+          </p>
+        </div>
+      </section>
+    );
   if (!configured)
     return (
       <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
@@ -2042,7 +2110,7 @@ function ProcessEvaluationTabletFlow({
         </button>
         <MachineEvaluationWizard
           key={`${activeHour}-${currentMachine.label}`}
-          title={`Avaliação do processo · Máquina ${activeMachines.indexOf(currentMachine) + 1} · ${machineGrams[currentMachine.label]}`}
+          title={`Avaliação do processo · Máquina ${currentMachineNumber} · ${machineGrams[currentMachine.label]}`}
           machines={[currentMachine]}
           activeHour={activeHour}
           onSave={(payload) => {
@@ -2079,36 +2147,52 @@ function ProcessEvaluationTabletFlow({
             {completedCount} de {activeMachines.length} máquinas avaliadas
           </p>
         </div>
-        <button
-          type="button"
-          className="min-h-11 rounded-xl border border-gray-300 bg-white px-4 font-bold"
-          onClick={() => setConfigured(false)}
-        >
-          Alterar configuração
-        </button>
+        <span className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-black ${packerConfiguredByProduction ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+          <CheckCircle2 size={17} />
+          {packerConfiguredByProduction
+            ? "Sincronizado com a Produção"
+            : "Configuração de contingência"}
+        </span>
       </header>
-      <div className="grid gap-3 p-5 sm:grid-cols-2">
+      {packerMessage ? (
+        <p className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-900">
+          {packerMessage}
+        </p>
+      ) : null}
+      <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
         {activeMachines.map((machine, index) => {
           const done = Boolean(machineResults[machine.label]);
+          const pending = nextPendingMachine?.label === machine.label;
+          const machineNumber = packerConfiguration.findIndex(
+            (item) => item.active && machines[item.machine - 1]?.label === machine.label,
+          );
           return (
             <button
               key={machine.label}
               type="button"
-              className={`min-h-28 rounded-xl border-2 p-4 text-left transition ${done ? "border-green-300 bg-green-50 opacity-70" : nextPendingMachine?.label === machine.label ? "border-cicopal-blue bg-blue-50 ring-4 ring-blue-100" : "border-gray-200 bg-gray-50"}`}
+              className={`group relative min-h-44 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${done ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : pending ? "border-blue-400 bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : "border-slate-200 bg-gradient-to-br from-white to-slate-50"}`}
               onClick={() => setSelectedMachine(machine.label)}
             >
-              <span className="flex items-center justify-between">
-                <strong className="text-xl text-gray-950">
-                  Máquina {index + 1}
-                </strong>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-black ${done ? "bg-green-100 text-cicopal-green" : "bg-amber-100 text-amber-800"}`}
-                >
-                  {done ? "Concluída" : "Pendente"}
+              <span className={`absolute inset-x-0 top-0 h-1 ${done ? "bg-emerald-500" : pending ? "bg-blue-600" : "bg-amber-400"}`} />
+              <span className="flex items-start justify-between gap-3">
+                <span className={`grid size-11 place-items-center rounded-xl ${done ? "bg-emerald-100 text-emerald-700" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-slate-100 text-slate-500"}`}>
+                  {done ? <Check size={23} /> : <Cog size={23} />}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${done ? "bg-emerald-100 text-emerald-800" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-amber-100 text-amber-800"}`}>
+                  {done ? "Concluída" : pending ? "Próxima" : "Pendente"}
                 </span>
               </span>
-              <span className="mt-2 block font-bold text-cicopal-blue">
-                {machineGrams[machine.label]}
+              <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">
+                Empacotadeira
+              </span>
+              <strong className="mt-0.5 block text-2xl text-gray-950">
+                Máquina {String(machineNumber >= 0 ? machineNumber + 1 : index + 1).padStart(2, "0")}
+              </strong>
+              <span className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs font-bold">
+                <span className="text-slate-500">Gramatura</span>
+                <strong className="text-cicopal-blue">
+                  {machineGrams[machine.label] || "Não definida"}
+                </strong>
               </span>
             </button>
           );
@@ -4538,8 +4622,10 @@ export function Rg005SubregistroForm({
             gramaturas={config.produtoOptions.gramaturas}
             registro={effectiveRegistro}
             activeHour={activeHourLabel}
+            activeSlot={activeHour}
             onSave={saveProcesso}
             initialConfiguration={latestMachineConfiguration}
+            cycleId={cycleContext?.id}
           />
         ) : (
           <MachineHourlySections
