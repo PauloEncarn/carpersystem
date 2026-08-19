@@ -829,9 +829,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   ? "Corte a fio"
                   : workspace === "oven"
                     ? "Forno"
-                    : workspace === "pack"
+                  : workspace === "pack"
                       ? "Empacotamento"
-                      : "Apontamentos do processo"}
+                      : "Encaixotamento"}
               </h2>
             </div>
             {activeWindow ? (
@@ -861,7 +861,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             )}
           </header>
 
-          {["cut", "oven", "pack"].includes(workspace) ? (
+          {["cut", "oven", "pack", "box"].includes(workspace) ? (
             <section className="mt-5 border-y border-slate-200 py-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-bold">Horários da produção</h3>
@@ -873,7 +873,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                           ? "corte_fio"
                           : workspace === "oven"
                             ? "forno"
-                            : "empacotamento",
+                            : workspace === "pack"
+                              ? "empacotamento"
+                              : "encaixotamento",
                       ).some(
                         (record) => sameInstant(record.horario_previsto, slot),
                       ),
@@ -887,7 +889,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ? "corte_fio"
                       : workspace === "oven"
                         ? "forno"
-                        : "empacotamento";
+                        : workspace === "pack"
+                          ? "empacotamento"
+                          : "encaixotamento";
                   const record = recordsFor(processCode).find(
                     (item) => sameInstant(item.horario_previsto, slot),
                   );
