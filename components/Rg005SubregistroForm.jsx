@@ -3558,7 +3558,15 @@ export function Rg005SubregistroForm({
       loadOpenCycleNcs(cycleContext.id, "higienizacao"),
     ]);
     setHygieneRounds(rounds);
-    setOpenPrerequisiteNcs(openNcs);
+    setOpenPrerequisiteNcs(
+      openNcs.filter(
+        (nc) =>
+          nc.metadata?.bloqueante !== false &&
+          !String(nc.metadata?.grupo ?? "")
+            .toLocaleUpperCase("pt-BR")
+            .includes("SEM CONTATO COM O PRODUTO"),
+      ),
+    );
   }
 
   async function saveOperationalHygiene(payload) {
@@ -3583,26 +3591,44 @@ export function Rg005SubregistroForm({
   }
 
   async function saveQualityInspection(payload) {
+    const classifiedNcs = (payload.ncs ?? []).map((nc) => ({
+      ...nc,
+      bloqueante: !String(nc.grupo ?? "")
+        .toLocaleUpperCase("pt-BR")
+        .includes("SEM CONTATO COM O PRODUTO"),
+    }));
+    const blockingNcs = classifiedNcs.filter((nc) => nc.bloqueante);
+    const inspectionPayload = { ...payload, ncs: classifiedNcs };
     if (!(await requestConfirmation({
-      title: (payload.ncs ?? []).length ? "Confirmar reprovação da higienização?" : "Aprovar higienização?",
-      description: (payload.ncs ?? []).length
+      title: blockingNcs.length
+        ? "Confirmar reprovação da higienização?"
+        : classifiedNcs.length
+          ? "Aprovar com NC não bloqueante?"
+          : "Aprovar higienização?",
+      description: blockingNcs.length
         ? "A rodada será devolvida para correção e a próxima etapa continuará bloqueada."
-        : "A Higienização será liberada e a etapa de Liberação do Produto ficará disponível.",
-      confirmLabel: (payload.ncs ?? []).length ? "Devolver para correção" : "Aprovar higienização",
+        : classifiedNcs.length
+          ? "As NCs sem contato com o produto serão registradas com foto, mas não impedirão o avanço para a Liberação do Produto."
+          : "A Higienização será liberada e a etapa de Liberação do Produto ficará disponível.",
+      confirmLabel: blockingNcs.length
+        ? "Devolver para correção"
+        : "Aprovar higienização",
     }))) return false;
     const inspected = await inspectHygieneRound({
       round: latestHygieneRound,
       operatorId: effectiveRegistro.operadorId,
-      payload,
+      payload: inspectionPayload,
     });
-    if ((payload.ncs ?? []).length) {
+    if (classifiedNcs.length) {
       await persistChecklistCycleNcs({
         cycle: cycleContext,
         operatorId: effectiveRegistro.operadorId,
         operatorName: effectiveRegistro.operador,
         processType: "higienizacao",
-        ncs: payload.ncs.map((nc) => ({ ...nc, rodadaId: inspected?.id, rodada: inspected?.numero })),
+        ncs: classifiedNcs.map((nc) => ({ ...nc, rodadaId: inspected?.id, rodada: inspected?.numero })),
       });
+    }
+    if (blockingNcs.length) {
       await refreshHygieneWorkflow();
       return true;
     }

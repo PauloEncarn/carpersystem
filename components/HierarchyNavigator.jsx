@@ -357,7 +357,14 @@ function Rg003ProcessFlow({
     !records.some(
       (record) =>
         record.processoId === "higienizacao" &&
-        record.subregistros?.some((item) => (item.ncs ?? []).length > 0),
+        record.subregistros?.some((item) =>
+          (item.ncs ?? []).some(
+            (nc) =>
+              !String(nc.grupo ?? "")
+                .toLocaleUpperCase("pt-BR")
+                .includes("SEM CONTATO COM O PRODUTO"),
+          ),
+        ),
     );
   const releaseOk = hasSaved("produto_liberacao");
   const nodes = order.map((id, index) => ({
@@ -442,7 +449,7 @@ function Rg003ProcessFlow({
       </div>
       {!hygieneOk ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
-          Conclua a higienização sem NC para liberar a próxima etapa.
+          Conclua a higienização sem NC bloqueante para liberar a próxima etapa.
         </p>
       ) : !releaseOk ? (
         <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">
@@ -487,7 +494,14 @@ function ProgressiveRg003Flow({
     !records.some(
       (record) =>
         record.processoId === "higienizacao" &&
-        record.subregistros?.some((item) => (item.ncs ?? []).length),
+        record.subregistros?.some((item) =>
+          (item.ncs ?? []).some(
+            (nc) =>
+              !String(nc.grupo ?? "")
+                .toLocaleUpperCase("pt-BR")
+                .includes("SEM CONTATO COM O PRODUTO"),
+          ),
+        ),
     );
   const releaseOk = hasSaved("produto_liberacao");
   const nodes = ids.map((id, index) => ({
@@ -575,7 +589,7 @@ function ProgressiveRg003Flow({
       <div className="mt-4 text-center">
         {!hygieneOk ? (
           <p className="text-sm font-bold text-amber-800">
-            Próxima ação: concluir a higienização sem NC.
+            Próxima ação: concluir a higienização sem NC bloqueante.
           </p>
         ) : !releaseOk ? (
           <p className="text-sm font-bold text-cicopal-blue">

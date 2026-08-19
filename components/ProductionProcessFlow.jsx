@@ -45,6 +45,8 @@ const fmt = (value) =>
         minute: "2-digit",
       })
     : "—";
+const sameInstant = (left, right) =>
+  Boolean(left && right) && new Date(left).getTime() === new Date(right).getTime();
 const validValue = (value) =>
   value !== undefined && value !== null && value !== "";
 function remaining(end, now) {
@@ -218,12 +220,23 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const openInterruption = traceability?.interruptions?.find(
     (item) => !item.encerrada_em,
   );
+  const firstBatchStartedAt = traceability?.batches?.length
+    ? traceability.batches.reduce((earliest, batch) => {
+        if (!earliest) return batch.iniciada_em;
+        return new Date(batch.iniciada_em) < new Date(earliest)
+          ? batch.iniciada_em
+          : earliest;
+      }, null)
+    : null;
   const fixedSlots = useMemo(() => {
-    const start = new Date(cycle.productionStartedAt);
+    if (!firstBatchStartedAt) return [];
+    const start = new Date(firstBatchStartedAt);
     start.setMinutes(0, 0, 0);
-    if (start < new Date(cycle.productionStartedAt))
+    if (start < new Date(firstBatchStartedAt))
       start.setHours(start.getHours() + 1);
-    const end = new Date(now);
+    const end = new Date(
+      cycle.productionEndedAt ?? cycle.endedAt ?? now,
+    );
     end.setMinutes(0, 0, 0);
     const slots = [];
     for (
@@ -233,7 +246,12 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     )
       slots.push(cursor.toISOString());
     return slots;
-  }, [cycle.productionStartedAt, now.getHours()]);
+  }, [
+    firstBatchStartedAt,
+    cycle.productionEndedAt,
+    cycle.endedAt,
+    now.getHours(),
+  ]);
 
   useEffect(() => {
     if (!cycle?.id) return;
@@ -275,7 +293,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const processRecords = recordsFor(code);
     const requestedRecord = requestedSlot
       ? processRecords.find(
-          (record) => record.horario_previsto === requestedSlot,
+          (record) => sameInstant(record.horario_previsto, requestedSlot),
         )
       : null;
     const existing = requestedRecord ?? processRecords[0];
@@ -285,7 +303,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         : requestedSlot
       : fixedSlots.find(
           (slot) =>
-            !processRecords.some((record) => record.horario_previsto === slot),
+            !processRecords.some((record) =>
+              sameInstant(record.horario_previsto, slot),
+            ),
         );
     const filledWindow =
       cfg?.frequency === "hourly" && !pending && Boolean(existing);
@@ -549,7 +569,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const pendingCount = fixedSlots.filter(
       (slot) =>
         !recordsFor(item.code).some(
-          (record) => record.horario_previsto === slot,
+          (record) => sameInstant(record.horario_previsto, slot),
         ),
     ).length;
     const filledCurrent =
@@ -791,7 +811,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                             ? "forno"
                             : "empacotamento",
                       ).some(
-                        (record) => record.horario_previsto === slot,
+                        (record) => sameInstant(record.horario_previsto, slot),
                       ),
                   ).length} pendente(s)
                 </span>
@@ -805,7 +825,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         ? "forno"
                         : "empacotamento";
                   const record = recordsFor(processCode).find(
-                    (item) => item.horario_previsto === slot,
+                    (item) => sameInstant(item.horario_previsto, slot),
                   );
                   const isCurrent = index === fixedSlots.length - 1;
                   return (
