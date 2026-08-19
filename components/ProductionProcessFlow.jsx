@@ -309,6 +309,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   }, [cycle?.id]);
 
   function isUnlocked(code) {
+    if (cycle?.status === "blocked") return false;
     if (["automacao", "masseira"].includes(code)) return true;
     return Boolean(activeBatch);
   }
@@ -654,13 +655,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     );
   }
 
-  if (!cycle?.productionStartedAt)
+  if (cycle?.status === "hygiene")
     return (
       <section className="border bg-gray-50 p-6 text-center">
         <Factory className="mx-auto text-gray-400" />
         <h3 className="mt-2 text-lg font-black">Apontamentos da produção</h3>
         <p className="font-semibold text-gray-500">
-          Disponíveis após iniciar a produção.
+          Disponíveis após a aprovação da higienização.
         </p>
       </section>
     );

@@ -1566,6 +1566,16 @@ function Rg003ProductionControl({
     };
   }, [dateId, lineId, cycle?.id, cycle?.status]);
 
+  useEffect(() => {
+    function syncCycleFromProcess(event) {
+      if (!event.detail || event.detail.id !== cycle?.id) return;
+      setCycle(event.detail);
+    }
+    window.addEventListener("rg003-cycle-updated", syncCycleFromProcess);
+    return () =>
+      window.removeEventListener("rg003-cycle-updated", syncCycleFromProcess);
+  }, [cycle?.id]);
+
   function store(next) {
     setCycle(next);
     if (next) window.localStorage.setItem(storageKey, JSON.stringify(next));
@@ -1779,17 +1789,22 @@ function Rg003ProductionControl({
     return <div className="min-h-72 animate-pulse rounded-lg bg-gray-100" />;
   const hygieneDone = cycle && cycle.status !== "hygiene";
   const releaseDone =
-    cycle && ["ready", "producing", "blocked"].includes(cycle.status);
+    Boolean(
+      cycle?.productReleasedAt ||
+        cycle?.metadata?.productReleasedAt ||
+        cycle?.status === "ready",
+    );
   const producing = cycle?.status === "producing";
   const canCancelPreparation =
     Boolean(cycle) &&
+    !cycle.productionStartedAt &&
     ["hygiene", "awaiting_release", "ready"].includes(cycle.status);
   const statusText = !cycle
     ? "Aguardando preparação"
-    : cycle.status === "hygiene"
-      ? "Higienização pendente"
+      : cycle.status === "hygiene"
+        ? "Higienização pendente"
       : cycle.status === "awaiting_release"
-        ? "Liberação pendente"
+        ? "Preparação liberada · produto aguardando análise"
         : cycle.status === "ready"
           ? "Pronto para iniciar"
           : cycle.status === "blocked"
@@ -1877,7 +1892,7 @@ function Rg003ProductionControl({
               {cycle?.status === "hygiene"
                 ? "Tempo de higienização"
                 : cycle?.status === "awaiting_release"
-                  ? "Tempo de liberação"
+                  ? "Aguardando início da primeira massa"
                   : cycle?.status === "ready"
                     ? "Produção ainda não iniciada"
                     : "Tempo total de produção"}
@@ -2021,7 +2036,7 @@ function Rg003ProductionControl({
           <section className="production-app-card bg-white p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
             <p className="text-xs font-bold uppercase text-gray-500">
-              Preparação da linha ·{" "}
+              Qualidade e continuidade ·{" "}
               {cycle.productionCode ||
                 makeRg003ProductionCode(
                   cycle.product,
@@ -2041,8 +2056,8 @@ function Rg003ProductionControl({
                 </span>
                 <span className="mt-1 block text-sm font-semibold">
                   {hygieneDone
-                    ? "Registro único · toque para visualizar"
-                    : "Registro único obrigatório antes de iniciar"}
+                    ? "Preparação da massa e processos liberados"
+                    : "Obrigatória antes de preparar a primeira massa"}
                 </span>
               </button>
               <button
@@ -2058,7 +2073,9 @@ function Rg003ProductionControl({
                   {releaseDone
                     ? "Registro único · toque para visualizar"
                     : hygieneDone
-                      ? "Um registro para toda a produção"
+                      ? cycle.productionStartedAt
+                        ? "Amostra em análise · a produção continua"
+                        : "Pode ser realizada durante a preparação"
                       : "Aguardando higienização"}
                 </span>
               </button>
@@ -2082,18 +2099,15 @@ function Rg003ProductionControl({
             <div className="mt-5 flex items-center justify-center">
               <button
                 type="button"
-                disabled={!releaseDone && !producing}
+                disabled={!producing && !(cycle?.status === "blocked" && cycle?.activePause)}
                 onClick={() =>
                   producing
                     ? setStopOpen(true)
                     : cycle?.status === "blocked" && cycle?.activePause
                       ? setResumeOpen(true)
-                    : transition("producing", "Produção iniciada", {
-                        productionStartedAt: new Date().toISOString(),
-                        activeAction: null,
-                      })
+                      : undefined
                 }
-                className={`grid size-28 place-items-center rounded-full border-8 text-white shadow-2xl transition active:scale-95 ${producing ? "border-red-200/40 bg-cicopal-red" : releaseDone ? "border-white/30 bg-white text-cicopal-blue" : "border-gray-300/30 bg-gray-500"}`}
+                className={`grid size-28 place-items-center rounded-full border-8 text-white shadow-2xl transition active:scale-95 ${producing ? "border-red-200/40 bg-cicopal-red" : cycle?.status === "blocked" ? "border-amber-200/40 bg-amber-500" : "border-gray-300/30 bg-gray-500"}`}
               >
                 {producing ? (
                   <Square size={38} fill="currentColor" />
@@ -2107,9 +2121,11 @@ function Rg003ProductionControl({
                 ? "Parar produção"
                 : cycle?.status === "blocked" && cycle?.activePause
                   ? "Retomar produção"
-                : releaseDone
-                  ? "Iniciar produção"
-                  : "Aguardando pré-requisitos"}
+                : cycle?.status === "blocked" && cycle?.activePause
+                  ? "Retomar produção"
+                  : hygieneDone
+                    ? "Aguardando preparo da primeira massa"
+                    : "Aguardando higienização"}
             </p>
             {canCancelPreparation ? (
               <button

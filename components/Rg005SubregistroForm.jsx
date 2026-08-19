@@ -963,7 +963,7 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
           Liberação do produto gravada
         </h2>
         <p className="mt-2 font-semibold text-gray-500">
-          Confirmada às {savedAt}. A etapa seguinte está disponível no fluxo.
+          Confirmada às {savedAt}. A continuidade da produção foi autorizada.
           Para alterar este registro, use “Editar registro”.
         </p>
         <button
@@ -3947,7 +3947,7 @@ export function Rg005SubregistroForm({
       !(await requestConfirmation({
         title: "Liberar produto?",
         description:
-          "Ao confirmar, a liberação será registrada e a produção ficará disponível para início.",
+          "Ao confirmar, a liberação autorizará a continuidade da produção. O início real permanece vinculado ao preparo da primeira massa.",
         confirmLabel: "Liberar produto",
       }))
     )
@@ -4022,6 +4022,45 @@ export function Rg005SubregistroForm({
         });
       } catch {}
       setOpenPrerequisiteNcs(savedNcs);
+      if (subregistro.id === "produto_liberacao") {
+        try {
+          const cycle = JSON.parse(
+            window.localStorage.getItem(cycleStorageKey) ?? "null",
+          );
+          if (cycle) {
+            const nextCycle = {
+              ...cycle,
+              status: "blocked",
+              stageStartedAt: new Date().toISOString(),
+              events: [
+                ...(cycle.events ?? []),
+                {
+                  id: `liberacao-nc-${Date.now()}`,
+                  label: "Produto não liberado · produção bloqueada pela Qualidade",
+                  at: new Date().toISOString(),
+                  operator: effectiveRegistro.operador,
+                },
+              ],
+            };
+            window.localStorage.setItem(
+              cycleStorageKey,
+              JSON.stringify(nextCycle),
+            );
+            window.dispatchEvent(
+              new CustomEvent("rg003-cycle-updated", { detail: nextCycle }),
+            );
+            await persistCycleTransition({
+              cycle: nextCycle,
+              status: "blocked",
+              description:
+                "Produto não liberado · produção bloqueada pela Qualidade",
+              operatorId: effectiveRegistro.operadorId,
+              operatorName: effectiveRegistro.operador,
+              activeAction: null,
+            });
+          }
+        } catch {}
+      }
     }
     if (
       isRg003 &&
@@ -4077,17 +4116,26 @@ export function Rg005SubregistroForm({
           window.localStorage.getItem(storageKey) ?? "null",
         );
         if (cycle) {
+          const releasedAt = new Date().toISOString();
+          const nextStatus = cycle.productionStartedAt
+            ? "producing"
+            : "awaiting_release";
           const nextCycle = {
             ...cycle,
-            status: "ready",
-            stageStartedAt: new Date().toISOString(),
+            status: nextStatus,
+            productReleasedAt: releasedAt,
+            metadata: {
+              ...(cycle.metadata ?? {}),
+              productReleasedAt: releasedAt,
+            },
+            stageStartedAt: releasedAt,
             timings: { ...(cycle.timings ?? {}), releaseMs: Math.max(0, Date.now() - new Date(cycle.stageStartedAt ?? cycle.startedAt).getTime()) },
             events: [
               ...(cycle.events ?? []),
               {
                 id: `liberacao-${Date.now()}`,
-                label: "Produto liberado para início",
-                at: new Date().toISOString(),
+                label: "Produto liberado para continuidade da produção",
+                at: releasedAt,
                 operator: effectiveRegistro.operador,
               },
             ],
@@ -4098,8 +4146,8 @@ export function Rg005SubregistroForm({
           );
           await persistCycleTransition({
             cycle: nextCycle,
-            status: "ready",
-            description: "Produto liberado para início",
+            status: nextStatus,
+            description: "Produto liberado para continuidade da produção",
             operatorId: effectiveRegistro.operadorId,
             operatorName: effectiveRegistro.operador,
             activeAction: null,
@@ -4178,13 +4226,26 @@ export function Rg005SubregistroForm({
     const cycle = JSON.parse(window.localStorage.getItem(cycleStorageKey) ?? "null");
     if (!cycle) return;
     const hygiene = subregistro.id === "higienizacao";
-    const status = hygiene ? "awaiting_release" : "ready";
+    const status = hygiene
+      ? "awaiting_release"
+      : cycle.productionStartedAt
+        ? "producing"
+        : "awaiting_release";
     const description = hygiene
       ? "Higienização liberada após resolução das NCs"
       : "Produto liberado após resolução das NCs";
     const nextCycle = {
       ...cycle,
       status,
+      ...(!hygiene
+        ? {
+            productReleasedAt: new Date().toISOString(),
+            metadata: {
+              ...(cycle.metadata ?? {}),
+              productReleasedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
       stageStartedAt: new Date().toISOString(),
       timings: {
         ...(cycle.timings ?? {}),

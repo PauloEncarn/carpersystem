@@ -9,6 +9,7 @@ import {
   savePackerConfiguration,
   startBatchConsumption,
 } from "@/lib/productionTraceabilityPersistence";
+import { persistCycleTransition } from "@/lib/rg003Persistence";
 
 export function ProductionTraceabilitySetup({
   cycle,
@@ -174,6 +175,12 @@ export function ProductionTraceabilitySetup({
       });
   }
   async function addBatch() {
+    if (cycle.status === "blocked") {
+      setMessage(
+        "Produção bloqueada pela Qualidade. Resolva a não conformidade antes de preparar outra massa.",
+      );
+      return;
+    }
     const inputs = inputsForBatch();
     if (inputs.some((item) => !item.lot || !item.expiry))
       return setMessage("Informe lote e validade de todos os insumos.");
@@ -185,6 +192,38 @@ export function ProductionTraceabilitySetup({
         inputs,
         userId: operatorId,
       });
+      if (!cycle.productionStartedAt) {
+        const productionStartedAt = new Date().toISOString();
+        const nextCycle = {
+          ...cycle,
+          status: "producing",
+          productionStartedAt,
+          stageStartedAt: productionStartedAt,
+          events: [
+            ...(cycle.events ?? []),
+            {
+              id: `massa-${Date.now()}`,
+              label: "Produção iniciada com o preparo da primeira massa",
+              at: productionStartedAt,
+            },
+          ],
+        };
+        window.localStorage.setItem(
+          "carper_rg003_cycle_ROS",
+          JSON.stringify(nextCycle),
+        );
+        window.dispatchEvent(
+          new CustomEvent("rg003-cycle-updated", { detail: nextCycle }),
+        );
+        await persistCycleTransition({
+          cycle: nextCycle,
+          status: "producing",
+          description: "Produção iniciada com o preparo da primeira massa",
+          operatorId,
+          operatorName: "",
+          activeAction: null,
+        });
+      }
       await reload();
       setBatchOpen(false);
       setBatchReview(false);
