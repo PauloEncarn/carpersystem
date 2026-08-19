@@ -3068,21 +3068,8 @@ export function HierarchyNavigator({
       onStepChange(4);
       return;
     }
-    if (currentStep === 4 && sequentialFlow) {
-      let activeCycle = null;
-      try {
-        activeCycle = JSON.parse(
-          window.localStorage.getItem(
-            `carper_rg003_cycle_${selection.linhaId}`,
-          ) ?? "null",
-        );
-      } catch {
-        activeCycle = null;
-      }
-      // Navegação nunca encerra um ciclo. Cancelamento, troca e encerramento
-      // somente podem acontecer pelos controles explícitos da produção.
-      if (activeCycle?.status === "producing") return;
-    }
+    // Navegar para trás não pausa nem encerra o ciclo. Essas mudanças de
+    // estado continuam restritas aos controles explícitos da produção.
     onStepChange(
       hideDates && currentStep === 3
         ? 1
@@ -3254,7 +3241,7 @@ export function HierarchyNavigator({
         </button> : <button
           type="button"
           onClick={goBack}
-          disabled={currentStep === 1 || (currentStep === 4 && sequentialFlow && rg003CycleStatus === "producing")}
+          disabled={currentStep === 1}
           className="inline-flex min-h-12 items-center gap-2 border border-gray-200 bg-gray-50 px-4 font-black text-gray-700 disabled:opacity-35"
         >
           <ArrowLeft size={19} /> Voltar

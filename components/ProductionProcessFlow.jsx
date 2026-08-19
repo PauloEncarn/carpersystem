@@ -674,33 +674,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             </strong>
           </div>
         </div>
-        <div
-          className={`mt-3 overflow-hidden border px-4 py-3 ${displayedBatch?.status === "consumida" ? "border-red-200 bg-red-50 text-red-800" : displayedBatch?.status === "pronta" ? "border-green-200 bg-green-50 text-green-800" : displayedBatch ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-slate-200 bg-slate-50 text-slate-500"}`}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <small className="block font-bold uppercase tracking-wide opacity-70">
-                Fluxo da batelada
-              </small>
-              <b className="text-base">{displayedBatchText}</b>
-            </div>
-            {displayedBatch?.status === "em_consumo" ? (
-              <span className="size-3 shrink-0 animate-pulse rounded-full bg-green-500" />
-            ) : null}
-          </div>
-          <div className="relative mt-3 h-1 overflow-hidden bg-current/15">
-            {displayedBatch && displayedBatch.status !== "consumida" ? (
-              <span className="batch-flow-indicator absolute inset-y-0 left-0 w-1/4 bg-current" />
-            ) : null}
-          </div>
-          <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] font-bold uppercase sm:text-xs">
-            <span>Preparação</span>
-            <span>Corte</span>
-            <span>Forno</span>
-            <span>Empacotamento</span>
-            <span>Encaixotamento</span>
-          </div>
-        </div>
       </header>
       {workspace === "overview" ? (
         <section className="border border-gray-200 bg-white p-4 sm:p-5">
@@ -711,14 +684,33 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           <p className="mt-1 font-light text-gray-500">
             Abra somente a estação que será preenchida agora.
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {stations.map(({ id, label, Icon }) => (
+          <div
+            className={`mt-4 flex min-h-14 items-center justify-between gap-4 border-l-4 px-4 py-3 ${displayedBatch?.status === "consumida" ? "border-red-500 bg-red-50 text-red-800" : displayedBatch?.status === "pronta" ? "border-green-500 bg-green-50 text-green-800" : displayedBatch ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-slate-300 bg-slate-50 text-slate-500"}`}
+          >
+            <div>
+              <small className="block text-[10px] font-bold uppercase tracking-wide opacity-70">
+                Batelada atual
+              </small>
+              <b className="text-sm sm:text-base">{displayedBatchText}</b>
+            </div>
+            {displayedBatch?.status === "em_consumo" ? (
+              <span className="size-3 shrink-0 animate-pulse rounded-full bg-green-500" />
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {stations.map(({ id, label, Icon }, stationIndex) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setWorkspace(id)}
-                className="group min-h-32 rounded-lg border border-slate-200 bg-white p-4 text-left font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-cicopal-blue hover:shadow-md active:scale-[.98]"
+                className="group relative min-h-32 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-left font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-cicopal-blue hover:shadow-md active:scale-[.98]"
               >
+                {displayedBatch && displayedBatch.status !== "consumida" ? (
+                  <span
+                    className="batch-station-pulse absolute inset-x-0 top-0 h-1 bg-cicopal-blue"
+                    style={{ animationDelay: `${stationIndex * 0.45}s` }}
+                  />
+                ) : null}
                 <span className="mb-4 grid size-11 place-items-center rounded-lg bg-blue-50 text-cicopal-blue transition group-hover:bg-cicopal-blue group-hover:text-white">
                   <Icon size={22} />
                 </span>

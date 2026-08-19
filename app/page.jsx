@@ -28,6 +28,7 @@ export default function HomePage() {
   const [databaseStatus, setDatabaseStatus] = useState("");
   const [databaseError, setDatabaseError] = useState("");
   const currentStepRef = useRef(currentStep);
+  const technicalProfileRef = useRef(false);
   const saveInFlightRef = useRef(null);
   const selected = useMemo(
     () => findSelection(selection, operationTree),
@@ -41,6 +42,10 @@ export default function HomePage() {
     loggedUser?.permissoes?.includes("operacao:dia_atual");
 
   useEffect(() => {
+    technicalProfileRef.current = isTechnicalProfile;
+  }, [isTechnicalProfile]);
+
+  useEffect(() => {
     currentStepRef.current = currentStep;
   }, [currentStep]);
 
@@ -50,7 +55,11 @@ export default function HomePage() {
 
     function handlePopState() {
       if (currentStepRef.current > 1) {
-        setCurrentStep((step) => Math.max(1, step - 1));
+        setCurrentStep((step) =>
+          technicalProfileRef.current && step === 3
+            ? 1
+            : Math.max(1, step - 1),
+        );
       }
       window.history.pushState({ rgApp: true }, "");
     }
