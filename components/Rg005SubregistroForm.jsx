@@ -1425,7 +1425,6 @@ function ProductEvaluationTabletFlow({
   const [packerConfiguration, setPackerConfiguration] = useState([]);
   const [packerLoading, setPackerLoading] = useState(Boolean(cycleId));
   const [packerEditing, setPackerEditing] = useState(false);
-  const [packerEditConfirm, setPackerEditConfirm] = useState(false);
   const [pendingMachineChange, setPendingMachineChange] = useState(null);
   const [packerChangeReason, setPackerChangeReason] = useState("");
   const [packerMessage, setPackerMessage] = useState("");
@@ -1754,20 +1753,9 @@ function ProductEvaluationTabletFlow({
             Selecione o grupo
           </h3>
         </div>
-        <button
-          type="button"
-          className="min-h-11 rounded-md border border-gray-300 bg-white px-4 font-bold"
-          onClick={() =>
-            productionConfigurationAvailable
-              ? setPackerEditConfirm(true)
-              : setConfigured(false)
-          }
-          disabled={productionConfigurationAvailable && !canChangeMachines}
-        >
-          {canChangeMachines
-            ? "Alterar situação das máquinas"
-            : "Histórico preservado"}
-        </button>
+        <span className={`border px-3 py-2 text-sm font-bold ${canChangeMachines ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-slate-200 bg-slate-100 text-slate-500"}`}>
+          {canChangeMachines ? "Use ON/OFF para alterar" : "Histórico preservado"}
+        </span>
       </div>
       {productionConfigurationAvailable ? (
         <div className="mt-4 border border-slate-200 bg-slate-50 p-4">
@@ -1790,7 +1778,9 @@ function ProductEvaluationTabletFlow({
                 <button
                   key={machine.machine}
                   type="button"
-                  disabled={!packerEditing}
+                  role="switch"
+                  aria-checked={machine.active}
+                  disabled={!canChangeMachines || packerSaving}
                   onClick={() =>
                     setPendingMachineChange({
                       machine: machine.machine,
@@ -1799,11 +1789,18 @@ function ProductEvaluationTabletFlow({
                       at: new Date(),
                     })
                   }
-                  className={`${position} min-h-24 border-2 p-3 text-left disabled:cursor-default ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+                  className={`${position} min-h-28 border-2 p-3 text-left disabled:cursor-default disabled:opacity-60 ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
                 >
-                  <span className="text-xs font-bold uppercase">Máquina</span>
-                  <b className="block text-2xl">{machine.machine}</b>
-                  <span className="mt-2 block text-sm font-bold uppercase">{machine.active ? "● ON · Rodando" : "○ OFF · Parada"}</span>
+                  <span className="flex items-start justify-between gap-3">
+                    <span>
+                      <span className="block text-xs font-bold uppercase">Máquina</span>
+                      <b className="block text-2xl">{machine.machine}</b>
+                    </span>
+                    <span className={`relative mt-1 h-9 w-16 shrink-0 border-2 p-1 transition ${machine.active ? "border-green-600 bg-green-600" : "border-slate-400 bg-slate-300"}`}>
+                      <span className={`block size-6 bg-white shadow transition-transform ${machine.active ? "translate-x-7" : "translate-x-0"}`} />
+                    </span>
+                  </span>
+                  <span className="mt-3 block text-sm font-black uppercase">{machine.active ? "ON · Rodando" : "OFF · Parada"}</span>
                 </button>
               );
             })}
@@ -1859,19 +1856,6 @@ function ProductEvaluationTabletFlow({
       >
         Confirmar avaliação completa de {activeHour}
       </button>
-      {packerEditConfirm ? (
-        <div className="fixed inset-0 z-[140] grid place-items-center bg-slate-950/60 p-4">
-          <section className="w-full max-w-lg border border-slate-200 bg-white p-5 shadow-2xl">
-            <p className="text-xs font-bold uppercase text-cicopal-blue">Avaliação do produto</p>
-            <h3 className="mt-1 text-2xl font-bold">Alterar máquinas em operação?</h3>
-            <p className="mt-3 text-slate-600">A mudança será compartilhada com o Empacotamento e valerá somente a partir da confirmação. Os horários anteriores permanecerão preservados.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPackerEditConfirm(false)} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
-              <button type="button" onClick={() => { setPackerEditConfirm(false); setPackerEditing(true); }} className="min-h-12 bg-amber-600 font-bold text-white">Continuar edição</button>
-            </div>
-          </section>
-        </div>
-      ) : null}
       {pendingMachineChange ? (
         <div className="fixed inset-0 z-[150] grid place-items-center bg-slate-950/60 p-4">
           <section className="w-full max-w-lg border border-slate-200 bg-white p-5 shadow-2xl">
@@ -1883,7 +1867,7 @@ function ProductEvaluationTabletFlow({
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setPendingMachineChange(null)} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
-              <button type="button" onClick={() => { setPackerConfiguration((all) => all.map((item) => item.machine === pendingMachineChange.machine ? { ...item, active: pendingMachineChange.to } : item)); setPackerChangeReason(pendingMachineChange.to ? `Máquina ${pendingMachineChange.machine} retornou à operação` : `Máquina ${pendingMachineChange.machine} parou durante a produção`); setPendingMachineChange(null); }} className={`min-h-12 font-bold text-white ${pendingMachineChange.to ? "bg-green-600" : "bg-red-600"}`}>{pendingMachineChange.to ? "Confirmar ON" : "Confirmar OFF"}</button>
+              <button type="button" onClick={() => { setPackerConfiguration((all) => all.map((item) => item.machine === pendingMachineChange.machine ? { ...item, active: pendingMachineChange.to } : item)); setPackerEditing(true); setPackerChangeReason(pendingMachineChange.to ? `Máquina ${pendingMachineChange.machine} retornou à operação` : `Máquina ${pendingMachineChange.machine} parou durante a produção`); setPendingMachineChange(null); }} className={`min-h-12 font-bold text-white ${pendingMachineChange.to ? "bg-green-600" : "bg-red-600"}`}>{pendingMachineChange.to ? "Confirmar ON" : "Confirmar OFF"}</button>
             </div>
           </section>
         </div>
