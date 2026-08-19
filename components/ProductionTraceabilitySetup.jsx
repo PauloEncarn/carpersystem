@@ -32,6 +32,7 @@ export function ProductionTraceabilitySetup({
   const [packerChangeReason, setPackerChangeReason] = useState("");
   const [packerEditing, setPackerEditing] = useState(false);
   const [packerEditConfirm, setPackerEditConfirm] = useState(false);
+  const [pendingMachineChange, setPendingMachineChange] = useState(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchReview, setBatchReview] = useState(false);
   const [batchSelected, setBatchSelected] = useState({});
@@ -88,7 +89,9 @@ export function ProductionTraceabilitySetup({
     if (!data?.packers?.length) return;
     setPackers(
       Array.from({ length: 4 }, (_, index) => {
-        const saved = data.packers.find((item) => item.maquina === index + 1);
+        const saved = data.packers.find(
+          (item) => item.maquina === index + 1 && !item.vigente_ate,
+        );
         return {
           machine: index + 1,
           active: Boolean(saved?.ativa),
@@ -661,12 +664,12 @@ export function ProductionTraceabilitySetup({
       </section>
     );
   if (mode === "pack") {
-    const configured = data.packers.length > 0;
+    const configured = data.packers.some((item) => !item.vigente_ate);
     const runningCount = packers.filter((item) => item.active).length;
     const machinePosition = {
-      1: "col-start-2 row-start-1",
+      1: "col-start-1 row-start-1",
       2: "col-start-2 row-start-2",
-      3: "col-start-3 row-start-1",
+      3: "col-start-2 row-start-1",
       4: "col-start-1 row-start-2",
     };
     return (
@@ -683,27 +686,26 @@ export function ProductionTraceabilitySetup({
           </b>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-xl grid-cols-3 grid-rows-2 gap-3">
+        <div className="mx-auto mt-5 grid max-w-md grid-cols-2 grid-rows-2 gap-3">
           {packers.map((machine) => (
             <button
               key={machine.machine}
               type="button"
               disabled={configured && !packerEditing}
               onClick={() =>
-                setPackers((all) =>
-                  all.map((item) =>
-                    item.machine === machine.machine
-                      ? { ...item, active: !item.active }
-                      : item,
-                  ),
-                )
+                setPendingMachineChange({
+                  machine: machine.machine,
+                  from: machine.active,
+                  to: !machine.active,
+                  at: new Date(),
+                })
               }
               className={`${machinePosition[machine.machine]} min-h-24 border-2 p-3 text-left disabled:cursor-default ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
             >
               <span className="text-xs font-bold uppercase">Máquina</span>
               <b className="block text-2xl">{machine.machine}</b>
               <span className="mt-2 block text-sm font-bold uppercase">
-                {machine.active ? "Rodando" : "Parada"}
+                {machine.active ? "● ON · Rodando" : "○ OFF · Parada"}
               </span>
             </button>
           ))}
@@ -759,6 +761,65 @@ export function ProductionTraceabilitySetup({
               placeholder="Informe por que a configuração das máquinas mudou"
             />
           </label>
+        ) : null}
+        {pendingMachineChange ? (
+          <div className="fixed inset-0 z-[140] grid place-items-center bg-slate-950/60 p-4">
+            <section className="w-full max-w-lg border border-slate-200 bg-white p-5 shadow-2xl">
+              <p className="text-xs font-bold uppercase text-cicopal-blue">
+                Confirmação da Máquina {pendingMachineChange.machine}
+              </p>
+              <h3 className="mt-1 text-2xl font-bold">
+                {pendingMachineChange.to
+                  ? "Confirmar retorno da máquina?"
+                  : "Confirmar parada da máquina?"}
+              </h3>
+              <p className="mt-3 text-slate-600">
+                Horário do evento: {pendingMachineChange.at.toLocaleString("pt-BR")}
+              </p>
+              {!pendingMachineChange.to ? (
+                <div className="mt-4 border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
+                  <b className="block">Impacto nos apontamentos</b>
+                  <p className="mt-1">
+                    Os horários anteriores pendentes serão bloqueados para esta máquina. O próximo horário solicitará a última leitura e será identificado como resultado anterior à parada. Depois disso, a máquina ficará indisponível até ser ligada novamente.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-4 bg-green-50 p-4 text-sm font-bold text-green-800">
+                  A máquina voltará a participar dos próximos horários após a confirmação da configuração.
+                </p>
+              )}
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingMachineChange(null)}
+                  className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPackers((all) =>
+                      all.map((item) =>
+                        item.machine === pendingMachineChange.machine
+                          ? { ...item, active: pendingMachineChange.to }
+                          : item,
+                      ),
+                    );
+                    setPackerChangeReason(
+                      pendingMachineChange.to
+                        ? `Máquina ${pendingMachineChange.machine} retornou à operação`
+                        : `Máquina ${pendingMachineChange.machine} parou durante a produção`,
+                    );
+                    setPendingMachineChange(null);
+                  }}
+                  className={`min-h-12 font-bold text-white ${pendingMachineChange.to ? "bg-green-600" : "bg-red-600"}`}
+                >
+                  {pendingMachineChange.to ? "Confirmar ON" : "Confirmar OFF"}
+                </button>
+              </div>
+            </section>
+          </div>
         ) : null}
         {!configured || packerEditing ? (
           <button

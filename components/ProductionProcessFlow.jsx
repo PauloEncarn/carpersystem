@@ -91,11 +91,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       ? config.parameters.filter((item) => item.group === parameter.group)
       : [];
   const selectedMachineNumber = parameter?.group?.match(/^Máquina (\d+)$/)?.[1];
-  const selectedMachineRunning = selectedMachineNumber
-    ? traceability?.packers?.find(
-        (item) => item.maquina === Number(selectedMachineNumber),
-      )?.ativa
-    : true;
+  const selectedMachineAvailability = selectedMachineNumber
+    ? packerAvailability(Number(selectedMachineNumber), scheduledAt)
+    : { state: "available" };
+  const selectedMachineRunning = ![
+    "unavailable",
+    "locked",
+    "not_started",
+  ].includes(selectedMachineAvailability.state);
   const parameterContext =
     parameter?.group ??
     (parameter?.key?.match(/^maq_(\d+)_/)
@@ -111,6 +114,56 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           new Date(b.horario_referencia) - new Date(a.horario_referencia),
       );
   };
+  function packerAvailability(machine, slot) {
+    if (!slot) return { state: "available" };
+    const history = (traceability?.packers ?? [])
+      .filter((item) => item.maquina === machine)
+      .sort(
+        (a, b) => new Date(a.vigente_desde) - new Date(b.vigente_desde),
+      );
+    if (!history.length) return { state: "available" };
+    const slotTime = new Date(slot).getTime();
+    const stopEvents = history.filter(
+      (item, index) => !item.ativa && index > 0 && history[index - 1].ativa,
+    );
+    const finalEvent = stopEvents.find((event) => {
+      const finalSlot = new Date(event.vigente_desde);
+      if (
+        finalSlot.getMinutes() ||
+        finalSlot.getSeconds() ||
+        finalSlot.getMilliseconds()
+      )
+        finalSlot.setHours(finalSlot.getHours() + 1, 0, 0, 0);
+      return finalSlot.getTime() === slotTime;
+    });
+    if (finalEvent)
+      return {
+        state: "final",
+        stoppedAt: finalEvent.vigente_desde,
+      };
+    if (
+      stopEvents.some((event) => new Date(event.vigente_desde).getTime() > slotTime)
+    )
+      return { state: "locked" };
+    const effective = history
+      .filter((item) => new Date(item.vigente_desde).getTime() <= slotTime)
+      .at(-1);
+    const laterActivation = history.find(
+      (item, index) =>
+        item.ativa &&
+        index > 0 &&
+        !history[index - 1].ativa &&
+        new Date(item.vigente_desde).getTime() > slotTime,
+    );
+    if (!effective || (effective.ativa === false && laterActivation))
+      return {
+        state: "not_started",
+        startsAt: laterActivation?.vigente_desde ?? history[0]?.vigente_desde,
+      };
+    return effective?.ativa === false
+      ? { state: "unavailable", stoppedAt: effective.vigente_desde }
+      : { state: "available" };
+  }
   const automationLots = [
     ...new Set(
       recordsFor("automacao")
@@ -241,13 +294,25 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const filledWindow =
       cfg?.frequency === "hourly" && !pending && Boolean(existing);
     const sameWindow = cfg?.frequency === "lot" || filledWindow;
+    const targetSlot = pending ?? existing?.horario_previsto ?? "";
+    const firstVisibleMachine =
+      code === "empacotamento"
+        ? [1, 2, 3, 4].find(
+            (machine) =>
+              packerAvailability(machine, targetSlot).state !== "not_started",
+          )
+        : null;
     setSelectedCode(code);
-    setScheduledAt(pending ?? existing?.horario_previsto ?? "");
+    setScheduledAt(targetSlot);
     setValues(sameWindow ? (existing?.valores ?? {}) : {});
     setViewOnly(Boolean(filledWindow));
     setRectifying(false);
     setCorrectionReason("");
-    setFieldIndex(0);
+    setFieldIndex(
+      code === "empacotamento" && firstVisibleMachine
+        ? (firstVisibleMachine - 1) * 3
+        : 0,
+    );
     setReview(false);
     setReason("");
     setMessage("");
@@ -263,9 +328,33 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       return setMessage("Informe este valor para continuar.");
     setMessage("");
     const step = groupedParameters.length ? groupedParameters.length : 1;
-    if (fieldIndex + step < config.parameters.length)
-      setFieldIndex((value) => value + step);
+    let nextIndex = fieldIndex + step;
+    if (selectedCode === "empacotamento") {
+      while (
+        nextIndex < config.parameters.length &&
+        packerAvailability(Math.floor(nextIndex / 3) + 1, scheduledAt).state ===
+          "not_started"
+      )
+        nextIndex += 3;
+    }
+    if (nextIndex < config.parameters.length) setFieldIndex(nextIndex);
     else setReview(true);
+  }
+  function previousField() {
+    const step = groupedParameters.length ? groupedParameters.length : 1;
+    let previousIndex = fieldIndex - step;
+    if (selectedCode === "empacotamento") {
+      while (
+        previousIndex >= 0 &&
+        packerAvailability(
+          Math.floor(previousIndex / 3) + 1,
+          scheduledAt,
+        ).state === "not_started"
+      )
+        previousIndex -= 3;
+    }
+    if (previousIndex >= 0) setFieldIndex(previousIndex);
+    else setSelectedCode("");
   }
   async function setStatus(status) {
     if (!selected || saving) return;
@@ -340,13 +429,29 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     }
   }
   async function confirm() {
-    if (config.parameters.some((item) => !validValue(values[item.key])))
+    const requiredParameters = config.parameters.filter((item) => {
+      if (config.code !== "empacotamento") return true;
+      const machine = Number(item.key.match(/^maq_(\d+)_/)?.[1]);
+      return !["unavailable", "locked", "not_started"].includes(
+        packerAvailability(machine, scheduledAt).state,
+      );
+    });
+    if (requiredParameters.some((item) => !validValue(values[item.key])))
       return setMessage("Há informações pendentes.");
     if (rectifying && correctionReason.trim().length < 5)
       return setMessage("Explique o motivo da retificação.");
     setSaving(true);
     setMessage("");
     try {
+      const valuesToSave = { ...values };
+      if (config.code === "empacotamento") {
+        [1, 2, 3, 4].forEach((machine) => {
+          const availability = packerAvailability(machine, scheduledAt);
+          if (availability.state === "final")
+            valuesToSave[`maq_${machine}_observacao_parada`] =
+              `Resultado obtido anteriormente devido à parada da máquina em ${new Date(availability.stoppedAt).toLocaleString("pt-BR")}`;
+        });
+      }
       let process = selected;
       if (config.frequency === "hourly" && selected.status === "nao_iniciado") {
         const started = remote
@@ -372,7 +477,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         ? rectifying
           ? await rectifyHourlyRecord({
               recordId: latestSelected.id,
-              values,
+              values: valuesToSave,
               reason: correctionReason,
               userId: operatorId,
             })
@@ -381,14 +486,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 processId: process.id,
                 cycleId: cycle.id,
                 scheduledAt,
-                values,
+                values: valuesToSave,
                 batchId: activeBatch?.id ?? null,
                 userId: operatorId,
               })
             : await saveSubprocessRecord({
                 process,
                 cycleId: cycle.id,
-                values,
+                values: valuesToSave,
                 operatorId,
                 frequency: config.frequency,
               })
@@ -407,7 +512,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 ? null
                 : (activeWindow?.janela_fim ??
                   new Date(Date.now() + 3600000).toISOString()),
-            valores: values,
+            valores: valuesToSave,
             preenchido_em: new Date().toISOString(),
           };
       setRecords((all) => [
@@ -864,17 +969,28 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       className="mt-3 grid grid-cols-4 gap-2"
                       aria-label="Empacotadoras"
                     >
-                      {[1, 2, 3, 4].map((machine, index) => {
-                        const running = traceability?.packers?.find(
-                          (item) => item.maquina === machine,
-                        )?.ativa;
+                      {[1, 2, 3, 4]
+                        .filter(
+                          (machine) =>
+                            packerAvailability(machine, scheduledAt).state !==
+                            "not_started",
+                        )
+                        .map((machine) => {
+                        const availability = packerAvailability(
+                          machine,
+                          scheduledAt,
+                        );
+                        const running = ![
+                          "unavailable",
+                          "locked",
+                        ].includes(availability.state);
                         const active = parameter?.group === `Máquina ${machine}`;
                         return (
                           <button
                             key={machine}
                             type="button"
-                            onClick={() => setFieldIndex(index * 3)}
-                            className={`min-h-12 px-2 text-sm font-bold ${active ? "bg-cicopal-blue text-white" : running ? "bg-green-50 text-green-800" : "bg-slate-100 text-slate-400"}`}
+                            onClick={() => setFieldIndex((machine - 1) * 3)}
+                            className={`min-h-12 px-2 text-sm font-bold ${active ? "bg-cicopal-blue text-white" : availability.state === "final" ? "bg-amber-50 text-amber-900" : running ? "bg-green-50 text-green-800" : "bg-slate-100 text-slate-400"}`}
                           >
                             M{machine}
                           </button>
@@ -978,11 +1094,32 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       ) : null}
                       <div className="mt-7">
                         {selectedCode === "empacotamento" &&
-                        selectedMachineRunning === false ? (
-                          <div className="border border-slate-300 bg-slate-100 p-6 text-center text-slate-600">
-                            <b className="block text-xl">Máquina parada</b>
+                        selectedMachineAvailability.state === "final" ? (
+                          <div className="border-l-4 border-amber-500 bg-amber-50 p-5 text-amber-900">
+                            <b className="block text-lg">
+                              Última leitura da máquina
+                            </b>
                             <p className="mt-1 text-sm">
-                              Não há leitura para registrar neste horário.
+                              Preencha com o resultado obtido anteriormente. A
+                              máquina parou em{" "}
+                              {new Date(
+                                selectedMachineAvailability.stoppedAt,
+                              ).toLocaleString("pt-BR")}. A observação será
+                              anexada automaticamente ao registro.
+                            </p>
+                          </div>
+                        ) : selectedCode === "empacotamento" &&
+                          selectedMachineRunning === false ? (
+                          <div className="border border-slate-300 bg-slate-100 p-6 text-center text-slate-600">
+                            <b className="block text-xl">
+                              {selectedMachineAvailability.state === "locked"
+                                ? "Horário bloqueado"
+                                : "Máquina parada"}
+                            </b>
+                            <p className="mt-1 text-sm">
+                              {selectedMachineAvailability.state === "locked"
+                                ? "Uma parada posterior já foi confirmada. Não é permitido incluir informações retroativas para esta máquina."
+                                : "Não há leitura para registrar neste horário."}
                             </p>
                           </div>
                         ) : groupedParameters.length ? (
@@ -1219,19 +1356,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 <footer className="sticky bottom-0 grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,.08)] sm:p-4">
                   <button
                     onClick={() =>
-                      review
-                        ? setReview(false)
-                        : fieldIndex
-                          ? setFieldIndex((value) =>
-                              Math.max(
-                                0,
-                                value -
-                                  (groupedParameters.length
-                                    ? groupedParameters.length
-                                    : 1),
-                              ),
-                            )
-                          : setSelectedCode("")
+                      review ? setReview(false) : previousField()
                     }
                     className="flex min-h-16 items-center justify-center gap-2 border px-5 font-black"
                   >
