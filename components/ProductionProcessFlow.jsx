@@ -547,7 +547,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         ),
         saved,
       ]);
-      setMessage("Apontamento confirmado e vinculado à produção.");
+      if (saved._alreadyConfirmed) {
+        setValues(saved.valores ?? {});
+        setViewOnly(true);
+        setMessage(
+          "Este horário já estava confirmado. O registro original foi carregado para visualização.",
+        );
+      } else {
+        setMessage("Apontamento confirmado e vinculado à produção.");
+      }
       setReview(false);
       setRectifying(false);
       setCorrectionReason("");
