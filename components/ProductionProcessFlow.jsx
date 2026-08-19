@@ -96,8 +96,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     : { state: "available" };
   const selectedMachineRunning = ![
     "unavailable",
-    "locked",
     "not_started",
+    "inactive",
   ].includes(selectedMachineAvailability.state);
   const parameterContext =
     parameter?.group ??
@@ -141,10 +141,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         state: "final",
         stoppedAt: finalEvent.vigente_desde,
       };
-    if (
-      stopEvents.some((event) => new Date(event.vigente_desde).getTime() > slotTime)
-    )
-      return { state: "locked" };
     const effective = history
       .filter((item) => new Date(item.vigente_desde).getTime() <= slotTime)
       .at(-1);
@@ -161,7 +157,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         startsAt: laterActivation?.vigente_desde ?? history[0]?.vigente_desde,
       };
     return effective?.ativa === false
-      ? { state: "unavailable", stoppedAt: effective.vigente_desde }
+      ? { state: "inactive", stoppedAt: effective.vigente_desde }
       : { state: "available" };
   }
   const automationLots = [
@@ -299,7 +295,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       code === "empacotamento"
         ? [1, 2, 3, 4].find(
             (machine) =>
-              packerAvailability(machine, targetSlot).state !== "not_started",
+              !["not_started", "inactive"].includes(
+                packerAvailability(machine, targetSlot).state,
+              ),
           )
         : null;
     setSelectedCode(code);
@@ -332,8 +330,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     if (selectedCode === "empacotamento") {
       while (
         nextIndex < config.parameters.length &&
-        packerAvailability(Math.floor(nextIndex / 3) + 1, scheduledAt).state ===
-          "not_started"
+        ["not_started", "inactive"].includes(
+          packerAvailability(Math.floor(nextIndex / 3) + 1, scheduledAt).state,
+        )
       )
         nextIndex += 3;
     }
@@ -346,10 +345,12 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     if (selectedCode === "empacotamento") {
       while (
         previousIndex >= 0 &&
-        packerAvailability(
-          Math.floor(previousIndex / 3) + 1,
-          scheduledAt,
-        ).state === "not_started"
+        ["not_started", "inactive"].includes(
+          packerAvailability(
+            Math.floor(previousIndex / 3) + 1,
+            scheduledAt,
+          ).state,
+        )
       )
         previousIndex -= 3;
     }
@@ -432,7 +433,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     const requiredParameters = config.parameters.filter((item) => {
       if (config.code !== "empacotamento") return true;
       const machine = Number(item.key.match(/^maq_(\d+)_/)?.[1]);
-      return !["unavailable", "locked", "not_started"].includes(
+      return !["unavailable", "not_started", "inactive"].includes(
         packerAvailability(machine, scheduledAt).state,
       );
     });
@@ -972,8 +973,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       {[1, 2, 3, 4]
                         .filter(
                           (machine) =>
-                            packerAvailability(machine, scheduledAt).state !==
-                            "not_started",
+                            !["not_started", "inactive"].includes(
+                              packerAvailability(machine, scheduledAt).state,
+                            ),
                         )
                         .map((machine) => {
                         const availability = packerAvailability(
@@ -982,7 +984,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                         );
                         const running = ![
                           "unavailable",
-                          "locked",
+                          "inactive",
                         ].includes(availability.state);
                         const active = parameter?.group === `Máquina ${machine}`;
                         return (
