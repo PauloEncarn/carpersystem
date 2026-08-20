@@ -58,7 +58,7 @@ insert into public.subprocesso_registros(id,subprocesso_id,ciclo_id,chave_slot,h
 select md5('demo-record-'||x.day||'-'||p.code||'-'||x.h)::uuid,md5('demo-process-'||x.day||'-'||p.code)::uuid,md5('demo-cycle-'||x.day)::uuid,
  'demo:'||x.h,x.day+make_interval(hours=>x.h),x.day+make_interval(hours=>x.h),'horario',(x.h-7)/3,x.day+make_interval(hours=>x.h),x.day+make_interval(hours=>x.h+1),
  case p.code
-  when 'corte_fio' then jsonb_build_object('peso_1',8.9,'peso_2',9.1,'peso_3',9.0,'peso_4',9.2,'peso_5',8.8,'peso_6',9.0,'peso_7',9.1,'peso_8',8.9,'peso_9',9.0,'peso_10',9.2,'umidade',4.2+(x.h%3)*0.2,'cortes_hora',7200+(x.h*35))
+  when 'corte_fio' then jsonb_build_object('peso_10_lado_operacional',90.2,'peso_10_lado_nao_operacional',89.7,'umidade',4.2+(x.h%3)*0.2,'cortes_hora',7200+(x.h*35))
   when 'forno' then jsonb_build_object('velocidade_esteira',18+(x.h%2),'velocidade_linha',20+(x.h%2),'umidade',3.8+(x.h%3)*0.3,'zona_1_setpoint',180,'zona_1_real',179+(x.h%3),'zona_2_setpoint',185,'zona_2_real',184+(x.h%2),'zona_3_setpoint',190,'zona_3_real',189,'zona_4_setpoint',195,'zona_4_real',194+(x.h%2),'zona_5_setpoint',190,'zona_5_real',191,'zona_6_setpoint',185,'zona_6_real',184,'zona_7_setpoint',175,'zona_7_real',176)
   when 'detector_metal' then jsonb_build_object('ferroso','C','nao_ferroso','C','inox','C')
   when 'empacotamento' then jsonb_build_object('maq_1_velocidade_esteira',22,'maq_1_pacotes_min',48+(x.h%3),'maq_1_sobrepeso',1.8,'maq_2_velocidade_esteira',19,'maq_2_pacotes_min',24+(x.h%2),'maq_2_sobrepeso',3.2,'maq_3_velocidade_esteira',19,'maq_3_pacotes_min',23+(x.h%2),'maq_3_sobrepeso',3.0,'maq_4_velocidade_esteira',0,'maq_4_pacotes_min',0,'maq_4_sobrepeso',0)

@@ -47,6 +47,12 @@ const hours = Array.from(
   (_, index) => `${String(index).padStart(2, "0")}:00`,
 );
 
+const machineVisualOrder = [1, 3, 4, 2];
+const visualOrderPosition = (machineNumber) => {
+  const position = machineVisualOrder.indexOf(machineNumber);
+  return position === -1 ? machineVisualOrder.length + machineNumber : position;
+};
+
 const liberacaoProdutoColumns = [
   "Sabor e odor",
   "Textura",
@@ -1355,7 +1361,7 @@ function MachineHourlySections({
               Alterar configuração
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             {activeMachines.map((machine, index) => (
               <button
                 key={machine.label}
@@ -1524,6 +1530,15 @@ function ProductEvaluationTabletFlow({
   const activeMachines = productionConfigurationAvailable
     ? machines.filter((_, index) => packerConfiguration[index]?.active)
     : machines.slice(0, Number(activeCount || 0));
+  const activeMachinesForGrid = [...activeMachines].sort(
+    (left, right) =>
+      visualOrderPosition(machines.indexOf(left) + 1) -
+      visualOrderPosition(machines.indexOf(right) + 1),
+  );
+  const packerConfigurationForGrid = [...packerConfiguration].sort(
+    (left, right) =>
+      visualOrderPosition(left.machine) - visualOrderPosition(right.machine),
+  );
   const allGramsDefined =
     activeMachines.length > 0 &&
     activeMachines.every((machine) => machineGrams[machine.label]);
@@ -1775,7 +1790,7 @@ function ProductEvaluationTabletFlow({
             <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {packerConfiguration.map((machine) => {
+            {packerConfigurationForGrid.map((machine) => {
               return (
                 <button
                   key={machine.machine}
@@ -1827,10 +1842,10 @@ function ProductEvaluationTabletFlow({
           {packerMessage ? <p className="mx-auto mt-3 max-w-xl bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">{packerMessage}</p> : null}
         </div>
       ) : null}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-4">
         <button
           type="button"
-          className={`min-h-24 rounded-md border-2 p-3 text-left ${generalResult ? "border-green-200 bg-green-50" : "border-cicopal-blue bg-blue-50 ring-4 ring-blue-100"}`}
+          className={`min-h-24 w-full rounded-md border-2 p-3 text-left ${generalResult ? "border-green-200 bg-green-50" : "border-cicopal-blue bg-blue-50 ring-4 ring-blue-100"}`}
           onClick={() => setView("general")}
         >
           <span className="block text-lg font-bold">Parâmetros gerais</span>
@@ -1838,22 +1853,37 @@ function ProductEvaluationTabletFlow({
             {generalResult ? "✓ Preenchido" : "Umidade, pH e temperatura"}
           </span>
         </button>
-        {activeMachines.map((machine, index) => (
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        {activeMachinesForGrid.map((machine) => {
+          const machineNumber = machines.indexOf(machine) + 1;
+          const done = Boolean(machineResults[machine.label]);
+          const pending = nextPendingMachine?.label === machine.label;
+          return (
           <button
             key={machine.label}
             type="button"
-            className={`min-h-24 rounded-md border-2 p-3 text-left ${machineResults[machine.label] ? "border-green-200 bg-green-50 opacity-70" : nextPendingMachine?.label === machine.label ? "border-cicopal-blue bg-blue-50 ring-4 ring-blue-100" : "border-gray-200 bg-gray-50"}`}
+            className={`group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${done ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : pending ? "border-blue-400 bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : "border-slate-200 bg-gradient-to-br from-white to-slate-50"}`}
             onClick={() => setView(machine.label)}
           >
-            <span className="block text-lg font-bold">Máquina {index + 1}</span>
-            <span className="mt-1 block text-sm font-semibold">
-              {machineGrams[machine.label]
-                ? `${machineGrams[machine.label]} · `
-                : ""}
-              {machineResults[machine.label] ? "✓ Preenchida" : "Pendente"}
+            <span className={`absolute inset-x-0 top-0 h-1 ${done ? "bg-emerald-500" : pending ? "bg-blue-600" : "bg-amber-400"}`} />
+            <span className="flex items-start justify-between gap-3">
+              <span className={`grid size-11 place-items-center rounded-xl ${done ? "bg-emerald-100 text-emerald-700" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-slate-100 text-slate-500"}`}>
+                {done ? <Check size={23} /> : <Cog size={23} />}
+              </span>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${done ? "bg-emerald-100 text-emerald-800" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-amber-100 text-amber-800"}`}>
+                {done ? "Concluída" : pending ? "Próxima" : "Pendente"}
+              </span>
+            </span>
+            <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Empacotadeira</span>
+            <strong className="mt-0.5 block text-2xl text-gray-950">Máquina {String(machineNumber).padStart(2, "0")}</strong>
+            <span className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs font-bold">
+              <span className="text-slate-500">Gramatura</span>
+              <strong className="text-cicopal-blue">{machineGrams[machine.label] || "Não definida"}</strong>
             </span>
           </button>
-        ))}
+          );
+        })}
       </div>
       <button
         type="button"
@@ -1973,6 +2003,11 @@ function ProcessEvaluationTabletFlow({
   const activeMachines = packerConfiguration.length
     ? machines.filter((_, index) => packerConfiguration[index]?.active)
     : machines.slice(0, Number(activeCount || 0));
+  const activeMachinesForGrid = [...activeMachines].sort(
+    (left, right) =>
+      visualOrderPosition(machines.indexOf(left) + 1) -
+      visualOrderPosition(machines.indexOf(right) + 1),
+  );
   const currentMachine = activeMachines.find(
     (machine) => machine.label === selectedMachine,
   );
@@ -2159,13 +2194,11 @@ function ProcessEvaluationTabletFlow({
           {packerMessage}
         </p>
       ) : null}
-      <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
-        {activeMachines.map((machine, index) => {
+      <div className="grid grid-cols-2 gap-3 p-5">
+        {activeMachinesForGrid.map((machine) => {
           const done = Boolean(machineResults[machine.label]);
           const pending = nextPendingMachine?.label === machine.label;
-          const machineNumber = packerConfiguration.findIndex(
-            (item) => item.active && machines[item.machine - 1]?.label === machine.label,
-          );
+          const machineNumber = machines.indexOf(machine) + 1;
           return (
             <button
               key={machine.label}
@@ -2186,7 +2219,7 @@ function ProcessEvaluationTabletFlow({
                 Empacotadeira
               </span>
               <strong className="mt-0.5 block text-2xl text-gray-950">
-                Máquina {String(machineNumber >= 0 ? machineNumber + 1 : index + 1).padStart(2, "0")}
+                Máquina {String(machineNumber).padStart(2, "0")}
               </strong>
               <span className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs font-bold">
                 <span className="text-slate-500">Gramatura</span>
