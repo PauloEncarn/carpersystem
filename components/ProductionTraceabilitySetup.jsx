@@ -11,11 +11,21 @@ import {
 } from "@/lib/productionTraceabilityPersistence";
 import { persistCycleTransition } from "@/lib/rg003Persistence";
 
+function elapsedTime(start, end) {
+  if (!start) return "—";
+  const milliseconds = Math.max(0, new Date(end) - new Date(start));
+  const totalMinutes = Math.floor(milliseconds / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}min`;
+}
+
 export function ProductionTraceabilitySetup({
   cycle,
   operatorId,
   onChange,
   mode = "all",
+  hasOpenOperationalProblem = false,
 }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState(
@@ -49,6 +59,7 @@ export function ProductionTraceabilitySetup({
   const [batchFormulaEditing, setBatchFormulaEditing] = useState(false);
   const [batchDeviationReason, setBatchDeviationReason] = useState("");
   const [batchDeviationConfirm, setBatchDeviationConfirm] = useState(false);
+  const [batchClock, setBatchClock] = useState(() => new Date());
   const [packers, setPackers] = useState(
     Array.from({ length: 4 }, (_, index) => ({
       machine: index + 1,
@@ -66,6 +77,10 @@ export function ProductionTraceabilitySetup({
   useEffect(() => {
     reload().catch((error) => setMessage(error.message));
   }, [cycle.id]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setBatchClock(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const activeLots = useMemo(
     () => (data?.lots ?? []).filter((item) => !item.encerrado_em),
     [data],
@@ -75,11 +90,13 @@ export function ProductionTraceabilitySetup({
     data?.recipes?.[0];
   const supplies = data?.supplies ?? [];
   useEffect(() => {
-    const lastBatch = data?.batches?.[0];
-    if (!lastBatch?.batelada_insumos?.length) return;
+    const firstBatch = [...(data?.batches ?? [])].sort(
+      (left, right) => left.numero - right.numero,
+    )[0];
+    if (!firstBatch?.batelada_insumos?.length) return;
     setBatchInputs((current) => {
       const next = { ...current };
-      lastBatch.batelada_insumos.forEach((item) => {
+      firstBatch.batelada_insumos.forEach((item) => {
         if (next[item.insumo_id]?.used !== undefined) return;
         next[item.insumo_id] = {
           ...next[item.insumo_id],
@@ -89,6 +106,34 @@ export function ProductionTraceabilitySetup({
       return next;
     });
   }, [data?.batches]);
+  function openNewBatchForm() {
+    const firstBatch = [...(data?.batches ?? [])].sort(
+      (left, right) => left.numero - right.numero,
+    )[0];
+    if (firstBatch?.batelada_insumos?.length) {
+      setBatchInputs(
+        Object.fromEntries(
+          firstBatch.batelada_insumos.map((item) => [
+            item.insumo_id,
+            {
+              lot: item.lote_fornecedor,
+              supplier: item.fornecedor,
+              expiry: item.validade,
+              used: item.quantidade_utilizada ?? item.quantidade_prevista ?? "",
+            },
+          ]),
+        ),
+      );
+      setBatchSelected(
+        Object.fromEntries(firstBatch.batelada_insumos.map((item) => [item.insumo_id, true])),
+      );
+    }
+    setBatchStep(0);
+    setBatchReview(false);
+    setBatchFormulaEditing(false);
+    setBatchDeviationReason("");
+    setBatchOpen(true);
+  }
   useEffect(() => {
     if (!data?.packers?.length) return;
     setPackers(
@@ -290,13 +335,17 @@ export function ProductionTraceabilitySetup({
     (batch) => batch.status === "pronta",
   );
   async function completePreparation(batchId) {
+    if (readyBatches.length >= 1 && !hasOpenOperationalProblem) {
+      setMessage(
+        "Já existe uma massa pré-pronta na fila. Relate o problema operacional que causou o acúmulo antes de liberar outra massa.",
+      );
+      return;
+    }
     setSaving(true);
     try {
       await finishBatch(batchId, operatorId);
       await reload();
-      setMessage(
-        "Preparo finalizado. A batelada está pronta para entrar em consumo.",
-      );
+      setMessage("Massa pré-pronta registrada. Envie ao tombador quando a etapa seguinte estiver disponível.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -308,8 +357,9 @@ export function ProductionTraceabilitySetup({
     try {
       await startBatchConsumption(batchId, cycle.id, operatorId);
       await reload();
+      openNewBatchForm();
       setMessage(
-        "Batelada em consumo. Os próximos apontamentos serão vinculados a ela.",
+        "Massa enviada ao tombador. O tempo de preparo foi registrado e a próxima batelada já pode ser preparada.",
       );
     } catch (error) {
       setMessage(error.message);
@@ -474,12 +524,10 @@ export function ProductionTraceabilitySetup({
                     type="button"
                     disabled={
                       saving ||
+                      Boolean(activeBatch) ||
                       inputsForBatch().some((item) => !item.lot || !item.expiry)
                     }
-                    onClick={() => {
-                      setBatchOpen(true);
-                      setBatchReview(false);
-                    }}
+                    onClick={openNewBatchForm}
                     className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
                   >
                     Iniciar nova batelada
@@ -567,6 +615,14 @@ export function ProductionTraceabilitySetup({
             </div>
 
             <div className="mt-5">
+              {readyBatches.length >= 1 && !hasOpenOperationalProblem ? (
+                <div className="mb-4 border-l-8 border-red-600 bg-red-50 p-4 text-red-900">
+                  <b className="block">Já existe uma massa pré-pronta na fila</b>
+                  <p className="mt-1 text-sm font-semibold">
+                    Para acumular outra massa pronta, use “Relatar problema” no topo e informe em qual subprocesso ocorreu o impedimento.
+                  </p>
+                </div>
+              ) : null}
               <div className="mb-2 flex items-end justify-between">
                 <h3 className="text-lg font-bold">Histórico da produção</h3>
                 <span className="text-sm text-slate-500">
@@ -579,7 +635,8 @@ export function ProductionTraceabilitySetup({
                     <tr>
                       <th className="p-3">Batelada</th>
                       <th className="p-3">Início</th>
-                      <th className="p-3">Término</th>
+                      <th className="p-3">Enviada ao tombador</th>
+                      <th className="p-3">Tempo de preparo</th>
                       <th className="p-3">Status</th>
                       <th className="p-3">Ação</th>
                     </tr>
@@ -595,11 +652,17 @@ export function ProductionTraceabilitySetup({
                           {new Date(batch.iniciada_em).toLocaleString("pt-BR")}
                         </td>
                         <td className="p-3">
-                          {batch.finalizada_em
-                            ? new Date(batch.finalizada_em).toLocaleString(
+                          {batch.enviada_tombador_em
+                            ? new Date(batch.enviada_tombador_em).toLocaleString(
                                 "pt-BR",
                               )
                             : "—"}
+                        </td>
+                        <td className="p-3 font-bold tabular-nums">
+                          {elapsedTime(
+                            batch.iniciada_em,
+                            batch.enviada_tombador_em ?? batchClock,
+                          )}
                         </td>
                         <td className="p-3">
                           <span className="inline-flex border border-current/20 bg-white/60 px-2 py-1 text-xs font-bold uppercase">
@@ -614,7 +677,7 @@ export function ProductionTraceabilitySetup({
                               onClick={() => completePreparation(batch.id)}
                               className="font-bold text-cicopal-blue"
                             >
-                              Finalizar
+                              Massa pré-pronta
                             </button>
                           ) : batch.status === "pronta" ? (
                             <button
@@ -623,7 +686,7 @@ export function ProductionTraceabilitySetup({
                               onClick={() => consumeBatch(batch.id)}
                               className="font-bold text-green-700"
                             >
-                              Iniciar consumo
+                              Enviar ao tombador
                             </button>
                           ) : (
                             "—"
@@ -634,7 +697,7 @@ export function ProductionTraceabilitySetup({
                     {!data.batches.length ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="p-5 text-center text-slate-500"
                         >
                           Nenhuma batelada registrada.
@@ -1437,11 +1500,14 @@ export function ProductionTraceabilitySetup({
                       <b className="block">Batelada {batch.numero}</b>
                       <small>
                         {new Date(batch.iniciada_em).toLocaleString("pt-BR")} →{" "}
-                        {batch.finalizada_em
-                          ? new Date(batch.finalizada_em).toLocaleString(
+                        {batch.enviada_tombador_em
+                          ? new Date(batch.enviada_tombador_em).toLocaleString(
                               "pt-BR",
                             )
-                          : "preparo em andamento"}
+                          : "aguardando envio ao tombador"}
+                      </small>
+                      <small className="mt-1 block font-bold tabular-nums text-gray-700">
+                        Tempo: {elapsedTime(batch.iniciada_em, batch.enviada_tombador_em ?? batchClock)}
                       </small>
                       <small className="mt-1 block font-black uppercase text-cicopal-blue">
                         {batch.status.replaceAll("_", " ")}
@@ -1454,7 +1520,7 @@ export function ProductionTraceabilitySetup({
                         onClick={() => completePreparation(batch.id)}
                         className="min-h-12 bg-cicopal-blue px-3 font-black text-white"
                       >
-                        Finalizar preparo
+                        Massa pré-pronta
                       </button>
                     ) : batch.status === "pronta" ? (
                       <button
@@ -1463,7 +1529,7 @@ export function ProductionTraceabilitySetup({
                         onClick={() => consumeBatch(batch.id)}
                         className="min-h-12 bg-green-600 px-3 font-black text-white"
                       >
-                        Iniciar consumo
+                        Enviar ao tombador
                       </button>
                     ) : (
                       <Check className="text-green-700" />
@@ -1614,8 +1680,9 @@ export function ProductionTraceabilitySetup({
               </div>
               <button
                 type="button"
-                onClick={() => setBatchOpen(true)}
-                className="min-h-14 bg-cicopal-blue px-6 text-base font-bold text-white"
+                onClick={openNewBatchForm}
+                disabled={Boolean(activeBatch)}
+                className="min-h-14 bg-cicopal-blue px-6 text-base font-bold text-white disabled:bg-slate-300"
               >
                 INICIAR NOVA BATELADA
               </button>

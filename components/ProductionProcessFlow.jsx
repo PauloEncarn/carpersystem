@@ -21,6 +21,8 @@ import {
 import {
   changeSubprocessState,
   ensureProductionSubprocesses,
+  reportSubprocessProblem,
+  resolveSubprocessProblem,
   ROSCA_SUBPROCESSES,
   saveSubprocessRecord,
 } from "@/lib/productionProcessPersistence";
@@ -53,6 +55,21 @@ const sameInstant = (left, right) =>
   Boolean(left && right) && new Date(left).getTime() === new Date(right).getTime();
 const validValue = (value) =>
   value !== undefined && value !== null && value !== "";
+const stationProcessCodes = {
+  prep: ["automacao", "masseira"],
+  cut: ["corte_fio"],
+  oven: ["forno"],
+  pack: ["empacotamento"],
+  box: ["encaixotamento"],
+};
+const problemOptions = {
+  automacao: { equipment: ["Refinador de açúcar", "Alimentação de farinha", "Tombador"], causes: ["Falta de insumo", "Falha no equipamento", "Lote divergente", "Acúmulo de massa"] },
+  masseira: { equipment: ["Masseira", "Dosagem de insumos", "Tombador"], causes: ["Massa fora do padrão", "Atraso no processo seguinte", "Falha na masseira", "Acúmulo de massa"] },
+  corte_fio: { equipment: ["Cortadora", "Lado operacional", "Lado não operacional"], causes: ["Corte irregular", "Peso fora do padrão", "Massa acumulada", "Falha mecânica"] },
+  forno: { equipment: ["Forno", ...Array.from({ length: 7 }, (_, index) => `Zona ${index + 1}`)], causes: ["Temperatura fora do padrão", "Falha de aquecimento", "Esteira parada", "Produto retido"] },
+  empacotamento: { equipment: Array.from({ length: 4 }, (_, index) => `Máquina ${index + 1}`), causes: ["Máquina parada", "Falha de selagem", "Peso fora do padrão", "Falta de embalagem"] },
+  encaixotamento: { equipment: ["Encaixotadeira 1", "Encaixotadeira 2"], causes: ["Equipamento parado", "Falta de caixas", "Acúmulo de pacotes", "Contagem divergente"] },
+};
 function remaining(end, now) {
   const seconds = Math.max(0, Math.ceil((new Date(end) - now) / 1000));
   const totalMinutes = Math.ceil(seconds / 60);
@@ -92,6 +109,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   const [message, setMessage] = useState("");
   const [viewOnly, setViewOnly] = useState(false);
   const [interruptOpen, setInterruptOpen] = useState(false);
+  const [problemModal, setProblemModal] = useState(null);
+  const [problemResolution, setProblemResolution] = useState(null);
   const [workspace, setWorkspace] = useState("overview");
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
@@ -115,6 +134,23 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       ? `Empacotadora ${parameter.key.match(/^maq_(\d+)_/)[1]}`
       : config?.equipment);
   const rowByCode = (code) => rows.find((item) => item.codigo === code);
+  const openProblemsForCodes = (codes = []) => {
+    const events = rows
+      .filter((row) => codes.includes(row.codigo))
+      .flatMap((row) =>
+        (row.subprocesso_eventos ?? []).map((event) => ({ ...event, process: row })),
+      );
+    const resolved = new Set(
+      events
+        .filter((event) => event.tipo === "problema_resolvido")
+        .map((event) => event.dados?.problema_id)
+        .filter(Boolean),
+    );
+    return events.filter(
+      (event) => event.tipo === "problema_reportado" && !resolved.has(event.id),
+    );
+  };
+  const workspaceProblems = openProblemsForCodes(stationProcessCodes[workspace] ?? []);
   const recordsFor = (code) => {
     const row = rowByCode(code);
     return records
@@ -643,6 +679,99 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       setSaving(false);
     }
   }
+  function openProblemReporter(preferredCode) {
+    const code = preferredCode ?? stationProcessCodes[workspace]?.[0];
+    const options = problemOptions[code];
+    setProblemModal({
+      processCode: code,
+      equipment: options?.equipment?.[0] ?? "",
+      cause: options?.causes?.[0] ?? "Outro",
+      description: "",
+    });
+  }
+  async function submitProblem() {
+    const process = rowByCode(problemModal?.processCode);
+    if (!process || !problemModal?.equipment || !problemModal?.cause) return;
+    setSaving(true);
+    try {
+      const event = remote
+        ? await reportSubprocessProblem({
+            processId: process.id,
+            equipment: problemModal.equipment,
+            cause: problemModal.cause,
+            description: problemModal.description,
+            operatorId,
+          })
+        : {
+            id: `problem-${Date.now()}`,
+            subprocesso_id: process.id,
+            tipo: "problema_reportado",
+            ocorrido_em: new Date().toISOString(),
+            motivo: problemModal.description || problemModal.cause,
+            dados: {
+              equipamento: problemModal.equipment,
+              causa: problemModal.cause,
+              descricao: problemModal.description,
+              status: "aberto",
+            },
+          };
+      setRows((current) =>
+        current.map((row) =>
+          row.id === process.id
+            ? {
+                ...row,
+                subprocesso_eventos: [...(row.subprocesso_eventos ?? []), event],
+              }
+            : row,
+        ),
+      );
+      setProblemModal(null);
+      setMessage("Problema operacional sinalizado. A produção não foi interrompida.");
+    } catch (error) {
+      setMessage(error?.message ?? "Não foi possível registrar o problema.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function submitProblemResolution() {
+    const problem = problemResolution?.problem;
+    const resolution = problemResolution?.resolution?.trim();
+    if (!problem || !resolution) return;
+    setSaving(true);
+    try {
+      const event = remote
+        ? await resolveSubprocessProblem({
+            processId: problem.process.id,
+            problemId: problem.id,
+            resolution,
+            operatorId,
+          })
+        : {
+            id: `resolution-${Date.now()}`,
+            subprocesso_id: problem.process.id,
+            tipo: "problema_resolvido",
+            ocorrido_em: new Date().toISOString(),
+            motivo: resolution,
+            dados: { problema_id: problem.id, solucao: resolution },
+          };
+      setRows((current) =>
+        current.map((row) =>
+          row.id === problem.process.id
+            ? {
+                ...row,
+                subprocesso_eventos: [...(row.subprocesso_eventos ?? []), event],
+              }
+            : row,
+        ),
+      );
+      setProblemResolution(null);
+      setMessage("Problema operacional marcado como resolvido.");
+    } catch (error) {
+      setMessage(error?.message ?? "Não foi possível resolver o problema.");
+    } finally {
+      setSaving(false);
+    }
+  }
   function projection(metric) {
     return (
       (Number(values[metric.key]) || 0) / (metric.divisor ?? 1)
@@ -768,25 +897,32 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             ) : null}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {stations.map(({ id, label, Icon }, stationIndex) => (
+            {stations.map(({ id, label, Icon }, stationIndex) => {
+              const problems = openProblemsForCodes(stationProcessCodes[id]);
+              return (
               <button
                 key={id}
                 type="button"
                 onClick={() => setWorkspace(id)}
-                className="group relative min-h-32 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 text-left font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-cicopal-blue hover:shadow-md active:scale-[.98]"
+                className={`group relative min-h-32 overflow-hidden rounded-lg border p-4 text-left font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:scale-[.98] ${problems.length ? "animate-pulse border-red-500 bg-red-50 text-red-950 ring-4 ring-red-100" : "border-slate-200 bg-white text-slate-800 hover:border-cicopal-blue"}`}
               >
-                {displayedBatch && displayedBatch.status !== "consumida" ? (
+                {problems.length ? (
+                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 bg-red-600 px-2 py-1 text-[10px] font-black uppercase text-white">
+                    <AlertTriangle size={12} /> {problems.length} alerta(s)
+                  </span>
+                ) : displayedBatch && displayedBatch.status !== "consumida" ? (
                   <span
                     className="batch-station-pulse absolute inset-x-0 top-0 h-1 bg-cicopal-blue"
                     style={{ animationDelay: `${stationIndex * 0.45}s` }}
                   />
                 ) : null}
-                <span className="mb-4 grid size-11 place-items-center rounded-lg bg-blue-50 text-cicopal-blue transition group-hover:bg-cicopal-blue group-hover:text-white">
+                <span className={`mb-4 grid size-11 place-items-center rounded-lg transition ${problems.length ? "bg-red-100 text-red-700" : "bg-blue-50 text-cicopal-blue group-hover:bg-cicopal-blue group-hover:text-white"}`}>
                   <Icon size={22} />
                 </span>
                 <span className="block leading-tight">{label}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </section>
       ) : (
@@ -815,14 +951,45 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                       : "Encaixotamento"}
             </h2>
           </div>
+          <button
+            type="button"
+            onClick={() => openProblemReporter()}
+            className="ml-auto inline-flex min-h-12 items-center gap-2 bg-red-600 px-4 font-black text-white shadow-sm"
+          >
+            <AlertTriangle size={20} />
+            <span className="hidden sm:inline">Relatar problema</span>
+          </button>
         </section>
       )}
+      {workspace !== "overview" && workspaceProblems.length ? (
+        <section className="animate-pulse border-l-8 border-red-600 bg-red-50 p-4 text-red-950 shadow-sm">
+          <p className="text-xs font-black uppercase text-red-700">Alerta operacional ativo</p>
+          <div className="mt-2 space-y-2">
+            {workspaceProblems.map((problem) => (
+              <div key={problem.id} className="flex flex-wrap items-center justify-between gap-3 bg-white/80 p-3">
+                <div>
+                  <b>{problem.dados?.equipamento ?? problem.process.nome}</b>
+                  <p className="text-sm font-semibold">{problem.dados?.causa ?? problem.motivo}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProblemResolution({ problem, resolution: "" })}
+                  className="min-h-11 border border-red-300 bg-white px-3 font-black text-red-700"
+                >
+                  Resolver problema
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {workspace === "prep" ? (
         <ProductionTraceabilitySetup
           cycle={cycle}
           operatorId={operatorId}
           onChange={setTraceability}
           mode="prep"
+          hasOpenOperationalProblem={workspaceProblems.length > 0}
         />
       ) : null}
       {!["prep", "overview"].includes(workspace) ? (
@@ -1676,6 +1843,66 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             </div>
           ) : null}
         </section>
+      ) : null}
+      {problemModal ? (
+        <div className="fixed inset-0 z-[170] grid place-items-center overflow-y-auto bg-slate-950/70 p-3">
+          <section className="w-full max-w-xl border-t-8 border-red-600 bg-white shadow-2xl">
+            <header className="flex items-start justify-between border-b p-5">
+              <div>
+                <p className="text-xs font-black uppercase text-red-600">Ocorrência operacional</p>
+                <h3 className="text-2xl font-black">Relatar problema</h3>
+                <p className="mt-1 text-sm font-semibold text-gray-500">O registro sinaliza a área, mas não interrompe a produção.</p>
+              </div>
+              <button type="button" onClick={() => setProblemModal(null)} className="grid size-11 place-items-center bg-gray-100"><X /></button>
+            </header>
+            <div className="space-y-4 p-5">
+              {(stationProcessCodes[workspace]?.length ?? 0) > 1 ? (
+                <label className="block">
+                  <span className="mb-1 block text-xs font-black uppercase text-gray-500">Subprocesso</span>
+                  <select
+                    value={problemModal.processCode}
+                    onChange={(event) => {
+                      const code = event.target.value;
+                      setProblemModal((current) => ({ ...current, processCode: code, equipment: problemOptions[code].equipment[0], cause: problemOptions[code].causes[0] }));
+                    }}
+                    className="min-h-14 w-full border-2 border-gray-300 bg-white px-3 text-lg font-black"
+                  >
+                    {stationProcessCodes[workspace].map((code) => <option key={code} value={code}>{rowByCode(code)?.nome ?? code}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              <label className="block">
+                <span className="mb-1 block text-xs font-black uppercase text-gray-500">Onde ocorreu?</span>
+                <select value={problemModal.equipment} onChange={(event) => setProblemModal((current) => ({ ...current, equipment: event.target.value }))} className="min-h-14 w-full border-2 border-gray-300 bg-white px-3 text-lg font-black">
+                  {(problemOptions[problemModal.processCode]?.equipment ?? []).map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black uppercase text-gray-500">Possível causa</span>
+                <select value={problemModal.cause} onChange={(event) => setProblemModal((current) => ({ ...current, cause: event.target.value }))} className="min-h-14 w-full border-2 border-gray-300 bg-white px-3 text-lg font-black">
+                  {(problemOptions[problemModal.processCode]?.causes ?? []).map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-black uppercase text-gray-500">Detalhes (opcional)</span>
+                <textarea value={problemModal.description} onChange={(event) => setProblemModal((current) => ({ ...current, description: event.target.value }))} className="min-h-24 w-full border-2 border-gray-300 p-3" placeholder="Descreva o que foi observado" />
+              </label>
+            </div>
+            <footer className="grid grid-cols-2 gap-2 border-t p-4">
+              <button type="button" onClick={() => setProblemModal(null)} className="min-h-14 border font-black">Cancelar</button>
+              <button type="button" disabled={saving} onClick={submitProblem} className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300">Confirmar alerta</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+      {problemResolution ? (
+        <div className="fixed inset-0 z-[175] grid place-items-center bg-slate-950/70 p-3">
+          <section className="w-full max-w-lg border-t-8 border-green-600 bg-white shadow-2xl">
+            <header className="border-b p-5"><p className="text-xs font-black uppercase text-green-700">Encerrar alerta operacional</p><h3 className="text-2xl font-black">O que foi feito?</h3></header>
+            <div className="p-5"><textarea autoFocus value={problemResolution.resolution} onChange={(event) => setProblemResolution((current) => ({ ...current, resolution: event.target.value }))} className="min-h-28 w-full border-2 border-gray-300 p-3" placeholder="Descreva a solução aplicada" /></div>
+            <footer className="grid grid-cols-2 gap-2 border-t p-4"><button type="button" onClick={() => setProblemResolution(null)} className="min-h-14 border font-black">Cancelar</button><button type="button" disabled={saving || !problemResolution.resolution.trim()} onClick={submitProblemResolution} className="min-h-14 bg-green-600 font-black text-white disabled:bg-gray-300">Marcar resolvido</button></footer>
+          </section>
+        </div>
       ) : null}
     </div>
   );
