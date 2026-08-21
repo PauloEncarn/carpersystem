@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock3, PackagePlus, Plus, Save } from "lucide-react";
+import { Check, Clock3, Cog, PackagePlus, Plus, Power, Save } from "lucide-react";
 import {
   createBatch,
   finishBatch,
@@ -744,7 +744,7 @@ export function ProductionTraceabilitySetup({
           </b>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-md grid-cols-2 grid-rows-2 gap-3">
+        <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 grid-rows-2 gap-3">
           {packers.map((machine) => (
             <button
               key={machine.machine}
@@ -758,12 +758,28 @@ export function ProductionTraceabilitySetup({
                   at: new Date(),
                 })
               }
-              className={`${machinePosition[machine.machine]} min-h-24 border-2 p-3 text-left disabled:cursor-default ${machine.active ? "border-green-500 bg-green-50 text-green-900" : "border-slate-300 bg-slate-100 text-slate-500"}`}
+              className={`${machinePosition[machine.machine]} group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-default disabled:hover:translate-y-0 ${machine.active ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-emerald-950" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-500"}`}
             >
-              <span className="text-xs font-bold uppercase">Máquina</span>
-              <b className="block text-2xl">{machine.machine}</b>
-              <span className="mt-2 block text-sm font-bold uppercase">
-                {machine.active ? "● ON · Rodando" : "○ OFF · Parada"}
+              <span className={`absolute inset-x-0 top-0 h-1 ${machine.active ? "bg-emerald-500" : "bg-slate-300"}`} />
+              <span className="flex items-start justify-between gap-3">
+                <span className={`grid size-11 place-items-center rounded-xl ${machine.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                  <Cog size={23} className={machine.active ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
+                </span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${machine.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                  <Power size={12} /> {machine.active ? "Em operação" : "Desligada"}
+                </span>
+              </span>
+              <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">
+                Empacotadeira
+              </span>
+              <b className="mt-0.5 block text-2xl text-slate-950">
+                Máquina {String(machine.machine).padStart(2, "0")}
+              </b>
+              <span className="mt-3 flex items-center justify-between border-t border-slate-200/80 pt-3 text-xs font-bold">
+                <span className="text-slate-500">Gramatura</span>
+                <strong className="text-cicopal-blue">
+                  {machine.grammage ? `${machine.grammage} g` : "Não definida"}
+                </strong>
               </span>
             </button>
           ))}

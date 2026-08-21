@@ -8,6 +8,8 @@ import {
   ChevronRight,
   Factory,
   Lock,
+  Cog,
+  Power,
   Boxes,
   CookingPot,
   Flame,
@@ -265,7 +267,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     cycle.endedAt,
     now.getHours(),
   ]);
-  const visibleSlots = fixedSlots.slice(-2);
+  // Mantém todo o histórico da produção acessível, inclusive pendências antigas.
+  const visibleSlots = fixedSlots;
   const isSlotReleased = (slot) =>
     Boolean(slot) && new Date(slot).getTime() <= now.getTime();
 
@@ -822,14 +825,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           mode="prep"
         />
       ) : null}
-      {workspace === "pack" ? (
-        <ProductionTraceabilitySetup
-          cycle={cycle}
-          operatorId={operatorId}
-          onChange={setTraceability}
-          mode="pack"
-        />
-      ) : null}
       {!["prep", "overview"].includes(workspace) ? (
         <section className="border border-gray-300 bg-white p-4 sm:p-5">
           <header className="flex flex-wrap items-start justify-between gap-3">
@@ -875,7 +870,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           </header>
 
           {["cut", "oven", "pack", "box"].includes(workspace) ? (
-            <section className="mt-5 border-y border-slate-200 py-4">
+            <section className="sticky top-[72px] z-20 mt-5 border-y border-cicopal-blue bg-white p-3 shadow-md">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-bold">Horários da produção</h3>
                 <span className="text-sm font-bold text-red-700">
@@ -897,7 +892,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 </span>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {visibleSlots.map((slot, index) => {
+                {visibleSlots.map((slot) => {
                   const processCode =
                     workspace === "cut"
                       ? "corte_fio"
@@ -910,27 +905,49 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                     (item) => sameInstant(item.horario_previsto, slot),
                   );
                   const released = isSlotReleased(slot);
-                  const isCurrent = released && index === 0;
+                  const slotTime = new Date(slot);
+                  const currentHour = new Date(now);
+                  currentHour.setMinutes(0, 0, 0);
+                  const isCurrent =
+                    released && slotTime.getTime() === currentHour.getTime();
+                  const isNext =
+                    slotTime.getTime() === currentHour.getTime() + 3_600_000;
+                  const isPast = slotTime.getTime() < currentHour.getTime();
                   return (
                     <button
                       key={slot}
                       type="button"
                       disabled={!released}
                       onClick={() => openProcess(processCode, slot)}
-                      className={`min-h-16 min-w-24 shrink-0 border px-3 text-center ${record ? "border-green-300 bg-green-50 text-green-800" : !released ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : isCurrent ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-red-300 bg-red-50 text-red-800"}`}
+                      className={`relative min-h-20 min-w-36 shrink-0 border px-3 py-2 text-left text-sm font-bold transition ${isCurrent ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isNext ? "cursor-not-allowed border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900" : record ? "border-green-100 bg-green-50/60 text-green-700 opacity-60" : isPast ? "border-red-200 bg-red-50 text-red-700" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"}`}
                     >
-                      <b className="block text-lg">
+                      <span className="block text-[10px] uppercase opacity-70">
+                        {isCurrent
+                          ? "Em preenchimento"
+                          : isNext
+                            ? "Próximo controle"
+                            : isPast
+                              ? "Anterior"
+                              : "Programado"}
+                      </span>
+                      <b className="mt-1 block text-lg tabular-nums">
                         {new Date(slot).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
                       </b>
+                      <span className="block text-[11px] opacity-75">
+                        {new Date(slot).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </span>
                       <small className="flex items-center justify-center gap-1 font-bold uppercase">
                         {!released ? <Lock size={12} /> : null}
                         {record
                           ? "Preenchido"
                           : !released
-                            ? "Bloqueado"
+                            ? "Ainda não liberado"
                             : isCurrent
                               ? "Atual"
                               : "Pendente"}
@@ -940,6 +957,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 })}
               </div>
             </section>
+          ) : null}
+
+          {workspace === "pack" ? (
+            <ProductionTraceabilitySetup
+              cycle={cycle}
+              operatorId={operatorId}
+              onChange={setTraceability}
+              mode="pack"
+            />
           ) : null}
 
           <div className="mt-6 grid gap-5">
@@ -1107,10 +1133,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   !viewOnly &&
                   !review ? (
                     <nav
-                      className="mt-3 grid grid-cols-4 gap-2"
+                      className="mt-3 grid grid-cols-2 grid-rows-2 gap-2"
                       aria-label="Empacotadoras"
                     >
-                      {[1, 2, 3, 4]
+                      {[1, 3, 4, 2]
                         .filter(
                           (machine) =>
                             !["not_started", "inactive"].includes(
@@ -1127,14 +1153,30 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                           "inactive",
                         ].includes(availability.state);
                         const active = parameter?.group === `Máquina ${machine}`;
+                        const position = {
+                          1: "col-start-1 row-start-1",
+                          2: "col-start-2 row-start-2",
+                          3: "col-start-2 row-start-1",
+                          4: "col-start-1 row-start-2",
+                        }[machine];
                         return (
                           <button
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex((machine - 1) * 3)}
-                            className={`min-h-12 px-2 text-sm font-bold ${active ? "bg-cicopal-blue text-white" : availability.state === "final" ? "bg-amber-50 text-amber-900" : running ? "bg-green-50 text-green-800" : "bg-slate-100 text-slate-400"}`}
+                            className={`${position} group relative min-h-28 overflow-hidden rounded-xl border p-3 text-left shadow-sm transition ${active ? "border-cicopal-blue bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : availability.state === "final" ? "border-amber-300 bg-amber-50" : running ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-400"}`}
                           >
-                            M{machine}
+                            <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : availability.state === "final" ? "bg-amber-500" : running ? "bg-emerald-500" : "bg-slate-300"}`} />
+                            <span className="flex items-start justify-between gap-2">
+                              <span className={`grid size-9 place-items-center rounded-lg ${running ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                                <Cog size={19} className={running ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
+                              </span>
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-black uppercase ${running ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                                <Power size={10} /> {running ? "Operando" : "Parada"}
+                              </span>
+                            </span>
+                            <span className="mt-3 block text-[9px] font-black uppercase tracking-wider text-slate-400">Empacotadeira</span>
+                            <b className="block text-xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
                           </button>
                         );
                       })}

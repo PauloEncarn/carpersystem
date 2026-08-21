@@ -1668,7 +1668,7 @@ function ProductEvaluationTabletFlow({
           </select>
         </label>
         {activeMachines.length ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             {activeMachines.map((machine, index) => (
               <label
                 key={machine.label}
@@ -1789,7 +1789,7 @@ function ProductEvaluationTabletFlow({
             </div>
             <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             {packerConfigurationForGrid.map((machine) => {
               return (
                 <button
