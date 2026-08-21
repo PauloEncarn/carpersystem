@@ -109,8 +109,12 @@ function statusVisual(status) {
   if (status) return STATUS_VISUAL.prep;
   return STATUS_VISUAL.inactive;
 }
-function localDayStart() {
-  const now = new Date();
+function localDateId(value = new Date()) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function localDayStart(dateId = localDateId()) {
+  const now = new Date(`${dateId}T00:00:00`);
   return new Date(
     now.getFullYear(),
     now.getMonth(),
@@ -366,17 +370,18 @@ function productAttention(records, specifications) {
     .filter((item) => ["yellow", "red"].includes(item.classification));
 }
 
-async function loadLiveFactory() {
+async function loadLiveFactory(dateId = localDateId()) {
   if (!isSupabaseConfigured || !supabase) return [];
-  const start = localDayStart();
-  const lookback = new Date(new Date(start).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const start = localDayStart(dateId);
+  const end = new Date(new Date(start).getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const lookback = new Date(new Date(start).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
   const { data: cycles, error: cycleError } = await supabase
     .from("ciclos_producao")
     .select("*")
     .gte("iniciado_em", lookback)
     .order("iniciado_em", { ascending: false });
   if (cycleError) throw cycleError;
-  const relevantCycles = (cycles ?? []).filter((cycle) => !cycle.encerrado_em || new Date(cycle.iniciado_em) >= new Date(start));
+  const relevantCycles = (cycles ?? []).filter((cycle) => new Date(cycle.iniciado_em) < new Date(end) && (!cycle.encerrado_em || new Date(cycle.encerrado_em) >= new Date(start)));
   const cycleIds = relevantCycles.map((item) => item.id);
   if (!cycleIds.length) return [];
   const [
@@ -385,18 +390,22 @@ async function loadLiveFactory() {
     { data: hygieneRounds, error: hygieneError },
     { data: subprocesses, error: subprocessError },
     { data: subprocessRecords, error: subprocessRecordError },
+    { data: interruptions, error: interruptionError },
+    { data: shifts, error: shiftError },
   ] = await Promise.all([
     supabase
       .from("preenchimentos")
       .select("id,ciclo_id,contexto_tipo,horario,valores,status,preenchido_em")
       .in("ciclo_id", cycleIds)
       .gte("preenchido_em", start)
+      .lt("preenchido_em", end)
       .order("preenchido_em", { ascending: false }),
     supabase
       .from("ciclo_nao_conformidades")
       .select("*")
       .in("ciclo_id", cycleIds)
       .gte("registrada_em", start)
+      .lt("registrada_em", end)
       .order("registrada_em", { ascending: false }),
     supabase
       .from("higienizacao_rodadas")
@@ -407,7 +416,7 @@ async function loadLiveFactory() {
       .order("numero", { ascending: false }),
     supabase
       .from("producao_subprocessos")
-      .select("id,ciclo_id,codigo,nome,status,estado_iniciado_em")
+      .select("id,ciclo_id,codigo,nome,status,estado_iniciado_em,subprocesso_eventos(*)")
       .in("ciclo_id", cycleIds)
       .order("ordem"),
     supabase
@@ -417,6 +426,8 @@ async function loadLiveFactory() {
       )
       .in("ciclo_id", cycleIds)
       .order("horario_referencia", { ascending: false }),
+    supabase.from("producao_interrupcoes").select("*").in("ciclo_id",cycleIds).gte("iniciada_em",start).lt("iniciada_em",end).order("iniciada_em",{ascending:false}),
+    supabase.from("ciclo_turnos").select("*").in("ciclo_id",cycleIds).gte("iniciado_em",start).lt("iniciado_em",end).order("iniciado_em",{ascending:false}),
   ]);
   if (fillingError) throw fillingError;
   if (ncError) throw ncError;
@@ -429,6 +440,8 @@ async function loadLiveFactory() {
     !["42P01", "42703", "PGRST205"].includes(subprocessRecordError.code)
   )
     throw subprocessRecordError;
+  if (interruptionError && !["42P01", "PGRST205"].includes(interruptionError.code)) throw interruptionError;
+  if (shiftError && !["42P01", "PGRST205"].includes(shiftError.code)) throw shiftError;
   const { data: specificationRows } = await supabase
     .from("configuracoes_produto")
     .select("linha_id,produto,parametros");
@@ -472,6 +485,8 @@ async function loadLiveFactory() {
         specifications,
         hygieneRound,
         productionProcesses,
+        interruptions: (interruptions ?? []).filter((item) => item.ciclo_id === cycle.id),
+        shifts: (shifts ?? []).filter((item) => item.ciclo_id === cycle.id),
       };
     }),
   );
@@ -486,6 +501,14 @@ export function FactorySupervision({ variant = "classic" }) {
   const [error, setError] = useState("");
   const [showComplete, setShowComplete] = useState(false);
   const [detailTab, setDetailTab] = useState("quality");
+  const [selectedDay, setSelectedDay] = useState(() => localDateId());
+  const todayId = localDateId();
+  const isToday = selectedDay === todayId;
+  const availableDays = useMemo(() => Array.from({ length: 5 }, (_, offset) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (4 - offset));
+    return { id: localDateId(date), label: offset === 4 ? "Hoje" : date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }).replace(".", "") };
+  }), []);
   const refreshingRef = useRef(false);
   async function refresh() {
     if (refreshingRef.current || document.visibilityState === "hidden") return;
@@ -493,7 +516,7 @@ export function FactorySupervision({ variant = "classic" }) {
     setLoading(true);
     setError("");
     try {
-      setCycles(await loadLiveFactory());
+      setCycles(await loadLiveFactory(selectedDay));
     } catch (problem) {
       setError(problem?.message ?? "Não foi possível consultar a fábrica.");
     } finally {
@@ -504,17 +527,17 @@ export function FactorySupervision({ variant = "classic" }) {
   useEffect(() => {
     refresh();
     const clock = window.setInterval(() => setNow(new Date()), 1000);
-    const sync = window.setInterval(refresh, 60_000);
+    const sync = isToday ? window.setInterval(refresh, 60_000) : null;
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(clock);
-      window.clearInterval(sync);
+      if (sync) window.clearInterval(sync);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, []);
+  }, [selectedDay]);
   const lines = useMemo(
     () =>
       lineLayout.map((layout) => {
@@ -595,7 +618,13 @@ export function FactorySupervision({ variant = "classic" }) {
         <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
         <span className="hidden sm:inline">Atualizar</span>
       </button>
-      <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-24 md:p-5 md:pt-24">
+      <div className="absolute inset-x-2 top-[76px] z-20 flex justify-center md:inset-x-5">
+        <div className="flex max-w-full gap-1 overflow-x-auto border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur [scrollbar-width:none]">
+          {availableDays.map((day) => <button key={day.id} type="button" onClick={() => { setSelectedId(""); setSelectedDay(day.id); }} className={`min-h-11 shrink-0 px-4 text-sm font-black ${selectedDay === day.id ? "bg-cicopal-blue text-white" : "bg-slate-50 text-slate-600"}`}>{day.label}</button>)}
+          <span className={`flex min-h-11 shrink-0 items-center px-3 text-xs font-black uppercase ${isToday ? "text-green-700" : "text-amber-700"}`}>{isToday ? "● Ao vivo" : "Histórico"}</span>
+        </div>
+      </div>
+      <div className="relative min-h-[calc(100vh-112px)] overflow-x-auto p-2 pt-36 md:p-5 md:pt-36">
         <MobileFactoryCards lines={lines} onSelect={setSelectedId} />
         <div className="hidden sm:block">
           {variant === "vector" ? (
@@ -762,7 +791,7 @@ export function FactorySupervision({ variant = "classic" }) {
               </button>
               {!showComplete ? (
                 <section className="grid gap-3 sm:grid-cols-2">
-                  <article className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><small className="font-black uppercase text-blue-700">Produção</small><b className="mt-1 block text-lg">{selected.cycle?.productionProcesses?.filter((process) => process.status === "operando").length ?? 0} subprocessos operando</b><span className="text-sm font-semibold text-gray-600">{selected.cycle?.productionProcesses?.find((process) => process.latestRecord)?.nome ?? "Aguardando apontamento"}</span></article>
+                  <article className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><small className="font-black uppercase text-blue-700">Produção</small><b className="mt-1 block text-lg">{selected.cycle?.productionProcesses?.filter((process) => process.status === "operando").length ?? 0} subprocessos operando</b><span className="text-sm font-semibold text-gray-600">{selected.cycle?.interruptions?.length ?? 0} pausa(s)/parada(s) no dia</span></article>
                   <article className={`border-l-4 p-4 ${selected.ncs.length ? "border-red-500 bg-red-50" : "border-green-500 bg-green-50"}`}><small className="font-black uppercase">Qualidade</small><b className="mt-1 block text-lg">{selected.ncs.length ? `${selected.ncs.length} NC em aberto` : "Sem NC em aberto"}</b><span className="text-sm font-semibold text-gray-600">{selected.attentionParameters.length} parâmetro(s) em atenção</span></article>
                   {selected.photos[0] ? <figure className="overflow-hidden border border-gray-200 sm:col-span-2"><img src={selected.photos[0].imagem} alt="Último registro fotográfico" className="max-h-56 w-full object-cover" /><figcaption className="p-3 text-sm font-bold">Último registro fotográfico · {selected.photos[0].horario}</figcaption></figure> : null}
                 </section>
@@ -770,6 +799,7 @@ export function FactorySupervision({ variant = "classic" }) {
               <nav className="grid grid-cols-2 gap-1 bg-slate-100 p-1 sm:grid-cols-4" aria-label="Dados completos da linha">
                 {[["quality","Qualidade"],["production","Produção"],["ncs","Não conformidades"],["charts","Gráficos"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-11 px-2 text-xs font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
               </nav>
+              {detailTab === "production" ? <section className="grid gap-2 sm:grid-cols-2"><article className="border-l-4 border-cicopal-blue bg-blue-50 p-3"><small className="font-black uppercase text-blue-700">Interrupções</small><b className="block text-xl">{selected.cycle?.interruptions?.length ?? 0}</b><span className="text-xs font-semibold">Pausas, paradas e bloqueios no período</span></article><article className="border-l-4 border-violet-500 bg-violet-50 p-3"><small className="font-black uppercase text-violet-700">Responsabilidade</small><b className="block text-lg">{selected.cycle?.shifts?.[0]?.responsavel_nome ?? "Não informado"}</b><span className="text-xs font-semibold">{selected.cycle?.shifts?.length ?? 0} passagem(ns) de turno</span></article>{(selected.cycle?.interruptions ?? []).map((item) => <article key={item.id} className="border border-gray-200 bg-white p-3"><b className="uppercase text-gray-900">{item.classificacao}</b><p className="text-sm font-semibold text-gray-600">{item.motivo}</p><small>{time(item.iniciada_em)}–{time(item.encerrada_em)}</small></article>)}</section> : null}
               {detailTab === "charts" ? <section className="grid gap-2 sm:grid-cols-3"><article className="border-l-4 border-red-500 bg-red-50 p-3"><small className="font-black uppercase text-red-700">Pico de desvios</small><b className="block text-lg">{time(selected.records.find((record) => record.status === "com_nc")?.preenchido_em)}</b></article><article className="border-l-4 border-amber-500 bg-amber-50 p-3"><small className="font-black uppercase text-amber-800">Mais problemas</small><b className="block text-lg">{selected.ncs.length ? time(selected.ncs[0]?.registrada_em) : "Sem ocorrência"}</b></article><article className="border-l-4 border-green-500 bg-green-50 p-3"><small className="font-black uppercase text-green-800">Faixa produtiva</small><b className="block text-lg">{time(selected.cycle?.productionProcesses?.find((process) => process.latestRecord)?.latestRecord?.horario_referencia)}</b></article></section> : null}
               {["production", "charts"].includes(detailTab) && selected.cycle?.productionProcesses?.some(
                 (process) => controlMetric[process.codigo],

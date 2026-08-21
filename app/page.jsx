@@ -54,9 +54,11 @@ export default function HomePage() {
     function handlePopState() {
       if (currentStepRef.current > 1) {
         setCurrentStep((step) =>
-          technicalProfileRef.current && step === 3
+          technicalProfileRef.current && [3, 4].includes(step)
             ? 1
-            : Math.max(1, step - 1),
+            : technicalProfileRef.current && step === 6
+              ? 4
+              : Math.max(1, step - 1),
         );
       }
       window.history.pushState({ rgApp: true }, "");

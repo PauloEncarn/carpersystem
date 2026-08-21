@@ -1881,9 +1881,14 @@ function Rg003ProductionControl({
     ? new Date(`${dateId}T12:00:00-03:00`)
     : new Date();
 
-  if (operatorOnly && cycle) {
-    return <div className="mx-auto max-w-3xl space-y-4"><section className="border-t-4 border-cicopal-blue bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-cicopal-blue">{documentCode} · higienização operacional</p><h2 className="mt-1 text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-500">{cycle.productionCode}</p><div className={`mt-5 border-l-4 p-4 ${hygieneDone ? "border-cicopal-green bg-green-50" : "border-cicopal-blue bg-blue-50"}`}><p className="text-xs font-black uppercase text-gray-500">Etapa do operador</p>{hygieneDone ? <div className="mt-3 min-h-24 border-2 border-green-300 bg-white p-4 text-green-800"><b className="block text-xl">Higienização operacional concluída</b><span className="mt-1 block font-semibold">Nenhuma tarefa pendente para o operador neste ciclo. O registro permanece preservado no histórico.</span></div> : <button type="button" onClick={() => onOpenProcess("higienizacao")} className="mt-3 min-h-24 w-full border-2 border-cicopal-blue bg-white p-4 text-left text-cicopal-blue"><b className="block text-xl">Realizar higienização</b><span className="mt-1 block font-semibold">Preencha a execução e envie para inspeção da Qualidade.</span></button>}</div><p className="mt-4 text-sm font-semibold text-gray-500">As etapas de inspeção, liberação e avaliação são visualizadas pelo perfil da Qualidade.</p></section></div>;
+  const canCreateProduction = ["tecnico", "admin"].includes(profileCode);
+
+  if (operatorOnly) {
+    if (!cycle) return <section className="mx-auto max-w-3xl border-l-8 border-amber-500 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase tracking-wider text-amber-700">Aguardando o Técnico</p><h2 className="mt-2 text-2xl font-black text-gray-950">Nenhuma produção iniciada</h2><p className="mt-2 font-semibold text-gray-600">O Técnico deve selecionar o produto e criar a produção. Assim que isso acontecer, a higienização operacional aparecerá automaticamente neste tablet.</p><div className="mt-5 flex items-center gap-3 bg-amber-50 p-4 text-amber-900"><RefreshCw size={22} /><span className="font-bold">A tela consulta uma nova produção automaticamente.</span></div></section>;
+    return <div className="mx-auto max-w-3xl space-y-4"><section className="border-t-4 border-cicopal-blue bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-cicopal-blue">Produção ativa · higienização operacional</p><h2 className="mt-1 text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-500">{cycle.productionCode}</p><div className={`mt-5 border-l-4 p-4 ${hygieneDone ? "border-cicopal-green bg-green-50" : "border-cicopal-blue bg-blue-50"}`}><p className="text-xs font-black uppercase text-gray-500">Sua próxima tarefa</p>{hygieneDone ? <div className="mt-3 min-h-24 border-2 border-green-300 bg-white p-4 text-green-800"><b className="block text-xl">Higienização operacional concluída</b><span className="mt-1 block font-semibold">O registro foi enviado à Qualidade e permanece preservado no histórico.</span></div> : <button type="button" onClick={() => onOpenProcess("higienizacao")} className="mt-3 min-h-24 w-full border-2 border-cicopal-blue bg-white p-4 text-left text-cicopal-blue"><b className="block text-xl">Realizar higienização</b><span className="mt-1 block font-semibold">Preencha a execução e envie para inspeção da Qualidade.</span></button>}</div></section></div>;
   }
+
+  if (!cycle && !canCreateProduction) return <section className="mx-auto max-w-3xl border-l-8 border-amber-500 bg-white p-6 shadow-sm"><p className="text-xs font-black uppercase text-amber-700">Produção ainda não criada</p><h2 className="mt-2 text-2xl font-black">Aguardando início pelo Técnico</h2><p className="mt-2 font-semibold text-gray-600">Somente o perfil Técnico inicia uma nova produção. Após a criação, esta tela libera as atividades correspondentes ao seu perfil.</p></section>;
 
   return (
     <div className="production-app mx-auto max-w-6xl space-y-4">
@@ -2947,8 +2952,11 @@ function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene }) {
     const load = () => loadActiveRg003Cycle("ROS").then((result) => { if (!active) return; const remoteCycle = result.cycle ?? JSON.parse(window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null"); setCycle(remoteCycle); setError(""); setLoading(false); }).catch(() => { if (active) { setError("Não foi possível localizar a produção ativa de Rosca."); setLoading(false); } });
     load();
     const sync = () => load();
+    const timer = window.setInterval(load, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
     window.addEventListener("rg003-cycle-updated", sync);
-    return () => { active = false; window.removeEventListener("rg003-cycle-updated", sync); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("rg003-cycle-updated", sync); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
   if (loading) return <div className="min-h-64 animate-pulse bg-gray-100" />;
   if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}</section>;
@@ -3158,7 +3166,7 @@ export function HierarchyNavigator({
     // Navegar para trás não pausa nem encerra o ciclo. Essas mudanças de
     // estado continuam restritas aos controles explícitos da produção.
     onStepChange(
-      hideDates && currentStep === 3
+      hideDates && [3, 4].includes(currentStep)
         ? 1
         : hideDates && currentStep === 6
           ? 4
