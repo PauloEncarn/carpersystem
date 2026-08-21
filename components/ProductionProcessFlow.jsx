@@ -13,6 +13,7 @@ import {
   Power,
   Boxes,
   CookingPot,
+  SprayCan,
   Flame,
   Scissors,
   Save,
@@ -57,6 +58,7 @@ const sameInstant = (left, right) =>
 const validValue = (value) =>
   value !== undefined && value !== null && value !== "";
 const stationProcessCodes = {
+  hygiene: [],
   prep: ["automacao", "masseira"],
   cut: ["corte_fio"],
   oven: ["forno"],
@@ -91,7 +93,7 @@ function localRows(cycleId) {
   }));
 }
 
-export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
+export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onOpenHygiene }) {
   const [rows, setRows] = useState([]);
   const [traceability, setTraceability] = useState(null);
   const [records, setRecords] = useState([]);
@@ -274,6 +276,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
           : `Batelada ${displayedBatch.numero} finalizou`
     : "Nenhuma batelada iniciada";
   const stations = [
+    { id: "hygiene", label: "Higienização", Icon: SprayCan },
     { id: "prep", label: "Preparação", Icon: CookingPot },
     { id: "cut", label: "Corte a fio", Icon: Scissors },
     { id: "oven", label: "Forno", Icon: Flame },
@@ -919,7 +922,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             Abra somente a estação que será preenchida agora.
           </p>
           <div
-            className={`mt-4 flex min-h-14 items-center justify-between gap-4 border-l-4 px-4 py-3 ${displayedBatch?.status === "consumida" ? "border-red-500 bg-red-50 text-red-800" : displayedBatch?.status === "pronta" ? "border-green-500 bg-green-50 text-green-800" : displayedBatch ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-slate-300 bg-slate-50 text-slate-500"}`}
+            className={`mt-4 flex min-h-14 items-center justify-between gap-4 border-l-4 px-4 py-3 ${["consumida", "enviada_tombador"].includes(displayedBatch?.status) ? "border-slate-400 bg-slate-50 text-slate-700" : displayedBatch?.status === "pronta" ? "border-green-500 bg-green-50 text-green-800" : displayedBatch ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-slate-300 bg-slate-50 text-slate-500"}`}
           >
             <div>
               <small className="block text-[10px] font-bold uppercase tracking-wide opacity-70">
@@ -931,21 +934,21 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               <span className="size-3 shrink-0 animate-pulse rounded-full bg-green-500" />
             ) : null}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {stations.map(({ id, label, Icon }, stationIndex) => {
               const problems = openProblemsForCodes(stationProcessCodes[id]);
               return (
               <button
                 key={id}
                 type="button"
-                onClick={() => setWorkspace(id)}
+                onClick={() => id === "hygiene" ? onOpenHygiene?.() : setWorkspace(id)}
                 className={`group relative min-h-32 overflow-hidden rounded-lg border p-4 text-left font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:scale-[.98] ${problems.length ? "animate-pulse border-red-500 bg-red-50 text-red-950 ring-4 ring-red-100" : "border-slate-200 bg-white text-slate-800 hover:border-cicopal-blue"}`}
               >
                 {problems.length ? (
                   <span className="absolute right-3 top-3 inline-flex items-center gap-1 bg-red-600 px-2 py-1 text-[10px] font-black uppercase text-white">
                     <AlertTriangle size={12} /> {problems.length} alerta(s)
                   </span>
-                ) : displayedBatch && displayedBatch.status !== "consumida" ? (
+                ) : displayedBatch && !["consumida", "enviada_tombador"].includes(displayedBatch.status) ? (
                   <span
                     className="batch-station-pulse absolute inset-x-0 top-0 h-1 bg-cicopal-blue"
                     style={{ animationDelay: `${stationIndex * 0.45}s` }}
@@ -955,6 +958,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                   <Icon size={22} />
                 </span>
                 <span className="block leading-tight">{label}</span>
+                {id === "hygiene" ? (
+                  <span className={`mt-2 block text-xs font-black ${cycle.status === "hygiene" ? "text-amber-700" : "text-green-700"}`}>
+                    {cycle.status === "hygiene"
+                      ? "Aguardando execução/liberação"
+                      : (cycle.events ?? []).some((event) => /reprovada|não conformidade/i.test(event.label ?? ""))
+                        ? "NC informada · acompanhar correção"
+                        : "Higienização liberada · Qualidade aprovou"}
+                  </span>
+                ) : null}
               </button>
               );
             })}

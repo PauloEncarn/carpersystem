@@ -484,6 +484,8 @@ export function FactorySupervision({ variant = "classic" }) {
   const [hoveredId, setHoveredId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showComplete, setShowComplete] = useState(false);
+  const [detailTab, setDetailTab] = useState("quality");
   const refreshingRef = useRef(false);
   async function refresh() {
     if (refreshingRef.current || document.visibilityState === "hidden") return;
@@ -734,7 +736,7 @@ export function FactorySupervision({ variant = "classic" }) {
                 type="button"
                 aria-label="Fechar detalhes da linha"
                 className="grid size-11 place-items-center rounded-full bg-gray-100"
-                onClick={() => setSelectedId("")}
+                onClick={() => { setSelectedId(""); setShowComplete(false); }}
               >
                 <X size={20} />
               </button>
@@ -755,7 +757,21 @@ export function FactorySupervision({ variant = "classic" }) {
                   alert={selected.ncs.length > 0}
                 />
               </div>
-              {selected.cycle?.productionProcesses?.some(
+              <button type="button" onClick={() => setShowComplete((value) => !value)} className="min-h-12 w-full border border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue">
+                {showComplete ? "Exibir somente resumo" : "Exibir dados completos"}
+              </button>
+              {!showComplete ? (
+                <section className="grid gap-3 sm:grid-cols-2">
+                  <article className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><small className="font-black uppercase text-blue-700">Produção</small><b className="mt-1 block text-lg">{selected.cycle?.productionProcesses?.filter((process) => process.status === "operando").length ?? 0} subprocessos operando</b><span className="text-sm font-semibold text-gray-600">{selected.cycle?.productionProcesses?.find((process) => process.latestRecord)?.nome ?? "Aguardando apontamento"}</span></article>
+                  <article className={`border-l-4 p-4 ${selected.ncs.length ? "border-red-500 bg-red-50" : "border-green-500 bg-green-50"}`}><small className="font-black uppercase">Qualidade</small><b className="mt-1 block text-lg">{selected.ncs.length ? `${selected.ncs.length} NC em aberto` : "Sem NC em aberto"}</b><span className="text-sm font-semibold text-gray-600">{selected.attentionParameters.length} parâmetro(s) em atenção</span></article>
+                  {selected.photos[0] ? <figure className="overflow-hidden border border-gray-200 sm:col-span-2"><img src={selected.photos[0].imagem} alt="Último registro fotográfico" className="max-h-56 w-full object-cover" /><figcaption className="p-3 text-sm font-bold">Último registro fotográfico · {selected.photos[0].horario}</figcaption></figure> : null}
+                </section>
+              ) : <>
+              <nav className="grid grid-cols-2 gap-1 bg-slate-100 p-1 sm:grid-cols-4" aria-label="Dados completos da linha">
+                {[["quality","Qualidade"],["production","Produção"],["ncs","Não conformidades"],["charts","Gráficos"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-11 px-2 text-xs font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
+              </nav>
+              {detailTab === "charts" ? <section className="grid gap-2 sm:grid-cols-3"><article className="border-l-4 border-red-500 bg-red-50 p-3"><small className="font-black uppercase text-red-700">Pico de desvios</small><b className="block text-lg">{time(selected.records.find((record) => record.status === "com_nc")?.preenchido_em)}</b></article><article className="border-l-4 border-amber-500 bg-amber-50 p-3"><small className="font-black uppercase text-amber-800">Mais problemas</small><b className="block text-lg">{selected.ncs.length ? time(selected.ncs[0]?.registrada_em) : "Sem ocorrência"}</b></article><article className="border-l-4 border-green-500 bg-green-50 p-3"><small className="font-black uppercase text-green-800">Faixa produtiva</small><b className="block text-lg">{time(selected.cycle?.productionProcesses?.find((process) => process.latestRecord)?.latestRecord?.horario_referencia)}</b></article></section> : null}
+              {["production", "charts"].includes(detailTab) && selected.cycle?.productionProcesses?.some(
                 (process) => controlMetric[process.codigo],
               ) ? (
                 <section>
@@ -778,7 +794,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
-              {qualityControlSeries(selected.records).length ? (
+              {["quality", "charts"].includes(detailTab) && qualityControlSeries(selected.records).length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
@@ -799,7 +815,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
-              {selected.photos[0] ? (
+              {detailTab === "quality" && selected.photos[0] ? (
                 <section>
                   <Title
                     icon={<Camera size={17} />}
@@ -820,7 +836,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </figure>
                 </section>
               ) : null}
-              {selected.attentionParameters.length ? (
+              {detailTab === "quality" && selected.attentionParameters.length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
@@ -863,7 +879,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
-              <section>
+              {["quality", "production"].includes(detailTab) ? <section>
                 <Title
                   icon={<Clock3 size={17} />}
                   text="Últimos preenchimentos"
@@ -896,8 +912,8 @@ export function FactorySupervision({ variant = "classic" }) {
                     </p>
                   ) : null}
                 </div>
-              </section>
-              {selected.ncs.length ? (
+              </section> : null}
+              {detailTab === "ncs" && selected.ncs.length ? (
                 <section>
                   <Title
                     icon={<AlertTriangle size={17} />}
@@ -928,6 +944,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
+              </>}
             </div>
           </aside>
         ) : null}

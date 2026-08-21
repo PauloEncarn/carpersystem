@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ProductionReports } from "@/components/ProductionReports";
@@ -9,14 +10,18 @@ import {
   loadUserSession,
   saveUserSession,
 } from "@/lib/userSession";
+import { accessFor } from "@/lib/profileAccess";
 
 export default function ReportsPage() {
+  const router = useRouter();
   const [loggedUser, setLoggedUser] = useState(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    setLoggedUser(loadUserSession());
+    const session = loadUserSession();
+    setLoggedUser(session);
+    if (session && !accessFor(session).reports) router.replace("/");
     setReady(true);
-  }, []);
+  }, [router]);
   if (!ready) return <main className="min-h-screen bg-[#f6f7fb]" />;
   if (!loggedUser)
     return (
@@ -27,6 +32,7 @@ export default function ReportsPage() {
         }}
       />
     );
+  if (!accessFor(loggedUser).reports) return <main className="min-h-screen bg-[#f6f7fb]" />;
   const canAccessConfigurator =
     loggedUser?.permissoes?.includes("configurador:acessar") ||
     loggedUser?.permissoes?.includes("admin:acessar");

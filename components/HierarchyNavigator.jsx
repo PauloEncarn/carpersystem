@@ -9,6 +9,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  Clock3,
   ClipboardList,
   Factory,
   FileText,
@@ -29,12 +30,14 @@ import {
   startCyclePause,
   finishCyclePause,
   startRg003Cycle,
+  registerCycleShiftHandover,
 } from "@/lib/rg003Persistence";
 import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
 import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
 import { finishActiveBatch } from "@/lib/productionTraceabilityPersistence";
+import { documentsForProfile } from "@/lib/profileAccess";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
@@ -1485,6 +1488,7 @@ function Rg003ProductionControl({
   const [syncState, setSyncState] = useState("checking");
   const [stopOpen, setStopOpen] = useState(false);
   const [stopMode, setStopMode] = useState("finish");
+  const [shiftData, setShiftData] = useState({ turno: "B", responsavel: "", observacao: "" });
   const [nextProduct, setNextProduct] = useState("");
   const [genericNcOpen, setGenericNcOpen] = useState(false);
   const [genericNc, setGenericNc] = useState({
@@ -1496,6 +1500,8 @@ function Rg003ProductionControl({
   });
   const [resumeOpen, setResumeOpen] = useState(false);
   const [resumeData, setResumeData] = useState({ observacao: "", fotoDepois: "" });
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [pauseData, setPauseData] = useState({ motivo: "", fotoAntes: "" });
 
   useEffect(() => {
     let active = true;
@@ -1684,7 +1690,14 @@ function Rg003ProductionControl({
   }
 
   async function stopProduction() {
-    if (stopMode === "change") {
+    if (stopMode === "shift") {
+      try {
+        setSyncState("saving");
+        await registerCycleShiftHandover({ cycleId: cycle.id, operatorId, fromShift: null, toShift: shiftData.turno, responsibleName: shiftData.responsavel, observation: shiftData.observacao });
+        await transition(cycle.status, `Responsabilidade transferida para o turno ${shiftData.turno}`, {});
+        setStopOpen(false);
+      } catch { setSyncState("error"); }
+    } else if (stopMode === "change") {
       const ended = await transition("ended", "Produção encerrada para troca de produto", {
         productionEndedAt: new Date().toISOString(), activeAction: null,
       });
@@ -1785,6 +1798,27 @@ function Rg003ProductionControl({
       });
       setResumeOpen(false);
       setResumeData({ observacao: "", fotoDepois: "" });
+    } catch {
+      setSyncState("error");
+    }
+  }
+
+  async function pauseProduction() {
+    if (!cycle || !pauseData.motivo.trim() || !pauseData.fotoAntes) return;
+    try {
+      setSyncState("saving");
+      const activePause = await startCyclePause({
+        cycleId: cycle.id,
+        operatorId,
+        reason: pauseData.motivo,
+        photoBefore: pauseData.fotoAntes,
+      });
+      await transition("blocked", `Produção pausada · ${pauseData.motivo}`, {
+        activeAction: null,
+        activePause,
+      });
+      setPauseOpen(false);
+      setPauseData({ motivo: "", fotoAntes: "" });
     } catch {
       setSyncState("error");
     }
@@ -2132,6 +2166,11 @@ function Rg003ProductionControl({
                     ? "Aguardando preparo da primeira massa"
                     : "Aguardando higienização"}
             </p>
+            {producing ? (
+              <button type="button" onClick={() => setPauseOpen(true)} className="mx-auto mt-4 flex min-h-12 items-center justify-center gap-2 border border-amber-300 bg-amber-400 px-5 font-black text-amber-950">
+                <Clock3 size={19} /> Pausar produção
+              </button>
+            ) : null}
             {canCancelPreparation ? (
               <button
                 type="button"
@@ -2323,6 +2362,21 @@ function Rg003ProductionControl({
         </div>
       ) : null}
 
+      {pauseOpen ? (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/65 p-4">
+          <section className="w-full max-w-xl border-t-8 border-amber-500 bg-white shadow-2xl">
+            <header className="p-5"><p className="text-xs font-black uppercase text-amber-700">Pausa operacional</p><h2 className="text-2xl font-black">Pausar sem encerrar a produção</h2><p className="mt-1 font-semibold text-gray-500">O ciclo, o produto e a batelada permanecem vinculados. O tempo parado será calculado.</p></header>
+            <div className="space-y-3 border-y border-gray-200 p-5">
+              <select className="min-h-14 w-full border border-gray-300 bg-white px-3 font-bold" value={pauseData.motivo} onChange={(event) => setPauseData((current) => ({ ...current, motivo: event.target.value }))}>
+                <option value="">Selecione o motivo</option><option>Intervalo programado</option><option>Troca de insumo</option><option>Ajuste operacional</option><option>Falta de material</option><option>Manutenção preventiva</option><option>Outro motivo</option>
+              </select>
+              <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-amber-500 bg-amber-50 font-black text-amber-900"><Camera size={21} />{pauseData.fotoAntes ? "Foto registrada" : "Registrar situação antes da pausa"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPauseData((current) => ({ ...current, fotoAntes: reader.result })); reader.readAsDataURL(file); }} /></label>
+            </div>
+            <footer className="grid grid-cols-2 gap-3 p-4"><button type="button" className="min-h-14 border border-gray-300 font-bold" onClick={() => setPauseOpen(false)}>Cancelar</button><button type="button" disabled={!pauseData.motivo || !pauseData.fotoAntes} className="min-h-14 bg-amber-500 font-black text-amber-950 disabled:bg-gray-300" onClick={pauseProduction}>Confirmar pausa</button></footer>
+          </section>
+        </div>
+      ) : null}
+
       {viewedCycle ? (
         <div className="fixed inset-0 z-[110] grid place-items-center bg-black/65 p-4">
           <section className="max-h-[92vh] w-full max-w-2xl overflow-y-auto border-t-8 border-cicopal-blue bg-white shadow-2xl">
@@ -2380,7 +2434,7 @@ function Rg003ProductionControl({
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <button
                       type="button"
                       className={`min-h-20 border-2 font-bold ${stopMode === "finish" ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : "border-gray-200"}`}
@@ -2395,6 +2449,7 @@ function Rg003ProductionControl({
                     >
                       Trocar produto
                     </button>
+                    <button type="button" className={`min-h-20 border-2 font-bold ${stopMode === "shift" ? "border-green-500 bg-green-50 text-green-800" : "border-gray-200"}`} onClick={() => setStopMode("shift")}>Troca de turno</button>
                   </div>
                   {stopMode === "change" ? (
                     <label className="mt-4 block">
@@ -2419,6 +2474,7 @@ function Rg003ProductionControl({
                       </select>
                     </label>
                   ) : null}
+                  {stopMode === "shift" ? <div className="mt-4 grid gap-3"><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Próximo turno</span><select className="min-h-14 w-full border border-gray-300 bg-white px-3 font-bold" value={shiftData.turno} onChange={(event) => setShiftData((current) => ({ ...current, turno: event.target.value }))}><option>A</option><option>B</option><option>C</option></select></label><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Supervisor que assume</span><input className="min-h-14 w-full border border-gray-300 px-3 font-bold" value={shiftData.responsavel} onChange={(event) => setShiftData((current) => ({ ...current, responsavel: event.target.value }))} placeholder="Nome do responsável" /></label><textarea className="min-h-20 w-full border border-gray-300 p-3" placeholder="Observação da passagem (opcional)" value={shiftData.observacao} onChange={(event) => setShiftData((current) => ({ ...current, observacao: event.target.value }))} /><p className="border-l-4 border-green-500 bg-green-50 p-3 text-sm font-bold text-green-900">A produção continuará com o mesmo código, lotes, bateladas e horários. Apenas a responsabilidade será transferida.</p></div> : null}
                 </>
               )}
             </div>
@@ -2432,13 +2488,16 @@ function Rg003ProductionControl({
               </button>
               <button
                 type="button"
-                className="min-h-14 bg-cicopal-red font-bold text-white"
+                disabled={stopMode === "shift" && !shiftData.responsavel.trim()}
+                className="min-h-14 bg-cicopal-red font-bold text-white disabled:bg-gray-300"
                 onClick={stopProduction}
               >
                 {stopMode === "cancel"
                   ? "Cancelar preparação e voltar"
                   : stopMode === "change"
                     ? "Parar e preparar troca"
+                    : stopMode === "shift"
+                      ? "Confirmar passagem de turno"
                     : "Confirmar encerramento"}
               </button>
             </footer>
@@ -2879,7 +2938,7 @@ function CentralNc({ ncs, onDetail, contextLabel = "Todas as linhas", loading = 
   );
 }
 
-function ProductionOperationsRg({ operatorId, profileCode }) {
+function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene }) {
   const [cycle, setCycle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2893,7 +2952,7 @@ function ProductionOperationsRg({ operatorId, profileCode }) {
   }, []);
   if (loading) return <div className="min-h-64 animate-pulse bg-gray-100" />;
   if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}</section>;
-  return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">RG.PROD.ROS.001 · produção vinculada</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} /></div>;
+  return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">Produção ativa</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} onOpenHygiene={onOpenHygiene} /></div>;
 }
 
 export function HierarchyNavigator({
@@ -3013,7 +3072,7 @@ export function HierarchyNavigator({
     selected.linha && selection.dataId
       ? generateLoteId(selected.linha.id, selection.dataId)
       : "";
-  const documentosDoDia = rgCatalog
+  const documentosDoDia = documentsForProfile(profileCode, rgCatalog)
     .filter(
       (documento) =>
         !documento.linkedLines?.length ||
@@ -3026,6 +3085,13 @@ export function HierarchyNavigator({
       const loteId = preenchido?.lotes[0]?.id ?? generatedLoteId;
       return { ...documento, loteId };
     });
+
+  useEffect(() => {
+    if (currentStep !== 3 || documentosDoDia.length !== 1) return;
+    const onlyDocument = documentosDoDia[0];
+    if (selection.documentoId !== onlyDocument.id) selectDocumento(onlyDocument);
+    onStepChange(4);
+  }, [currentStep, documentosDoDia.length, profileCode, selection.linhaId]);
   const processosDoDocumento = useMemo(() => {
     const processIds = selected.documento?.processos;
     if (!processIds?.length)
@@ -3310,7 +3376,7 @@ export function HierarchyNavigator({
               <>
                 <StageHeader title="Linhas Disponiveis" />
                 <div className="grid gap-3 md:grid-cols-3">
-                  {tree.map((linha) => (
+                  {tree.filter((linha) => profileCode !== "operador" || linha.id === "ROS").map((linha) => (
                     <CardButton
                       key={linha.id}
                       icon={Factory}
@@ -3448,7 +3514,7 @@ export function HierarchyNavigator({
                   title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
                 />
                 {selection.documentoId === "RG.PROD.ROS.001" ? (
-                  <ProductionOperationsRg operatorId={operatorId} profileCode={profileCode} />
+                  <ProductionOperationsRg operatorId={operatorId} profileCode={profileCode} onOpenHygiene={() => abrirRegistroTecnico("higienizacao")} />
                 ) : sequentialFlow ? (
                   <Rg003ProductionControl
                     lineId={selection.linhaId}

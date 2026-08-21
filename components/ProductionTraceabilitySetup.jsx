@@ -85,9 +85,11 @@ export function ProductionTraceabilitySetup({
     () => (data?.lots ?? []).filter((item) => !item.encerrado_em),
     [data],
   );
-  const recipe =
-    data?.recipes?.find((item) => item.produto === cycle.product) ??
-    data?.recipes?.[0];
+  const recipe = data?.recipes?.find(
+    (item) =>
+      item.produto?.trim().toLocaleLowerCase("pt-BR") ===
+      cycle.product?.trim().toLocaleLowerCase("pt-BR"),
+  );
   const supplies = data?.supplies ?? [];
   useEffect(() => {
     const firstBatch = [...(data?.batches ?? [])].sort(
@@ -129,7 +131,9 @@ export function ProductionTraceabilitySetup({
       );
     }
     setBatchStep(0);
-    setBatchReview(false);
+    // A primeira batelada sempre abre a receita completa. Nas seguintes,
+    // primeiro perguntamos se lote ou quantidade mudou.
+    setBatchReview(!firstBatch);
     setBatchFormulaEditing(false);
     setBatchDeviationReason("");
     setBatchOpen(true);
@@ -229,6 +233,8 @@ export function ProductionTraceabilitySetup({
       );
       return;
     }
+    if (!recipe)
+      return setMessage(`Não existe receita ativa cadastrada para ${cycle.product}.`);
     const inputs = inputsForBatch();
     if (inputs.some((item) => !item.lot || !item.expiry))
       return setMessage("Informe lote e validade de todos os insumos.");
@@ -372,13 +378,15 @@ export function ProductionTraceabilitySetup({
     em_preparacao: "Em preparação",
     pronta: "Pronta",
     em_consumo: "Em consumo",
-    consumida: "Consumida",
+    consumida: "Enviada para o tombador",
+    enviada_tombador: "Enviada para o tombador",
   };
   const batchTone = {
     em_preparacao: "bg-amber-50 text-amber-900",
     pronta: "bg-green-100 text-green-900",
     em_consumo: "bg-blue-100 text-blue-900",
-    consumida: "bg-red-100 text-red-900",
+    consumida: "bg-slate-100 text-slate-700",
+    enviada_tombador: "bg-slate-100 text-slate-700",
   };
   function editSupply(supply) {
     const current = activeLots.find((item) => item.insumo_id === supply.id);
@@ -398,21 +406,21 @@ export function ProductionTraceabilitySetup({
           <p className="text-xs font-bold uppercase tracking-wide text-cicopal-blue">
             Preparação
           </p>
-          <h2 className="mt-1 text-2xl font-bold">Insumos e bateladas</h2>
+          <h2 className="mt-1 text-2xl font-bold">Controle de bateladas</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Os lotes vigentes são reaproveitados até que o operador registre uma
-            alteração.
+            Prepare, confirme a massa pronta e registre o envio ao tombador.
+            A receita permanece vinculada ao sabor produzido.
           </p>
         </header>
 
-        <div className="grid gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-          <section>
+        <div className="flex flex-col gap-6 p-4 sm:p-5">
+          <section className="order-2">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase text-slate-500">
-                  Automação e masseira
+                  Receita e rastreabilidade
                 </p>
-                <h3 className="text-xl font-bold">Insumos vigentes</h3>
+                <h3 className="text-xl font-bold">{cycle.product} · insumos vigentes</h3>
               </div>
               <span className="text-sm text-slate-500">
                 {activeLots.length}/{recipeInputs.length} cadastrados
@@ -496,7 +504,7 @@ export function ProductionTraceabilitySetup({
             </div>
           </section>
 
-          <section>
+          <section className="order-1">
             <div className="border border-slate-200">
               <div className="border-b border-slate-200 p-4">
                 <p className="text-xs font-bold uppercase text-cicopal-blue">
@@ -504,9 +512,13 @@ export function ProductionTraceabilitySetup({
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-3">
                   <h3 className="text-xl font-bold">
-                    {consumingBatch
-                      ? `Batelada ${consumingBatch.numero} em consumo`
-                      : "Próxima batelada"}
+                    {activeBatch
+                      ? `Batelada ${activeBatch.numero} em preparo`
+                      : readyBatches.length
+                        ? `${readyBatches.length} massa(s) pronta(s)`
+                        : consumingBatch
+                          ? `Batelada ${consumingBatch.numero} em consumo`
+                          : "Preparar primeira massa"}
                   </h3>
                   <b className="text-sm text-slate-500">
                     {batchTotal.toLocaleString("pt-BR")} kg
@@ -516,21 +528,26 @@ export function ProductionTraceabilitySetup({
 
               {!batchOpen ? (
                 <div className="p-4">
-                  <p className="text-sm text-slate-600">
-                    Ao iniciar, o sistema reutiliza os lotes e as quantidades
-                    exibidos ao lado.
-                  </p>
+                  <div className="border-l-4 border-cicopal-blue bg-blue-50 p-3">
+                    <small className="font-black uppercase text-cicopal-blue">Receita do produto</small>
+                    <b className="mt-1 block text-lg">{recipe ? `${recipe.produto} · versão ${recipe.versao}` : "Receita não cadastrada"}</b>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {data.batches.length
+                        ? "A próxima massa repetirá os lotes e quantidades da primeira batelada, salvo alteração informada."
+                        : "Na primeira massa, confirme todos os lotes e as quantidades da receita."}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     disabled={
                       saving ||
                       Boolean(activeBatch) ||
-                      inputsForBatch().some((item) => !item.lot || !item.expiry)
+                      !recipe
                     }
                     onClick={openNewBatchForm}
                     className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
                   >
-                    Iniciar nova batelada
+                    Preparar massa
                   </button>
                 </div>
               ) : !batchReview ? (
@@ -543,17 +560,17 @@ export function ProductionTraceabilitySetup({
                   <button
                     type="button"
                     onClick={addBatch}
-                    disabled={saving}
+                    disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
                     className="mt-4 min-h-14 w-full bg-green-600 px-4 font-bold text-white"
                   >
-                    Não, usar os mesmos dados
+                    Não, repetir a mesma receita
                   </button>
                   <button
                     type="button"
                     onClick={() => setBatchReview(true)}
                     className="mt-2 min-h-12 w-full border border-slate-300 bg-white px-4 font-bold text-cicopal-blue"
                   >
-                    Sim, revisar dados
+                    Sim, alterar lote ou quantidade
                   </button>
                   <button
                     type="button"
@@ -565,7 +582,12 @@ export function ProductionTraceabilitySetup({
                 </div>
               ) : (
                 <div className="p-4">
-                  <h4 className="font-bold">Revise antes de iniciar</h4>
+                  <h4 className="text-lg font-bold">
+                    {data.batches.length ? "Informe o que mudou" : "Confirme a primeira receita"}
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Lote, validade e quantidade ficarão vinculados a esta batelada.
+                  </p>
                   <div className="mt-3 divide-y border border-slate-200">
                     {recipeInputs.map((item) => {
                       const supply = item.insumos;
@@ -574,19 +596,26 @@ export function ProductionTraceabilitySetup({
                       );
                       return (
                         <div key={supply.id} className="p-3 text-sm">
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="grid gap-3 sm:grid-cols-[1fr_150px_auto] sm:items-end">
                             <span>
                               <b className="block">{supply.nome}</b>
                               <span className="text-slate-500">
                                 {current
-                                  ? `Lote ${current.lote_fornecedor}`
+                                  ? `Lote ${current.lote_fornecedor} · validade ${new Date(`${current.validade}T12:00`).toLocaleDateString("pt-BR")}`
                                   : "Sem lote"}
                               </span>
                             </span>
+                            <label>
+                              <span className="mb-1 block text-[10px] font-black uppercase text-slate-500">Quantidade</span>
+                              <span className="flex border border-slate-300">
+                                <input type="number" inputMode="decimal" value={batchInputs[supply.id]?.used ?? item.quantidade ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], used: event.target.value } }))} className="min-h-12 min-w-0 flex-1 px-2 font-black" />
+                                <b className="grid place-items-center border-l px-2">{item.unidade}</b>
+                              </span>
+                            </label>
                             <button
                               type="button"
                               onClick={() => editSupply(supply)}
-                              className="font-bold text-cicopal-blue"
+                              className="min-h-12 border border-cicopal-blue bg-white px-3 font-bold text-cicopal-blue"
                             >
                               Alterar lote
                             </button>
@@ -597,18 +626,18 @@ export function ProductionTraceabilitySetup({
                   </div>
                   <button
                     type="button"
-                    onClick={addBatch}
-                    disabled={saving}
+                    onClick={startBatchWithFormulaCheck}
+                    disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
                     className="mt-3 min-h-14 w-full bg-green-600 px-4 font-bold text-white"
                   >
-                    Confirmar e iniciar batelada
+                    Confirmar e preparar massa
                   </button>
                   <button
                     type="button"
-                    onClick={() => setBatchReview(false)}
+                    onClick={() => data.batches.length ? setBatchReview(false) : setBatchOpen(false)}
                     className="mt-2 min-h-11 w-full font-bold text-slate-500"
                   >
-                    Voltar
+                    {data.batches.length ? "Voltar" : "Cancelar"}
                   </button>
                 </div>
               )}
@@ -629,83 +658,44 @@ export function ProductionTraceabilitySetup({
                   {data.batches.length} registro(s)
                 </span>
               </div>
-              <div className="overflow-x-auto border border-slate-200">
-                <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="p-3">Batelada</th>
-                      <th className="p-3">Início</th>
-                      <th className="p-3">Enviada ao tombador</th>
-                      <th className="p-3">Tempo de preparo</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {data.batches.map((batch) => (
-                      <tr
-                        key={batch.id}
-                        className={batchTone[batch.status] ?? "bg-white"}
-                      >
-                        <td className="p-3 font-bold">#{batch.numero}</td>
-                        <td className="p-3">
-                          {new Date(batch.iniciada_em).toLocaleString("pt-BR")}
-                        </td>
-                        <td className="p-3">
-                          {batch.enviada_tombador_em
-                            ? new Date(batch.enviada_tombador_em).toLocaleString(
-                                "pt-BR",
-                              )
-                            : "—"}
-                        </td>
-                        <td className="p-3 font-bold tabular-nums">
-                          {elapsedTime(
-                            batch.iniciada_em,
-                            batch.enviada_tombador_em ?? batchClock,
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span className="inline-flex border border-current/20 bg-white/60 px-2 py-1 text-xs font-bold uppercase">
-                            {statusLabel[batch.status] ?? batch.status}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {batch.status === "em_preparacao" ? (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => completePreparation(batch.id)}
-                              className="font-bold text-cicopal-blue"
-                            >
-                              Massa pré-pronta
-                            </button>
-                          ) : batch.status === "pronta" ? (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => consumeBatch(batch.id)}
-                              className="font-bold text-green-700"
-                            >
-                              Enviar ao tombador
-                            </button>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {!data.batches.length ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="p-5 text-center text-slate-500"
-                        >
-                          Nenhuma batelada registrada.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {data.batches.map((batch) => {
+                  const preparationEnd = batch.pronta_em ?? (batch.status !== "em_preparacao" ? batch.enviada_tombador_em : null);
+                  const formatMoment = (value) => value ? new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
+                  return (
+                    <article key={batch.id} className={`border-l-8 p-4 shadow-sm ${batch.status === "em_preparacao" ? "border-amber-500 bg-amber-50" : batch.status === "pronta" ? "border-green-500 bg-green-50" : batch.status === "em_consumo" ? "border-cicopal-blue bg-blue-50" : "border-slate-300 bg-white"}`}>
+                      <header className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <small className="font-black uppercase text-slate-500">Batelada</small>
+                          <h4 className="text-2xl font-black">#{batch.numero}</h4>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex px-3 py-1 text-xs font-black uppercase ${batchTone[batch.status] ?? "bg-white"}`}>{statusLabel[batch.status] ?? batch.status}</span>
+                          <b className="mt-1 block tabular-nums text-slate-700">Preparo: {elapsedTime(batch.iniciada_em, preparationEnd ?? batchClock)}</b>
+                        </div>
+                      </header>
+                      <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {[
+                          ["Em preparo", batch.iniciada_em, true],
+                          ["Pronta", batch.pronta_em, Boolean(batch.pronta_em)],
+                          ["Tombador", batch.enviada_tombador_em, Boolean(batch.enviada_tombador_em)],
+                          ["Em consumo", batch.consumo_iniciado_em, batch.status === "em_consumo"],
+                        ].map(([label, moment, complete]) => (
+                          <div key={label} className={`border-t-4 p-3 ${complete ? "border-green-500 bg-white" : "border-slate-200 bg-white/50 text-slate-400"}`}>
+                            <small className="block font-black uppercase">{label}</small>
+                            <b className="mt-1 block text-lg tabular-nums">{formatMoment(moment)}</b>
+                          </div>
+                        ))}
+                      </div>
+                      {batch.status === "em_preparacao" ? (
+                        <button type="button" disabled={saving} onClick={() => completePreparation(batch.id)} className="mt-4 min-h-14 w-full bg-green-600 px-4 text-lg font-black text-white disabled:bg-slate-300">Massa pronta</button>
+                      ) : batch.status === "pronta" ? (
+                        <button type="button" disabled={saving} onClick={() => consumeBatch(batch.id)} className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 text-lg font-black text-white disabled:bg-slate-300">Enviar para o tombador</button>
+                      ) : null}
+                    </article>
+                  );
+                })}
+                {!data.batches.length ? <div className="border-2 border-dashed border-slate-300 p-6 text-center font-bold text-slate-500">Nenhuma massa preparada nesta produção.</div> : null}
               </div>
             </div>
           </section>
@@ -1461,7 +1451,7 @@ export function ProductionTraceabilitySetup({
                   <PackagePlus />
                   {batchStep < (recipe?.receita_insumos?.length ?? 1) - 1
                     ? "Continuar"
-                    : "Iniciar nova batelada"}
+                    : "Preparar massa"}
                 </button>
               </div>
               {batchDeviationConfirm ? (
@@ -1507,10 +1497,10 @@ export function ProductionTraceabilitySetup({
                           : "aguardando envio ao tombador"}
                       </small>
                       <small className="mt-1 block font-bold tabular-nums text-gray-700">
-                        Tempo: {elapsedTime(batch.iniciada_em, batch.enviada_tombador_em ?? batchClock)}
+                        Preparo: {elapsedTime(batch.iniciada_em, batch.pronta_em ?? (batch.status === "em_preparacao" ? batchClock : batch.enviada_tombador_em))}
                       </small>
                       <small className="mt-1 block font-black uppercase text-cicopal-blue">
-                        {batch.status.replaceAll("_", " ")}
+                        {statusLabel[batch.status] ?? batch.status.replaceAll("_", " ")}
                       </small>
                     </span>
                     {batch.status === "em_preparacao" ? (
@@ -1520,7 +1510,7 @@ export function ProductionTraceabilitySetup({
                         onClick={() => completePreparation(batch.id)}
                         className="min-h-12 bg-cicopal-blue px-3 font-black text-white"
                       >
-                        Massa pré-pronta
+                        Massa pronta
                       </button>
                     ) : batch.status === "pronta" ? (
                       <button
@@ -1529,7 +1519,7 @@ export function ProductionTraceabilitySetup({
                         onClick={() => consumeBatch(batch.id)}
                         className="min-h-12 bg-green-600 px-3 font-black text-white"
                       >
-                        Enviar ao tombador
+                        Enviar para o tombador
                       </button>
                     ) : (
                       <Check className="text-green-700" />
@@ -1684,7 +1674,7 @@ export function ProductionTraceabilitySetup({
                 disabled={Boolean(activeBatch)}
                 className="min-h-14 bg-cicopal-blue px-6 text-base font-bold text-white disabled:bg-slate-300"
               >
-                INICIAR NOVA BATELADA
+                PREPARAR MASSA
               </button>
             </div>
             {consumingBatch ? (

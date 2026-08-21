@@ -11,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { CicopalLogo } from "@/components/CicopalLogo";
+import { accessFor } from "@/lib/profileAccess";
 
 const destinations = [
   { href: "/", label: "Operação", Icon: ClipboardCheck },
@@ -28,8 +29,14 @@ export function AppHeader({
   maxWidth = "max-w-[1500px]",
 }) {
   const pathname = usePathname();
+  const access = accessFor(user);
   const visibleDestinations = destinations.filter(
-    (item) => item.permission !== "configurator" || canAccessConfigurator,
+    (item) => {
+      if (item.permission === "configurator") return canAccessConfigurator;
+      if (item.href === "/supervisao") return access.supervision;
+      if (item.href === "/relatorios") return access.reports;
+      return access.operation;
+    },
   );
 
   return (

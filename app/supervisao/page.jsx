@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Boxes, Image as ImageIcon } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { FactorySupervision } from "@/components/FactorySupervision";
@@ -10,16 +11,20 @@ import {
   loadUserSession,
   saveUserSession,
 } from "@/lib/userSession";
+import { accessFor } from "@/lib/profileAccess";
 
 export default function SupervisaoPage() {
+  const router = useRouter();
   const [loggedUser, setLoggedUser] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [view, setView] = useState("vector");
   useEffect(() => {
-    setLoggedUser(loadUserSession());
+    const session = loadUserSession();
+    setLoggedUser(session);
+    if (session && !accessFor(session).supervision) router.replace("/");
     setView(window.localStorage.getItem("carper_supervision_view") ?? "vector");
     setSessionReady(true);
-  }, []);
+  }, [router]);
   function handleLogin(user) {
     saveUserSession(user);
     setLoggedUser(user);
@@ -30,6 +35,7 @@ export default function SupervisaoPage() {
   }
   if (!sessionReady) return <main className="min-h-screen bg-[#f6f7fb]" />;
   if (!loggedUser) return <LoginScreen onLogin={handleLogin} />;
+  if (!accessFor(loggedUser).supervision) return <main className="min-h-screen bg-[#f6f7fb]" />;
   const canAccessConfigurator =
     loggedUser?.permissoes?.includes("configurador:acessar") ||
     loggedUser?.permissoes?.includes("admin:acessar");

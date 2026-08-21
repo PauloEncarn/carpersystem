@@ -36,7 +36,7 @@ export default function HomePage() {
     loggedUser?.permissoes?.includes("configurador:acessar") ||
     loggedUser?.permissoes?.includes("admin:acessar");
   const isTechnicalProfile =
-    loggedUser?.perfil?.codigo === "tecnico" ||
+    ["operador", "tecnico", "qualidade"].includes(loggedUser?.perfil?.codigo) ||
     loggedUser?.permissoes?.includes("operacao:dia_atual");
 
   useEffect(() => {
@@ -255,6 +255,7 @@ export default function HomePage() {
     );
 
     if (
+      selection.documentoId === "RG.PROD.ROS.001" ||
       selection.documentoId === "RG.QUA.BA.003" ||
       selection.documentoId === "RG.QUA.005" ||
       selection.documentoId === "RG.QUA.004"
@@ -263,7 +264,10 @@ export default function HomePage() {
       setDatabaseError("");
       try {
         const result = await persistRg003Record({
-          documentCode: selection.documentoId,
+          documentCode:
+            selection.documentoId === "RG.PROD.ROS.001"
+              ? "RG.QUA.BA.003"
+              : selection.documentoId,
           lineId: selection.linhaId,
           loteCode: activeCycle?.productionCode ?? selection.loteId,
           recordCode: selection.registroId,
@@ -344,7 +348,12 @@ export default function HomePage() {
             <Rg005SubregistroForm
               key={`${selection.linhaId}:${selection.documentoId}:${selected.registro.id}`}
               lineId={selection.linhaId}
-              documentName={selected.documento?.nome}
+              documentName={
+                selection.documentoId === "RG.PROD.ROS.001" &&
+                selection.subregistroId === "higienizacao"
+                  ? "RG.QUA.BA.003"
+                  : selected.documento?.nome
+              }
               loteId={selected.lote?.id}
               registro={selected.registro}
               subregistro={selected.subregistro}
