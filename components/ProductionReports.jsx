@@ -283,7 +283,7 @@ export function ProductionReports() {
           .order("numero"),
         supabase
           .from("producao_subprocessos")
-          .select("id,ciclo_id,nome,status,iniciado_em,encerrado_em,estado_iniciado_em")
+          .select("id,ciclo_id,nome,status,iniciado_em,encerrado_em,estado_iniciado_em,subprocesso_eventos(*)")
           .in("ciclo_id", ids)
           .order("ordem"),
         supabase.from("automacao_lotes").select("*").in("ciclo_id", ids),
@@ -805,7 +805,17 @@ export function ProductionReports() {
                                   <details className="mb-4 border border-gray-200 bg-gray-50">
                                     <summary className="cursor-pointer p-4 font-black text-gray-800">Processo produtivo · {cycle.subprocesses.length} subprocessos</summary>
                                     <div className="grid gap-2 border-t border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
-                                      {cycle.subprocesses.map((process) => <article key={process.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{process.nome}</strong><span className="mt-1 block text-xs font-black uppercase text-gray-500">{process.status.replaceAll("_", " ")}</span><p className="mt-2 text-xs font-semibold text-gray-600">Tempo no estado: {duration(process.estado_iniciado_em, process.encerrado_em)}</p></article>)}
+                                      {cycle.subprocesses.map((process) => {
+                                        const events = process.subprocesso_eventos ?? [];
+                                        const resolutions = new Map(events.filter((event) => event.tipo === "problema_resolvido").map((event) => [event.dados?.problema_id, event]));
+                                        const problems = events.filter((event) => event.tipo === "problema_reportado");
+                                        return <article key={process.id} className={`border-l-4 bg-white p-3 ${problems.some((problem) => !resolutions.has(problem.id)) ? "border-red-600" : "border-cicopal-blue"}`}>
+                                          <strong>{process.nome}</strong>
+                                          <span className="mt-1 block text-xs font-black uppercase text-gray-500">{process.status.replaceAll("_", " ")}</span>
+                                          <p className="mt-2 text-xs font-semibold text-gray-600">Tempo no estado: {duration(process.estado_iniciado_em, process.encerrado_em)}</p>
+                                          {problems.length ? <details className="mt-3 border-t pt-3"><summary className="cursor-pointer text-sm font-black text-red-700">Problemas operacionais · {problems.length}</summary><div className="mt-3 space-y-3">{problems.map((problem) => { const resolution = resolutions.get(problem.id); const minutes = resolution?.dados?.duracao_minutos ?? (resolution ? Math.max(0, Math.ceil((new Date(resolution.ocorrido_em) - new Date(problem.ocorrido_em)) / 60_000)) : null); return <section key={problem.id} className={`p-3 ${resolution ? "bg-green-50" : "bg-red-50"}`}><b>{problem.dados?.equipamento ?? process.nome}</b><p className="text-sm font-semibold">{problem.dados?.causa ?? problem.motivo}</p><p className="mt-1 text-xs text-gray-600">Aberto em {new Date(problem.ocorrido_em).toLocaleString("pt-BR")}</p>{resolution ? <><p className="mt-2 font-black text-green-800">Resolvido em {minutes} minuto(s)</p><p className="text-sm font-semibold text-gray-700">Solução: {resolution.dados?.solucao ?? resolution.motivo}</p></> : <p className="mt-2 font-black text-red-700">Ainda ativo</p>}<div className="mt-3 grid grid-cols-2 gap-2">{problem.dados?.foto_antes ? <figure><img src={problem.dados.foto_antes} alt="Antes do problema" className="h-32 w-full bg-white object-cover"/><figcaption className="text-center text-[10px] font-black uppercase text-red-700">Antes</figcaption></figure> : null}{resolution?.dados?.foto_depois ? <figure><img src={resolution.dados.foto_depois} alt="Depois da solução" className="h-32 w-full bg-white object-cover"/><figcaption className="text-center text-[10px] font-black uppercase text-green-700">Depois</figcaption></figure> : null}</div></section>; })}</div></details> : null}
+                                        </article>;
+                                      })}
                                     </div>
                                   </details>
                                 ) : null}

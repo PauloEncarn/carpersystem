@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -151,6 +152,25 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
     );
   };
   const workspaceProblems = openProblemsForCodes(stationProcessCodes[workspace] ?? []);
+  const resolvedProblemsForCodes = (codes = []) => {
+    const events = rows
+      .filter((row) => codes.includes(row.codigo))
+      .flatMap((row) =>
+        (row.subprocesso_eventos ?? []).map((event) => ({ ...event, process: row })),
+      );
+    const resolutions = new Map(
+      events
+        .filter((event) => event.tipo === "problema_resolvido")
+        .map((event) => [event.dados?.problema_id, event]),
+    );
+    return events
+      .filter((event) => event.tipo === "problema_reportado" && resolutions.has(event.id))
+      .map((problem) => ({ problem, resolution: resolutions.get(problem.id) }))
+      .sort((left, right) => new Date(right.resolution.ocorrido_em) - new Date(left.resolution.ocorrido_em));
+  };
+  const resolvedWorkspaceProblems = resolvedProblemsForCodes(
+    stationProcessCodes[workspace] ?? [],
+  );
   const recordsFor = (code) => {
     const row = rowByCode(code);
     return records
@@ -687,19 +707,22 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
       equipment: options?.equipment?.[0] ?? "",
       cause: options?.causes?.[0] ?? "Outro",
       description: "",
+      photoBefore: "",
     });
   }
   async function submitProblem() {
     const process = rowByCode(problemModal?.processCode);
-    if (!process || !problemModal?.equipment || !problemModal?.cause) return;
+    if (!process || !problemModal?.equipment || !problemModal?.cause || !problemModal?.photoBefore) return;
     setSaving(true);
     try {
       const event = remote
         ? await reportSubprocessProblem({
             processId: process.id,
+            cycleId: cycle.id,
             equipment: problemModal.equipment,
             cause: problemModal.cause,
             description: problemModal.description,
+            photoBefore: problemModal.photoBefore,
             operatorId,
           })
         : {
@@ -712,6 +735,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
               equipamento: problemModal.equipment,
               causa: problemModal.cause,
               descricao: problemModal.description,
+              foto_antes: problemModal.photoBefore,
+              aberto_em: new Date().toISOString(),
               status: "aberto",
             },
           };
@@ -736,14 +761,17 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
   async function submitProblemResolution() {
     const problem = problemResolution?.problem;
     const resolution = problemResolution?.resolution?.trim();
-    if (!problem || !resolution) return;
+    if (!problem || !resolution || !problemResolution?.photoAfter) return;
     setSaving(true);
     try {
       const event = remote
         ? await resolveSubprocessProblem({
             processId: problem.process.id,
             problemId: problem.id,
+            cycleId: cycle.id,
+            openedAt: problem.ocorrido_em,
             resolution,
+            photoAfter: problemResolution.photoAfter,
             operatorId,
           })
         : {
@@ -752,7 +780,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             tipo: "problema_resolvido",
             ocorrido_em: new Date().toISOString(),
             motivo: resolution,
-            dados: { problema_id: problem.id, solucao: resolution },
+            dados: {
+              problema_id: problem.id,
+              solucao: resolution,
+              foto_depois: problemResolution.photoAfter,
+              resolvido_em: new Date().toISOString(),
+              duracao_minutos: Math.max(0, Math.ceil((Date.now() - new Date(problem.ocorrido_em)) / 60_000)),
+            },
           };
       setRows((current) =>
         current.map((row) =>
@@ -765,7 +799,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         ),
       );
       setProblemResolution(null);
-      setMessage("Problema operacional marcado como resolvido.");
+      const duration = event.dados?.duracao_minutos ?? Math.max(0, Math.ceil((Date.now() - new Date(problem.ocorrido_em)) / 60_000));
+      setMessage(`Problema operacional resolvido após ${duration} minuto(s).`);
     } catch (error) {
       setMessage(error?.message ?? "Não foi possível resolver o problema.");
     } finally {
@@ -970,10 +1005,13 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 <div>
                   <b>{problem.dados?.equipamento ?? problem.process.nome}</b>
                   <p className="text-sm font-semibold">{problem.dados?.causa ?? problem.motivo}</p>
+                  <p className="mt-1 text-xs font-black uppercase text-red-700">
+                    Ativo há {Math.max(0, Math.ceil((now - new Date(problem.ocorrido_em)) / 60_000))} minuto(s)
+                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setProblemResolution({ problem, resolution: "" })}
+                  onClick={() => setProblemResolution({ problem, resolution: "", photoAfter: "" })}
                   className="min-h-11 border border-red-300 bg-white px-3 font-black text-red-700"
                 >
                   Resolver problema
@@ -982,6 +1020,28 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
             ))}
           </div>
         </section>
+      ) : null}
+      {workspace !== "overview" && resolvedWorkspaceProblems.length ? (
+        <details className="border border-slate-200 bg-white">
+          <summary className="cursor-pointer p-4 font-black text-slate-700">
+            Problemas resolvidos nesta área · {resolvedWorkspaceProblems.length}
+          </summary>
+          <div className="grid gap-3 border-t p-4 sm:grid-cols-2">
+            {resolvedWorkspaceProblems.slice(0, 6).map(({ problem, resolution }) => (
+              <article key={problem.id} className="border-l-4 border-green-500 bg-green-50 p-3">
+                <b>{problem.dados?.equipamento ?? problem.process.nome}</b>
+                <p className="text-sm font-semibold text-gray-700">{problem.dados?.causa ?? problem.motivo}</p>
+                <p className="mt-2 font-black text-green-800">
+                  Ativo por {resolution.dados?.duracao_minutos ?? Math.max(0, Math.ceil((new Date(resolution.ocorrido_em) - new Date(problem.ocorrido_em)) / 60_000))} minuto(s)
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {problem.dados?.foto_antes ? <figure><img src={problem.dados.foto_antes} alt="Antes do problema" className="h-28 w-full bg-white object-cover" /><figcaption className="mt-1 text-center text-[10px] font-black uppercase text-red-700">Antes</figcaption></figure> : null}
+                  {resolution.dados?.foto_depois ? <figure><img src={resolution.dados.foto_depois} alt="Depois da solução" className="h-28 w-full bg-white object-cover" /><figcaption className="mt-1 text-center text-[10px] font-black uppercase text-green-700">Depois</figcaption></figure> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </details>
       ) : null}
       {workspace === "prep" ? (
         <ProductionTraceabilitySetup
@@ -1887,10 +1947,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
                 <span className="mb-1 block text-xs font-black uppercase text-gray-500">Detalhes (opcional)</span>
                 <textarea value={problemModal.description} onChange={(event) => setProblemModal((current) => ({ ...current, description: event.target.value }))} className="min-h-24 w-full border-2 border-gray-300 p-3" placeholder="Descreva o que foi observado" />
               </label>
+              <label className="block cursor-pointer border-2 border-dashed border-red-300 bg-red-50 p-4 text-center font-black text-red-700">
+                <Camera className="mx-auto mb-2" />
+                {problemModal.photoBefore ? "Foto do problema registrada · tocar para substituir" : "Registrar foto antes"}
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setProblemModal((current) => ({ ...current, photoBefore: reader.result })); reader.readAsDataURL(file); }} />
+              </label>
+              {problemModal.photoBefore ? <img src={problemModal.photoBefore} alt="Evidência antes do problema" className="max-h-52 w-full bg-gray-50 object-contain" /> : null}
             </div>
             <footer className="grid grid-cols-2 gap-2 border-t p-4">
               <button type="button" onClick={() => setProblemModal(null)} className="min-h-14 border font-black">Cancelar</button>
-              <button type="button" disabled={saving} onClick={submitProblem} className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300">Confirmar alerta</button>
+              <button type="button" disabled={saving || !problemModal.photoBefore} onClick={submitProblem} className="min-h-14 bg-red-600 font-black text-white disabled:bg-gray-300">Confirmar alerta</button>
             </footer>
           </section>
         </div>
@@ -1899,8 +1965,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "" }) {
         <div className="fixed inset-0 z-[175] grid place-items-center bg-slate-950/70 p-3">
           <section className="w-full max-w-lg border-t-8 border-green-600 bg-white shadow-2xl">
             <header className="border-b p-5"><p className="text-xs font-black uppercase text-green-700">Encerrar alerta operacional</p><h3 className="text-2xl font-black">O que foi feito?</h3></header>
-            <div className="p-5"><textarea autoFocus value={problemResolution.resolution} onChange={(event) => setProblemResolution((current) => ({ ...current, resolution: event.target.value }))} className="min-h-28 w-full border-2 border-gray-300 p-3" placeholder="Descreva a solução aplicada" /></div>
-            <footer className="grid grid-cols-2 gap-2 border-t p-4"><button type="button" onClick={() => setProblemResolution(null)} className="min-h-14 border font-black">Cancelar</button><button type="button" disabled={saving || !problemResolution.resolution.trim()} onClick={submitProblemResolution} className="min-h-14 bg-green-600 font-black text-white disabled:bg-gray-300">Marcar resolvido</button></footer>
+            <div className="space-y-3 p-5">
+              <textarea autoFocus value={problemResolution.resolution} onChange={(event) => setProblemResolution((current) => ({ ...current, resolution: event.target.value }))} className="min-h-28 w-full border-2 border-gray-300 p-3" placeholder="Descreva a solução aplicada" />
+              <label className="block cursor-pointer border-2 border-dashed border-green-300 bg-green-50 p-4 text-center font-black text-green-700">
+                <Camera className="mx-auto mb-2" />
+                {problemResolution.photoAfter ? "Foto posterior registrada · tocar para substituir" : "Registrar foto depois"}
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setProblemResolution((current) => ({ ...current, photoAfter: reader.result })); reader.readAsDataURL(file); }} />
+              </label>
+              {problemResolution.photoAfter ? <img src={problemResolution.photoAfter} alt="Evidência depois da solução" className="max-h-52 w-full bg-gray-50 object-contain" /> : null}
+            </div>
+            <footer className="grid grid-cols-2 gap-2 border-t p-4"><button type="button" onClick={() => setProblemResolution(null)} className="min-h-14 border font-black">Cancelar</button><button type="button" disabled={saving || !problemResolution.resolution.trim() || !problemResolution.photoAfter} onClick={submitProblemResolution} className="min-h-14 bg-green-600 font-black text-white disabled:bg-gray-300">Marcar resolvido</button></footer>
           </section>
         </div>
       ) : null}
