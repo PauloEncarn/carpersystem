@@ -701,6 +701,13 @@ function TabletHourNavigator({
   const missing = entries.filter(
     (entry) => !entry.locked && !completedHours.includes(entry.value),
   ).length;
+  const overdue = entries.filter(
+    (entry) =>
+      !entry.locked &&
+      !completedHours.includes(entry.value) &&
+      Number.isFinite(entry.timestamp) &&
+      entry.timestamp < currentTimestamp,
+  ).length;
   const nextHour = new Date(now);
   nextHour.setHours(now.getHours() + 1, 0, 0, 0);
   const minutesToNext = Math.max(
@@ -708,7 +715,7 @@ function TabletHourNavigator({
     Math.ceil((nextHour.getTime() - now.getTime()) / 60_000),
   );
   return (
-    <section className="sticky top-[72px] z-10 mb-4 rounded-lg border border-cicopal-blue bg-white p-3 shadow-md">
+    <section className={`sticky top-[72px] z-10 mb-4 border-t-4 bg-white p-3 shadow-md ${overdue ? "border-red-600" : "border-cicopal-blue"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase text-gray-500">
@@ -750,6 +757,8 @@ function TabletHourNavigator({
           const isCurrent = entry.timestamp === currentTimestamp;
           const isNext = entry.timestamp === currentTimestamp + 3_600_000;
           const isPast = entry.timestamp < currentTimestamp;
+          const isOverdue =
+            isPast && !completed && !entry.locked;
           const relation = isCurrent
             ? "Em preenchimento"
             : isNext
@@ -762,7 +771,7 @@ function TabletHourNavigator({
               key={entry.key}
               type="button"
               disabled={entry.locked}
-              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${isSelected || isCurrent ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isNext ? "border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900" : completed ? "border-green-100 bg-green-50/60 text-cicopal-green opacity-60" : isPast ? "border-gray-200 bg-gray-50 text-gray-500 opacity-55" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${isSelected ? isOverdue ? "border-red-700 bg-red-600 text-white shadow-lg" : "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isCurrent ? "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isOverdue ? "border-2 border-red-500 bg-red-50 text-red-800" : isNext ? "border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900" : completed ? "border-green-100 bg-green-50/60 text-cicopal-green opacity-60" : isPast ? "border-gray-200 bg-gray-50 text-gray-500 opacity-55" : "border-gray-200 bg-gray-100 text-gray-400"}`}
               onClick={() => onChange(entry.value)}
             >
               <span className="block text-[10px] uppercase opacity-70">
@@ -781,7 +790,9 @@ function TabletHourNavigator({
                   ? "Preenchido"
                   : entry.locked
                     ? "Ainda não liberado"
-                    : "Pendente"}
+                    : isOverdue
+                      ? "ATRASADO · PREENCHER"
+                      : "Pendente"}
               </span>
             </button>
           );
@@ -790,9 +801,11 @@ function TabletHourNavigator({
       <div
         className={`mt-2 flex flex-wrap justify-between gap-2 border-t pt-3 text-sm font-bold ${missing ? "text-amber-800" : "text-cicopal-green"}`}
       >
-        <span>
-          {missing
-            ? `${missing} horário(s) pendente(s)`
+        <span className={overdue ? "text-red-700" : ""}>
+          {overdue
+            ? `${overdue} horário(s) atrasado(s) · ${missing} pendente(s) no total`
+            : missing
+              ? `${missing} horário(s) pendente(s)`
             : "Todos os horários preenchidos"}
         </span>
         <span>Próximo controle em {minutesToNext} min</span>
@@ -1434,7 +1447,7 @@ function ProductEvaluationTabletFlow({
   const [machineGrams, setMachineGrams] = useState({});
   const [configured, setConfigured] = useState(false);
   const [view, setView] = useState("menu");
-  const [generalResult, setGeneralResult] = useState(null);
+  const [machineMetricResults, setMachineMetricResults] = useState({});
   const [machineResults, setMachineResults] = useState({});
   const [packerConfiguration, setPackerConfiguration] = useState([]);
   const [packerLoading, setPackerLoading] = useState(Boolean(cycleId));
@@ -1596,11 +1609,9 @@ function ProductEvaluationTabletFlow({
     const machinePayloads = Object.values(machineResults);
     return onSave?.({
       apontamentos: [
-        ...(generalResult?.apontamentos ?? []),
         ...machinePayloads.flatMap((item) => item.apontamentos ?? []),
       ],
       ncs: [
-        ...(generalResult?.ncs ?? []),
         ...machinePayloads.flatMap((item) => item.ncs ?? []),
       ],
       configuracaoMaquinas: {
@@ -1734,27 +1745,6 @@ function ProductEvaluationTabletFlow({
       </section>
     );
 
-  if (view === "general")
-    return (
-      <div className="space-y-3">
-        <button
-          type="button"
-          className="min-h-12 rounded-md border border-gray-300 bg-white px-4 font-bold"
-          onClick={() => setView("menu")}
-        >
-          <ArrowLeft size={18} className="mr-2 inline" />
-          Voltar ao menu
-        </button>
-        <TabletProductMetrics
-          columns={columns}
-          activeHour={activeHour}
-          onSave={(payload) => {
-            setGeneralResult(payload);
-            setView(activeMachines[0]?.label ?? "menu");
-          }}
-        />
-      </div>
-    );
   if (selectedMachine)
     return (
       <div className="space-y-3">
@@ -1766,29 +1756,51 @@ function ProductEvaluationTabletFlow({
           <ArrowLeft size={18} className="mr-2 inline" />
           Voltar às máquinas
         </button>
-        <MachineEvaluationWizard
-          key={`${activeHour}-${selectedMachine.label}`}
-          title={`Avaliação do produto · ${selectedMachine.label}${machineGrams[selectedMachine.label] ? ` · ${machineGrams[selectedMachine.label]}` : ""}`}
-          machines={[selectedMachine]}
-          activeHour={activeHour}
-          onSave={(payload) => {
-            const currentIndex = activeMachines.findIndex(
-              (machine) => machine.label === selectedMachine.label,
-            );
-            const nextMachine = activeMachines[currentIndex + 1];
-            setMachineResults((current) => ({
-              ...current,
-              [selectedMachine.label]: {
-                ...payload,
-                apontamentos: (payload.apontamentos ?? []).map((item) => ({
-                  ...item,
-                  gramatura: machineGrams[selectedMachine.label],
-                })),
-              },
-            }));
-            setView(nextMachine?.label ?? "menu");
-          }}
-        />
+        {!machineMetricResults[selectedMachine.label] ? (
+          <TabletProductMetrics
+            columns={columns}
+            activeHour={activeHour}
+            onSave={(payload) =>
+              setMachineMetricResults((current) => ({
+                ...current,
+                [selectedMachine.label]: payload,
+              }))
+            }
+          />
+        ) : (
+          <MachineEvaluationWizard
+            key={`${activeHour}-${selectedMachine.label}`}
+            title={`Avaliação do produto · ${selectedMachine.label}${machineGrams[selectedMachine.label] ? ` · ${machineGrams[selectedMachine.label]}` : ""}`}
+            machines={[selectedMachine]}
+            activeHour={activeHour}
+            onSave={(payload) => {
+              const currentIndex = activeMachines.findIndex(
+                (machine) => machine.label === selectedMachine.label,
+              );
+              const nextMachine = activeMachines[currentIndex + 1];
+              const metrics = machineMetricResults[selectedMachine.label];
+              setMachineResults((current) => ({
+                ...current,
+                [selectedMachine.label]: {
+                  ...payload,
+                  apontamentos: [
+                    ...(metrics?.apontamentos ?? []),
+                    ...(payload.apontamentos ?? []),
+                  ].map((item) => ({
+                    ...item,
+                    maquina: selectedMachine.label,
+                    gramatura: machineGrams[selectedMachine.label],
+                  })),
+                  ncs: [
+                    ...(metrics?.ncs ?? []),
+                    ...(payload.ncs ?? []),
+                  ],
+                },
+              }));
+              setView(nextMachine?.label ?? "menu");
+            }}
+          />
+        )}
       </div>
     );
 
@@ -1800,121 +1812,38 @@ function ProductEvaluationTabletFlow({
             Avaliação do produto · {activeHour}
           </p>
           <h3 className="mt-1 text-2xl font-bold text-gray-950">
-            Selecione o grupo
+            Máquinas deste horário
           </h3>
         </div>
         <span className={`border px-3 py-2 text-sm font-bold ${canChangeMachines ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-slate-200 bg-slate-100 text-slate-500"}`}>
           {canChangeMachines ? "Use ON/OFF para alterar" : "Histórico preservado"}
         </span>
       </div>
-      {productionConfigurationAvailable ? (
-        <div className="mt-4 border border-slate-200 bg-slate-50 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase text-cicopal-blue">{packerConfiguredByProduction ? "Sincronizado com o empacotamento" : "Máquinas disponíveis para avaliação"}</p>
-              <h4 className="text-lg font-bold">{activeMachines.length} de 4 máquinas rodando</h4>
-            </div>
-            <span className="text-xs font-bold text-slate-500">Produção define · Qualidade valida</span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {packerConfigurationForGrid.map((machine) => {
-              return (
-                <button
-                  key={machine.machine}
-                  type="button"
-                  role="switch"
-                  aria-checked={machine.active}
-                  disabled={!canChangeMachines || packerSaving}
-                  onClick={() =>
-                    setPendingMachineChange({
-                      machine: machine.machine,
-                      from: machine.active,
-                      to: !machine.active,
-                      at: new Date(),
-                    })
-                  }
-                  className={`machine-status-card group relative min-h-36 overflow-hidden border p-4 text-left transition disabled:cursor-default ${machine.active ? "is-running border-emerald-400 bg-white text-emerald-950" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
-                >
-                  <span className={`absolute inset-x-0 top-0 h-1 ${machine.active ? "bg-emerald-500" : "bg-slate-300"}`} />
-                  <span className="flex items-start justify-between gap-3">
-                    <span className={`grid size-11 place-items-center rounded-xl ${machine.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
-                      <Cog size={23} className={machine.active ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
-                    </span>
-                    <span className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-[10px] font-bold uppercase ${machine.active ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
-                      <Power size={12} /> {machine.active ? "Em operação" : "Desligada"}
-                    </span>
-                  </span>
-                  <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Empacotadeira</span>
-                  <b className="mt-0.5 block text-2xl text-slate-950">Máquina {String(machine.machine).padStart(2, "0")}</b>
-                  <span className="mt-2 flex items-center justify-between border-t border-slate-200/80 pt-2 text-xs font-bold">
-                    <span className="text-slate-500">Gramatura</span>
-                    <strong className="text-cicopal-blue">{machine.grammage || "Não definida"}</strong>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {packerEditing ? (
-            <div className="mx-auto mt-4 max-w-xl">
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold uppercase text-slate-500">Motivo da alteração pela Qualidade</span>
-                <textarea value={packerChangeReason} onChange={(event) => setPackerChangeReason(event.target.value)} className="min-h-20 w-full border border-slate-300 bg-white p-3" placeholder="Informe por que uma máquina foi ligada ou desligada" />
-              </label>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => { setPackerEditing(false); refreshPackerConfiguration(); }} className="min-h-12 border border-slate-300 bg-white font-bold text-slate-600">Cancelar</button>
-                <button type="button" disabled={!packerChangeReason.trim() || packerSaving} onClick={confirmPackerConfigurationChange} className="min-h-12 bg-cicopal-blue font-bold text-white disabled:bg-slate-300">{packerSaving ? "Salvando..." : "Confirmar alteração"}</button>
-              </div>
-            </div>
-          ) : null}
-          {packerMessage ? <p className="mx-auto mt-3 max-w-xl bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">{packerMessage}</p> : null}
-        </div>
-      ) : null}
-      <div className="mt-4">
-        <button
-          type="button"
-          className={`min-h-24 w-full rounded-md border-2 p-3 text-left ${generalResult ? "border-green-200 bg-green-50" : "border-cicopal-blue bg-blue-50 ring-4 ring-blue-100"}`}
-          onClick={() => setView("general")}
-        >
-          <span className="block text-lg font-bold">Parâmetros gerais</span>
-          <span className="mt-1 block text-sm font-semibold">
-            {generalResult ? "✓ Preenchido" : "Umidade, pH e temperatura"}
-          </span>
-        </button>
-      </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
-        {activeMachinesForGrid.map((machine) => {
-          const machineNumber = machines.indexOf(machine) + 1;
-          const done = Boolean(machineResults[machine.label]);
-          const pending = nextPendingMachine?.label === machine.label;
+        {packerConfigurationForGrid.map((configuration) => {
+          const machine = machines[configuration.machine - 1];
+          const machineNumber = configuration.machine;
+          const done = Boolean(machine && machineResults[machine.label]);
+          const pending = Boolean(machine && nextPendingMachine?.label === machine.label);
           return (
-          <button
-            key={machine.label}
-            type="button"
-            className={`machine-status-card group relative min-h-36 overflow-hidden border p-4 text-left transition ${done ? "is-complete border-emerald-400 bg-white" : pending ? "is-current border-blue-500 bg-white" : "border-slate-300 bg-slate-50"}`}
-            onClick={() => setView(machine.label)}
-          >
-            <span className={`absolute inset-x-0 top-0 h-1 ${done ? "bg-emerald-500" : pending ? "bg-blue-600" : "bg-amber-400"}`} />
-            <span className="flex items-start justify-between gap-3">
-              <span className={`grid size-11 place-items-center rounded-xl ${done ? "bg-emerald-100 text-emerald-700" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-slate-100 text-slate-500"}`}>
-                {done ? <Check size={23} /> : <Cog size={23} />}
-              </span>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${done ? "bg-emerald-100 text-emerald-800" : pending ? "bg-blue-100 text-cicopal-blue" : "bg-amber-100 text-amber-800"}`}>
-                {done ? "Concluída" : pending ? "Próxima" : "Pendente"}
-              </span>
-            </span>
-            <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Empacotadeira</span>
-            <strong className="mt-0.5 block text-2xl text-gray-950">Máquina {String(machineNumber).padStart(2, "0")}</strong>
-            <span className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-xs font-bold">
-              <span className="text-slate-500">Gramatura</span>
-              <strong className="text-cicopal-blue">{machineGrams[machine.label] || "Não definida"}</strong>
-            </span>
-          </button>
+            <article key={machineNumber} className={`machine-status-card relative overflow-hidden border ${configuration.active ? done ? "is-complete border-emerald-400 bg-white" : pending ? "is-current border-blue-500 bg-white" : "border-amber-300 bg-white" : "is-stopped border-slate-300 bg-slate-100 text-slate-500"}`}>
+              <button type="button" disabled={!configuration.active || !machine} onClick={() => machine && setView(machine.label)} className="min-h-32 w-full p-4 text-left disabled:cursor-default">
+                <span className="flex items-start justify-between gap-2">
+                  <span><small className="block font-bold uppercase text-slate-400">Empacotadora</small><strong className="block text-2xl text-slate-950">Máquina {String(machineNumber).padStart(2, "0")}</strong></span>
+                  <span className={`border px-2 py-1 text-[10px] font-bold uppercase ${configuration.active ? done ? "border-green-300 bg-green-50 text-green-800" : "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-300 bg-white text-slate-600"}`}>{configuration.active ? done ? "Concluída" : pending ? "Preencher agora" : "Pendente" : "OFF"}</span>
+                </span>
+                <span className="mt-4 block border-t border-slate-200 pt-3 text-xs font-bold text-slate-600">{configuration.active ? machineMetricResults[machine?.label] ? "Produto avaliado · completar inspeção" : "Umidade · pH · temperatura · inspeção" : "Sem avaliação neste horário"}</span>
+              </button>
+              <button type="button" role="switch" aria-checked={configuration.active} disabled={!canChangeMachines || packerSaving} onClick={() => setPendingMachineChange({ machine: machineNumber, from: configuration.active, to: !configuration.active, at: new Date() })} className={`min-h-12 w-full border-t font-bold ${configuration.active ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-600"}`}><Power size={16} className="mr-2 inline" />{configuration.active ? "ON · em operação" : "OFF · desligada"}</button>
+            </article>
           );
         })}
       </div>
+      {packerEditing ? <div className="mt-4 border-l-4 border-amber-500 bg-amber-50 p-4"><label className="block"><span className="mb-1 block text-xs font-bold uppercase text-amber-900">Motivo da alteração</span><textarea value={packerChangeReason} onChange={(event) => setPackerChangeReason(event.target.value)} className="min-h-20 w-full border border-amber-300 bg-white p-3" /></label><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setPackerEditing(false); refreshPackerConfiguration(); }} className="min-h-12 border border-slate-300 bg-white font-bold">Cancelar</button><button type="button" disabled={!packerChangeReason.trim() || packerSaving} onClick={confirmPackerConfigurationChange} className="min-h-12 bg-cicopal-blue font-bold text-white disabled:bg-slate-300">{packerSaving ? "Salvando..." : "Confirmar alteração"}</button></div></div> : null}
+      {packerMessage ? <p className="mt-3 border-l-4 border-cicopal-blue bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">{packerMessage}</p> : null}
       <button
         type="button"
-        disabled={!generalResult || !allMachinesDone}
+        disabled={!allMachinesDone}
         className="mt-4 min-h-16 w-full rounded-md bg-cicopal-green text-lg font-bold text-white disabled:bg-gray-300"
         onClick={finishHour}
       >
@@ -4636,7 +4565,7 @@ export function Rg005SubregistroForm({
                     Avaliação do produto
                   </h2>
                   <p className="mt-1 font-semibold text-gray-600">
-                    Preencha os parâmetros gerais e depois cada máquina ativa.
+                    Selecione uma máquina e conclua todas as informações dela.
                   </p>
                 </div>
                 <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-cicopal-blue">

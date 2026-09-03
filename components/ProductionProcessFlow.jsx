@@ -1444,17 +1444,26 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                       </h4>
                       <div className="mt-5 divide-y border">
                         {config.parameters.map((item) => (
-                          <div
-                            key={item.key}
-                            className="flex min-h-16 items-center justify-between gap-4 p-3"
-                          >
-                            <span className="font-bold text-gray-600">
-                              {item.label}
-                            </span>
-                            <b>
-                              {values[item.key]} {item.unit}
-                            </b>
-                          </div>
+                          (() => {
+                            const machine = Number(item.key.match(/^maq_(\d+)_/)?.[1]);
+                            const availability = machine
+                              ? packerAvailability(machine, scheduledAt)
+                              : null;
+                            const off = availability && ["inactive", "not_started"].includes(availability.state);
+                            return (
+                              <div
+                                key={item.key}
+                                className={`flex min-h-16 items-center justify-between gap-4 p-3 ${off ? "bg-slate-100 text-slate-500" : ""}`}
+                              >
+                                <span className="font-bold">
+                                  {item.label}
+                                </span>
+                                <b className={off ? "border border-slate-300 bg-white px-3 py-1 text-slate-600" : ""}>
+                                  {off ? "OFF · sem leitura" : `${values[item.key] ?? "—"} ${item.unit ?? ""}`}
+                                </b>
+                              </div>
+                            );
+                          })()
                         ))}
                       </div>
                       <p className="mt-4 border-l-4 border-cicopal-blue bg-blue-50 p-3 font-bold text-cicopal-blue">

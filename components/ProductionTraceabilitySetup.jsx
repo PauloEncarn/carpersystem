@@ -419,7 +419,7 @@ export function ProductionTraceabilitySetup({
         </header>
 
         <div className="flex flex-col gap-6 p-4 sm:p-5">
-          <section className="order-2">
+          {!data.batches.length ? <section className="order-2">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase text-slate-500">
@@ -507,7 +507,7 @@ export function ProductionTraceabilitySetup({
                 );
               })}
             </div>
-          </section>
+          </section> : null}
 
           <section className="order-1">
             <div className="border border-slate-200">
@@ -534,12 +534,13 @@ export function ProductionTraceabilitySetup({
               {!batchOpen ? (
                 <div className="p-4">
                   <div className="border-l-4 border-cicopal-blue bg-blue-50 p-3">
-                    <small className="font-black uppercase text-cicopal-blue">Receita do produto</small>
-                    <b className="mt-1 block text-lg">{recipe ? `${recipe.produto} · versão ${recipe.versao}` : "Receita não cadastrada"}</b>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <b className="block text-cicopal-blue">
                       {data.batches.length
-                        ? "A próxima massa repetirá os lotes e quantidades da primeira batelada, salvo alteração informada."
-                        : "Na primeira massa, confirme todos os lotes e as quantidades da receita."}
+                        ? "Pronto para preparar a próxima massa"
+                        : "Cadastre os lotes da primeira massa"}
+                    </b>
+                    <p className="mt-1 text-sm text-slate-600">
+                      A receita padrão permanece registrada e só será exibida se houver alteração.
                     </p>
                   </div>
                   <button
@@ -557,32 +558,35 @@ export function ProductionTraceabilitySetup({
                 </div>
               ) : !batchReview ? (
                 <div className="p-4">
-                  <h4 className="text-lg font-bold">Houve alteração?</h4>
+                  <h4 className="text-xl font-bold">Preparar outra massa?</h4>
                   <p className="mt-1 text-sm text-slate-500">
-                    Confirme se esta batelada utilizará os mesmos lotes e
-                    quantidades.
+                    Escolha como iniciar a próxima batelada.
                   </p>
-                  <button
-                    type="button"
-                    onClick={addBatch}
-                    disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
-                    className="mt-4 min-h-14 w-full bg-green-600 px-4 font-bold text-white"
-                  >
-                    Não, repetir a mesma receita
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBatchReview(true)}
-                    className="mt-2 min-h-12 w-full border border-slate-300 bg-white px-4 font-bold text-cicopal-blue"
-                  >
-                    Sim, alterar lote ou quantidade
-                  </button>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={addBatch}
+                      disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
+                      className="min-h-20 border-l-4 border-green-700 bg-green-600 px-4 text-left font-bold text-white disabled:bg-slate-300"
+                    >
+                      <span className="block text-lg">Preparar igual</span>
+                      <small>Mesmos lotes e quantidades</small>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBatchReview(true)}
+                      className="min-h-20 border-l-4 border-amber-500 bg-amber-50 px-4 text-left font-bold text-amber-950"
+                    >
+                      <span className="block text-lg">Houve alteração</span>
+                      <small>Revisar lote ou quantidade</small>
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setBatchOpen(false)}
-                    className="mt-2 min-h-11 w-full text-sm font-bold text-slate-500"
+                    className="mt-3 min-h-12 w-full border border-slate-300 bg-white text-sm font-bold text-slate-600"
                   >
-                    Cancelar
+                    Agora não
                   </button>
                 </div>
               ) : (
