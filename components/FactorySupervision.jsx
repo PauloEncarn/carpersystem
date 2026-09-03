@@ -11,7 +11,6 @@ import {
   Radio,
   RefreshCw,
   Signal,
-  Sparkle,
   X,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
@@ -131,6 +130,76 @@ function time(value) {
 }
 function statusLabel(status) {
   return statusVisual(status).label;
+}
+function shiftFor(value) {
+  if (!value) return "";
+  const hour = new Date(value).getHours();
+  if (hour >= 8 && hour < 16) return "A";
+  if (hour >= 16) return "B";
+  return "C";
+}
+function inShift(value, selectedShift) {
+  return selectedShift === "all" || shiftFor(value) === selectedShift;
+}
+function humanizeMetric(key = "") {
+  return key
+    .replace(/^maq_(\d+)_/, "Máquina $1 · ")
+    .replace(/^zona_(\d+)_/, "Zona $1 · ")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function inferredRanges(values = []) {
+  const numeric = values.filter(Number.isFinite).sort((a, b) => a - b);
+  const center = numeric.length ? numeric[Math.floor(numeric.length / 2)] : 1;
+  const span = Math.max(Math.abs(center) * 0.1, 1);
+  return [center - span * 2, center - span, center + span, center + span * 2];
+}
+function productionControlSeries(processes = []) {
+  return processes.flatMap((process) => {
+    const keys = new Set();
+    (process.recordHistory ?? []).forEach((record) =>
+      Object.entries(record.valores ?? {}).forEach(([key, value]) => {
+        if (value !== "" && Number.isFinite(Number(value))) keys.add(key);
+      }),
+    );
+    return [...keys].map((key) => {
+      const values = (process.recordHistory ?? []).map((record) =>
+        Number(record.valores?.[key]),
+      );
+      return {
+        process,
+        metric: {
+          key,
+          label: humanizeMetric(key),
+          unit: "",
+          divisor: 1,
+          ranges: controlMetric[process.codigo]?.key === key
+            ? controlMetric[process.codigo].ranges
+            : inferredRanges(values),
+        },
+      };
+    });
+  });
+}
+function operationalProblems(processes = []) {
+  return processes
+    .flatMap((process) => {
+      const events = process.subprocesso_eventos ?? [];
+      return events
+        .filter((event) => event.tipo === "problema_reportado")
+        .map((problem) => ({
+          process,
+          problem,
+          resolution: events.find(
+            (event) =>
+              event.tipo === "problema_resolvido" &&
+              event.dados?.problema_id === problem.id,
+          ),
+        }));
+    })
+    .sort((left, right) =>
+      new Date(right.problem.ocorrido_em) - new Date(left.problem.ocorrido_em),
+    );
 }
 function processLiveValue(process) {
   const values = process?.latestRecord?.valores ?? {};
@@ -303,15 +372,14 @@ function ControlChart({ process, now, metricOverride = null }) {
 function qualityControlSeries(records = []) {
   const groups = new Map();
   [...records]
-    .filter((record) => record.contexto_tipo === "produto_avaliacao")
+    .filter((record) => ["produto_avaliacao", "processo"].includes(record.contexto_tipo))
     .reverse()
     .forEach((record) => {
       (record.valores?.apontamentos ?? []).forEach((item) => {
         const value = Number(item.resultado ?? item.valor);
         if (!Number.isFinite(value)) return;
-        const label = item.item ?? "Parâmetro da Qualidade";
+        const label = `${item.maquina ? `${item.maquina} · ` : ""}${item.item ?? "Parâmetro da Qualidade"}`;
         const normalized = label.toLocaleLowerCase("pt-BR");
-        if (!/(umidade|ph|temperatura)/i.test(normalized)) return;
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label).push({
           horario_referencia: record.preenchido_em,
@@ -320,13 +388,15 @@ function qualityControlSeries(records = []) {
         });
       });
     });
-  return [...groups.entries()].slice(0, 3).map(([label, recordHistory]) => {
+  return [...groups.entries()].map(([label, recordHistory]) => {
     const normalized = label.toLocaleLowerCase("pt-BR");
     const ranges = normalized.includes("umidade")
       ? [1.5, 2, 4, 4.5]
       : normalized.includes("ph")
         ? [6, 6.5, 7.5, 8]
-        : [25, 30, 40, 45];
+        : normalized.includes("temperatura")
+          ? [25, 30, 40, 45]
+          : inferredRanges(recordHistory.map((item) => item.valores.quality_value));
     return {
       process: { id: `quality-${label}`, nome: `Qualidade · ${label}`, recordHistory },
       metric: { key: "quality_value", label, unit: normalized.includes("ph") ? "pH" : normalized.includes("umidade") ? "%" : "°C", divisor: 1, ranges },
@@ -500,7 +570,8 @@ export function FactorySupervision({ variant = "classic" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showComplete, setShowComplete] = useState(false);
-  const [detailTab, setDetailTab] = useState("quality");
+  const [detailTab, setDetailTab] = useState("industrial");
+  const [selectedShift, setSelectedShift] = useState("all");
   const [selectedDay, setSelectedDay] = useState(() => localDateId());
   const todayId = localDateId();
   const isToday = selectedDay === todayId;
@@ -561,7 +632,50 @@ export function FactorySupervision({ variant = "classic" }) {
       }),
     [cycles],
   );
-  const selected = lines.find((line) => line.id === selectedId);
+  const selectedBase = lines.find((line) => line.id === selectedId);
+  const selected = useMemo(() => {
+    if (!selectedBase) return null;
+    const records = selectedBase.records.filter((item) =>
+      inShift(item.preenchido_em, selectedShift),
+    );
+    const cycle = selectedBase.cycle
+      ? {
+          ...selectedBase.cycle,
+          productionProcesses: (selectedBase.cycle.productionProcesses ?? []).map(
+            (process) => {
+              const recordHistory = (process.recordHistory ?? []).filter((item) =>
+                inShift(item.horario_referencia ?? item.preenchido_em, selectedShift),
+              );
+              const subprocesso_eventos = (process.subprocesso_eventos ?? []).filter(
+                (item) =>
+                  localDateId(item.ocorrido_em) === selectedDay &&
+                  inShift(item.ocorrido_em, selectedShift),
+              );
+              return { ...process, subprocesso_eventos, recordHistory, latestRecord: recordHistory[0] ?? null };
+            },
+          ),
+          interruptions: (selectedBase.cycle.interruptions ?? []).filter((item) =>
+            inShift(item.iniciada_em, selectedShift),
+          ),
+          shifts: (selectedBase.cycle.shifts ?? []).filter((item) =>
+            selectedShift === "all" || item.turno_destino === selectedShift,
+          ),
+        }
+      : null;
+    const allNcs = (selectedBase.cycle?.ncs ?? []).filter((item) =>
+      inShift(item.registrada_em ?? item.aberta_em, selectedShift),
+    );
+    return {
+      ...selectedBase,
+      cycle,
+      records,
+      ncs: allNcs,
+      photos: selectedBase.photos.filter((item) =>
+        inShift(item.filledAt ?? item.horario, selectedShift),
+      ),
+      attentionParameters: productAttention(records, cycle?.specifications ?? []),
+    };
+  }, [selectedBase, selectedDay, selectedShift]);
   const hovered = lines.find((line) => line.id === hoveredId);
   const selectedProductRecord = selected?.records.find(
     (record) => record.contexto_tipo === "produto_avaliacao",
@@ -701,52 +815,25 @@ export function FactorySupervision({ variant = "classic" }) {
             <p className="mt-2 font-bold text-gray-600">
               {hovered.cycle?.produto ?? "Sem produção registrada hoje"}
             </p>
-            {hovered.cycle?.hygieneRound ? (
-              <div className="mt-3 border-l-4 border-cicopal-blue bg-blue-50 p-3 text-sm font-black text-cicopal-blue">
-                Higienização · rodada {hovered.cycle.hygieneRound.numero} ·{" "}
-                {hovered.cycle.hygieneRound.status.replaceAll("_", " ")}
-              </div>
-            ) : null}
-            {hovered.cycle?.productionProcesses?.length ? (
-              <div className="mt-3 grid grid-cols-2 gap-1">
-                {hovered.cycle.productionProcesses.map((process) => (
-                  <span
-                    key={process.nome}
-                    className={`px-2 py-2 text-[10px] font-black uppercase ${process.status === "operando" ? "bg-green-100 text-green-800" : ["parado", "pausado"].includes(process.status) ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-600"}`}
-                  >
-                    <b className="block">
-                      {process.nome} · {process.status.replaceAll("_", " ")}
-                    </b>
-                    <small className="mt-1 block normal-case">
-                      {processLiveValue(process)}
-                    </small>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {hovered.attentionParameters.length ? (
-              <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 font-black text-amber-900">
-                {hovered.attentionParameters.length} parâmetro(s) em atenção
-              </div>
-            ) : null}
             {hovered.ncs.length ? (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 p-3 font-black text-cicopal-red">
-                <AlertTriangle />
-                {hovered.ncs.length} NC do dia
+              <div className="mt-3 border-l-4 border-red-500 bg-red-50 p-3 text-cicopal-red">
+                <small className="font-black uppercase">Última NC</small>
+                <b className="mt-1 block">{hovered.ncs[0].descricao}</b>
+                <span className="text-xs font-bold">{time(hovered.ncs[0].registrada_em)}</span>
               </div>
             ) : (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-green-50 p-3 font-black text-cicopal-green">
-                <CheckCircle2 />
-                Sem NC no ciclo
+              <div className="mt-3 border-l-4 border-green-500 bg-green-50 p-3 font-black text-cicopal-green">
+                Sem NC aberta
               </div>
             )}
+            {hovered.cycle?.interruptions?.[0] ? <div className="mt-3 border-l-4 border-amber-500 bg-amber-50 p-3"><small className="font-black uppercase text-amber-800">Última parada ou pausa</small><b className="mt-1 block text-slate-900">{hovered.cycle.interruptions[0].motivo}</b><span className="text-xs font-bold text-slate-600">{time(hovered.cycle.interruptions[0].iniciada_em)}</span></div> : null}
             <p className="mt-3 flex items-center gap-1 text-xs font-bold text-cicopal-blue">
-              <Sparkle size={13} /> Clique para ver registros e fotos
+              Clique para abrir os detalhes
             </p>
           </div>
         ) : null}
         {selected ? (
-          <aside className="fixed inset-x-2 bottom-2 z-30 max-h-[88dvh] overflow-y-auto rounded-3xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur sm:absolute sm:inset-x-auto sm:bottom-5 sm:left-5 sm:max-h-[82%] sm:w-[min(620px,calc(100%-2.5rem))]">
+          <aside className={showComplete ? "fixed inset-0 z-50 overflow-y-auto bg-slate-50" : "fixed inset-x-2 bottom-2 z-30 max-h-[88dvh] overflow-y-auto border border-gray-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-5 sm:left-5 sm:max-h-[82%] sm:w-[min(620px,calc(100%-2.5rem))]"}>
             <header className="sticky top-0 z-10 flex items-start justify-between border-b border-gray-200 bg-white/95 p-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
@@ -770,7 +857,10 @@ export function FactorySupervision({ variant = "classic" }) {
                 <X size={20} />
               </button>
             </header>
-            <div className="space-y-5 p-5">
+            <div className={`space-y-5 p-5 ${showComplete ? "mx-auto max-w-[1500px]" : ""}`}>
+              <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-3">
+                {[["all","Todos os turnos"],["A","Turno A · 08–15h"],["B","Turno B · 16–23h"],["C","Turno C · 00–07h"]].map(([id,label]) => <button key={id} type="button" onClick={() => setSelectedShift(id)} className={`min-h-11 shrink-0 border px-4 text-sm font-bold ${selectedShift === id ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-slate-300 bg-white text-slate-600"}`}>{label}</button>)}
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <Metric
                   label="Último registro"
@@ -791,19 +881,17 @@ export function FactorySupervision({ variant = "classic" }) {
               </button>
               {!showComplete ? (
                 <section className="grid gap-3 sm:grid-cols-2">
-                  <article className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><small className="font-black uppercase text-blue-700">Produção</small><b className="mt-1 block text-lg">{selected.cycle?.productionProcesses?.filter((process) => process.status === "operando").length ?? 0} subprocessos operando</b><span className="text-sm font-semibold text-gray-600">{selected.cycle?.interruptions?.length ?? 0} pausa(s)/parada(s) no dia</span></article>
-                  <article className={`border-l-4 p-4 ${selected.ncs.length ? "border-red-500 bg-red-50" : "border-green-500 bg-green-50"}`}><small className="font-black uppercase">Qualidade</small><b className="mt-1 block text-lg">{selected.ncs.length ? `${selected.ncs.length} NC em aberto` : "Sem NC em aberto"}</b><span className="text-sm font-semibold text-gray-600">{selected.attentionParameters.length} parâmetro(s) em atenção</span></article>
-                  {selected.photos[0] ? <figure className="overflow-hidden border border-gray-200 sm:col-span-2"><img src={selected.photos[0].imagem} alt="Último registro fotográfico" className="max-h-56 w-full object-cover" /><figcaption className="p-3 text-sm font-bold">Último registro fotográfico · {selected.photos[0].horario}</figcaption></figure> : null}
+                  <article className={`border-l-4 p-4 ${selected.ncs[0] ? "border-red-500 bg-red-50" : "border-green-500 bg-green-50"}`}><small className="font-black uppercase">Última NC</small><b className="mt-1 block text-lg">{selected.ncs[0]?.descricao ?? "Nenhuma NC no período"}</b><span className="text-sm font-semibold text-gray-600">{selected.ncs[0] ? `${time(selected.ncs[0].registrada_em)} · ${selected.ncs[0].status}` : "Operação sem ocorrência registrada"}</span></article>
+                  <article className={`border-l-4 p-4 ${selected.cycle?.interruptions?.[0] ? "border-amber-500 bg-amber-50" : "border-green-500 bg-green-50"}`}><small className="font-black uppercase">Última parada ou pausa</small><b className="mt-1 block text-lg">{selected.cycle?.interruptions?.[0]?.motivo ?? "Nenhuma interrupção no período"}</b><span className="text-sm font-semibold text-gray-600">{selected.cycle?.interruptions?.[0] ? `${selected.cycle.interruptions[0].classificacao} · ${time(selected.cycle.interruptions[0].iniciada_em)}` : "Linha sem parada registrada"}</span></article>
+                  {operationalProblems(selected.cycle?.productionProcesses ?? [])[0] ? <article className="border-l-4 border-red-500 bg-red-50 p-4 sm:col-span-2"><small className="font-black uppercase text-red-700">Último problema operacional</small><b className="mt-1 block text-lg">{operationalProblems(selected.cycle.productionProcesses)[0].process.nome} · {operationalProblems(selected.cycle.productionProcesses)[0].problem.dados?.causa ?? operationalProblems(selected.cycle.productionProcesses)[0].problem.motivo}</b><span className="text-sm font-semibold text-gray-600">{time(operationalProblems(selected.cycle.productionProcesses)[0].problem.ocorrido_em)}</span></article> : null}
                 </section>
               ) : <>
-              <nav className="grid grid-cols-2 gap-1 bg-slate-100 p-1 sm:grid-cols-4" aria-label="Dados completos da linha">
-                {[["quality","Qualidade"],["production","Produção"],["ncs","Não conformidades"],["charts","Gráficos"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-11 px-2 text-xs font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
+              <nav className="grid grid-cols-2 gap-1 bg-slate-200 p-1" aria-label="Dados completos da linha">
+                {[["industrial","Dados industriais"],["incidents","NC e problemas"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-14 px-3 font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
               </nav>
-              {detailTab === "production" ? <section className="grid gap-2 sm:grid-cols-2"><article className="border-l-4 border-cicopal-blue bg-blue-50 p-3"><small className="font-black uppercase text-blue-700">Interrupções</small><b className="block text-xl">{selected.cycle?.interruptions?.length ?? 0}</b><span className="text-xs font-semibold">Pausas, paradas e bloqueios no período</span></article><article className="border-l-4 border-violet-500 bg-violet-50 p-3"><small className="font-black uppercase text-violet-700">Responsabilidade</small><b className="block text-lg">{selected.cycle?.shifts?.[0]?.responsavel_nome ?? "Não informado"}</b><span className="text-xs font-semibold">{selected.cycle?.shifts?.length ?? 0} passagem(ns) de turno</span></article>{(selected.cycle?.interruptions ?? []).map((item) => <article key={item.id} className="border border-gray-200 bg-white p-3"><b className="uppercase text-gray-900">{item.classificacao}</b><p className="text-sm font-semibold text-gray-600">{item.motivo}</p><small>{time(item.iniciada_em)}–{time(item.encerrada_em)}</small></article>)}</section> : null}
-              {detailTab === "charts" ? <section className="grid gap-2 sm:grid-cols-3"><article className="border-l-4 border-red-500 bg-red-50 p-3"><small className="font-black uppercase text-red-700">Pico de desvios</small><b className="block text-lg">{time(selected.records.find((record) => record.status === "com_nc")?.preenchido_em)}</b></article><article className="border-l-4 border-amber-500 bg-amber-50 p-3"><small className="font-black uppercase text-amber-800">Mais problemas</small><b className="block text-lg">{selected.ncs.length ? time(selected.ncs[0]?.registrada_em) : "Sem ocorrência"}</b></article><article className="border-l-4 border-green-500 bg-green-50 p-3"><small className="font-black uppercase text-green-800">Faixa produtiva</small><b className="block text-lg">{time(selected.cycle?.productionProcesses?.find((process) => process.latestRecord)?.latestRecord?.horario_referencia)}</b></article></section> : null}
-              {["production", "charts"].includes(detailTab) && selected.cycle?.productionProcesses?.some(
-                (process) => controlMetric[process.codigo],
-              ) ? (
+              {detailTab === "incidents" ? <section className="grid gap-3 sm:grid-cols-2"><article className="border-l-4 border-cicopal-blue bg-blue-50 p-3"><small className="font-black uppercase text-blue-700">Interrupções</small><b className="block text-xl">{selected.cycle?.interruptions?.length ?? 0}</b><span className="text-xs font-semibold">Pausas, paradas e bloqueios no turno selecionado</span></article><article className="border-l-4 border-violet-500 bg-violet-50 p-3"><small className="font-black uppercase text-violet-700">Responsável</small><b className="block text-lg">{selected.cycle?.shifts?.[0]?.responsavel_nome ?? "Não informado"}</b><span className="text-xs font-semibold">{selected.cycle?.shifts?.length ?? 0} passagem(ns) registrada(s)</span></article>{(selected.cycle?.interruptions ?? []).map((item) => <article key={item.id} className="border border-amber-200 bg-amber-50 p-4"><b className="uppercase text-amber-950">{item.classificacao}</b><p className="mt-1 font-semibold text-gray-700">{item.motivo}</p><small className="mt-2 block font-bold">{time(item.iniciada_em)}–{time(item.encerrada_em)} · Turno {shiftFor(item.iniciada_em)}</small></article>)}</section> : null}
+              {detailTab === "incidents" && operationalProblems(selected.cycle?.productionProcesses ?? []).length ? <section><Title icon={<AlertTriangle size={17} />} text="Problemas dos subprocessos" /><div className="mt-3 grid gap-3 lg:grid-cols-2">{operationalProblems(selected.cycle.productionProcesses).map(({ process, problem, resolution }) => <article key={problem.id} className={`border-l-4 p-4 ${resolution ? "border-green-500 bg-green-50" : "border-red-600 bg-red-50"}`}><div className="flex justify-between gap-3"><div><small className="font-black uppercase text-slate-500">{process.nome} · Turno {shiftFor(problem.ocorrido_em)}</small><b className="mt-1 block text-lg text-slate-950">{problem.dados?.equipamento ?? problem.dados?.causa ?? problem.motivo}</b></div><span className={`h-fit px-2 py-1 text-xs font-black uppercase ${resolution ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>{resolution ? "Resolvido" : "Aberto"}</span></div><p className="mt-2 text-sm font-semibold text-slate-700">{problem.dados?.descricao ?? problem.motivo}</p><p className="mt-2 text-xs font-bold text-slate-600">Início {time(problem.ocorrido_em)}{resolution ? ` · resolução ${time(resolution.ocorrido_em)} · ${resolution.dados?.duracao_minutos ?? "—"} min` : " · ainda ativo"}</p>{(problem.dados?.foto_antes || resolution?.dados?.foto_depois) ? <div className="mt-3 grid grid-cols-2 gap-2">{problem.dados?.foto_antes ? <figure><img src={problem.dados.foto_antes} alt="Antes do problema" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Antes</figcaption></figure> : null}{resolution?.dados?.foto_depois ? <figure><img src={resolution.dados.foto_depois} alt="Depois da resolução" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Depois</figcaption></figure> : null}</div> : null}</article>)}</div></section> : null}
+              {detailTab === "industrial" && productionControlSeries(selected.cycle?.productionProcesses ?? []).length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
@@ -814,17 +902,18 @@ export function FactorySupervision({ variant = "classic" }) {
                     confirmados.
                   </p>
                   <div className="mt-3 space-y-3">
-                    {selected.cycle.productionProcesses.map((process) => (
+                    {productionControlSeries(selected.cycle.productionProcesses).map(({ process, metric }) => (
                       <ControlChart
-                        key={process.id}
+                        key={`${process.id}-${metric.key}`}
                         process={process}
+                        metricOverride={metric}
                         now={now}
                       />
                     ))}
                   </div>
                 </section>
               ) : null}
-              {["quality", "charts"].includes(detailTab) && qualityControlSeries(selected.records).length ? (
+              {detailTab === "industrial" && qualityControlSeries(selected.records).length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
@@ -845,7 +934,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
-              {detailTab === "quality" && selected.photos[0] ? (
+              {detailTab === "industrial" && selected.photos[0] ? (
                 <section>
                   <Title
                     icon={<Camera size={17} />}
@@ -866,7 +955,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </figure>
                 </section>
               ) : null}
-              {detailTab === "quality" && selected.attentionParameters.length ? (
+              {detailTab === "industrial" && selected.attentionParameters.length ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
@@ -909,7 +998,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   </div>
                 </section>
               ) : null}
-              {["quality", "production"].includes(detailTab) ? <section>
+              {detailTab === "industrial" ? <section>
                 <Title
                   icon={<Clock3 size={17} />}
                   text="Últimos preenchimentos"
@@ -943,7 +1032,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   ) : null}
                 </div>
               </section> : null}
-              {detailTab === "ncs" && selected.ncs.length ? (
+              {detailTab === "incidents" && selected.ncs.length ? (
                 <section>
                   <Title
                     icon={<AlertTriangle size={17} />}

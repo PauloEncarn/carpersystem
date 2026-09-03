@@ -11,6 +11,7 @@ import {
   Lock,
   Cog,
   Power,
+  RefreshCw,
   Boxes,
   CookingPot,
   SprayCan,
@@ -111,6 +112,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
   const [saveFeedback, setSaveFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [viewOnly, setViewOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [interruptOpen, setInterruptOpen] = useState(false);
   const [problemModal, setProblemModal] = useState(null);
   const [problemResolution, setProblemResolution] = useState(null);
@@ -295,6 +297,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           : earliest;
       }, null)
     : null;
+  const optionalFirstSlot = useMemo(() => {
+    if (!firstBatchStartedAt) return "";
+    const original = new Date(firstBatchStartedAt);
+    if (!Number.isFinite(original.getTime()) || original.getMinutes() === 0)
+      return "";
+    const next = new Date(original);
+    next.setMinutes(0, 0, 0);
+    next.setHours(next.getHours() + 1);
+    return next.toISOString();
+  }, [firstBatchStartedAt]);
   const fixedSlots = useMemo(() => {
     if (!firstBatchStartedAt) return [];
     const start = new Date(firstBatchStartedAt);
@@ -330,6 +342,27 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
   const visibleSlots = fixedSlots;
   const isSlotReleased = (slot) =>
     Boolean(slot) && new Date(slot).getTime() <= now.getTime();
+
+  async function refreshConcurrentProcesses() {
+    if (!cycle?.id || refreshing) return;
+    setRefreshing(true);
+    setMessage("");
+    try {
+      const [processes, currentTraceability] = await Promise.all([
+        ensureProductionSubprocesses(cycle.id, operatorId),
+        loadProductionTraceability(cycle.id),
+      ]);
+      setRows(processes.rows.length ? processes.rows : localRows(cycle.id));
+      setRecords(processes.records ?? []);
+      setRemote(processes.remote);
+      setTraceability(currentTraceability);
+      setMessage("Dados dos processos atualizados.");
+    } catch (error) {
+      setMessage(error?.message ?? "Não foi possível atualizar os processos.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (!cycle?.id) return;
@@ -822,6 +855,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     const latest = recordsFor(item.code)[0];
     const pendingCount = fixedSlots.filter(
       (slot) =>
+        !sameInstant(slot, optionalFirstSlot) &&
         isSlotReleased(slot) &&
         !recordsFor(item.code).some(
           (record) => sameInstant(record.horario_previsto, slot),
@@ -967,7 +1001,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           </div>
         </section>
       ) : (
-        <section className="sticky top-2 z-30 flex min-h-16 items-center gap-3 border border-blue-100 bg-white p-3 shadow-lg">
+        <section className="sticky top-2 z-30 flex min-h-16 flex-wrap items-center gap-3 border border-blue-100 bg-white p-3 shadow-lg">
           <button
             type="button"
             aria-label="Voltar à visão geral da produção"
@@ -999,6 +1033,17 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           >
             <AlertTriangle size={20} />
             <span className="hidden sm:inline">Relatar problema</span>
+          </button>
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={refreshConcurrentProcesses}
+            className="inline-flex min-h-12 items-center gap-2 border border-slate-300 bg-white px-4 font-bold text-slate-700 disabled:opacity-50"
+          >
+            <RefreshCw size={19} className={refreshing ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">
+              {refreshing ? "Atualizando" : "Atualizar"}
+            </span>
           </button>
         </section>
       )}
@@ -1109,6 +1154,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 <span className="text-sm font-bold text-red-700">
                   {fixedSlots.filter(
                     (slot) =>
+                      !sameInstant(slot, optionalFirstSlot) &&
                       isSlotReleased(slot) &&
                       !recordsFor(
                         workspace === "cut"
@@ -1146,6 +1192,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   const isNext =
                     slotTime.getTime() === currentHour.getTime() + 3_600_000;
                   const isPast = slotTime.getTime() < currentHour.getTime();
+                  const optional = sameInstant(slot, optionalFirstSlot);
                   return (
                     <button
                       key={slot}
@@ -1179,6 +1226,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         {!released ? <Lock size={12} /> : null}
                         {record
                           ? "Preenchido"
+                          : optional
+                            ? "Opcional"
                           : !released
                             ? "Ainda não liberado"
                             : isCurrent

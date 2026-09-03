@@ -699,11 +699,15 @@ function TabletHourNavigator({
   currentSlotTime.setMinutes(0, 0, 0);
   const currentTimestamp = currentSlotTime.getTime();
   const missing = entries.filter(
-    (entry) => !entry.locked && !completedHours.includes(entry.value),
+    (entry) =>
+      !entry.locked &&
+      !entry.optional &&
+      !completedHours.includes(entry.value),
   ).length;
   const overdue = entries.filter(
     (entry) =>
       !entry.locked &&
+      !entry.optional &&
       !completedHours.includes(entry.value) &&
       Number.isFinite(entry.timestamp) &&
       entry.timestamp < currentTimestamp,
@@ -788,6 +792,8 @@ function TabletHourNavigator({
               <span className="mt-1 block text-[10px] uppercase">
                 {completed
                   ? "Preenchido"
+                  : entry.optional
+                    ? "Opcional · início fracionado"
                   : entry.locked
                     ? "Ainda não liberado"
                     : isOverdue
@@ -3540,7 +3546,12 @@ function buildAllowedCycleHours(cycle) {
   if (!productionStart) return fallback;
   const start = new Date(productionStart);
   if (!Number.isFinite(start.getTime())) return fallback;
+  const startsBetweenHours =
+    start.getMinutes() !== 0 ||
+    start.getSeconds() !== 0 ||
+    start.getMilliseconds() !== 0;
   start.setMinutes(0, 0, 0);
+  if (startsBetweenHours) start.setHours(start.getHours() + 1);
   const productionEnd =
     cycle.productionEndedAt ?? cycle.endedAt ?? Date.now() + 3_600_000;
   const end = new Date(productionEnd);
@@ -3569,9 +3580,41 @@ function buildAllowedCycleHours(cycle) {
           .toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" })
           .replace(".", "") + ` · ${value}`,
       locked: cursor.getTime() > Date.now(),
+      optional: startsBetweenHours && result.length === 0,
     });
   }
   return result.length ? result : fallback;
+}
+
+function NcPreviewPanel({ ncs = [], title = "Não conformidades abertas" }) {
+  if (!ncs.length) return null;
+  return (
+    <section className="mb-4 border-t-4 border-cicopal-red bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase text-cicopal-red">Atenção imediata</p>
+          <h3 className="mt-1 text-xl font-bold text-slate-950">{title}</h3>
+        </div>
+        <strong className="bg-red-600 px-3 py-2 text-sm text-white">{ncs.length} aberta(s)</strong>
+      </div>
+      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+        {ncs.map((nc) => {
+          const photo = nc.foto_antes ?? nc.fotoAntes ?? nc.foto_url ?? null;
+          const openedAt = nc.aberta_em ?? nc.criada_em ?? nc.created_at;
+          return (
+            <article key={nc.id ?? `${nc.item}-${openedAt}`} className="min-w-[280px] max-w-sm flex-1 border border-red-200 bg-red-50 p-3">
+              {photo ? <img src={photo} alt={`Evidência de ${nc.item ?? "não conformidade"}`} className="mb-3 h-36 w-full border border-red-200 bg-white object-cover" /> : <div className="mb-3 grid h-20 place-items-center border border-dashed border-red-300 bg-white text-sm font-bold text-red-700">Sem prévia fotográfica</div>}
+              <strong className="block text-lg text-slate-950">{nc.item ?? nc.descricao ?? "Não conformidade"}</strong>
+              {nc.grupo ? <span className="mt-1 block text-xs font-bold uppercase text-red-700">{nc.grupo}</span> : null}
+              {nc.descricao && nc.descricao !== nc.item ? <p className="mt-2 text-sm font-semibold text-slate-700">{nc.descricao}</p> : null}
+              {nc.causa ? <p className="mt-1 text-sm text-slate-600"><b>Causa:</b> {nc.causa}</p> : null}
+              <p className="mt-3 border-t border-red-200 pt-2 text-xs font-bold text-red-800">{openedAt ? `Aberta em ${new Date(openedAt).toLocaleString("pt-BR")}` : "Aguardando tratamento"}</p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
@@ -3614,7 +3657,19 @@ function NcResolutionGate({ title, ncs, operatorId, onChange, onAllResolved }) {
       <div className="flex items-start gap-3"><span className="grid size-12 shrink-0 place-items-center bg-red-50 text-cicopal-red"><AlertTriangle size={26} /></span><div><p className="text-xs font-black uppercase tracking-wider text-cicopal-red">Etapa bloqueada</p><h2 className="text-2xl font-black text-gray-950">{title}</h2><p className="mt-1 font-semibold text-gray-600">Existe NC aberta em <b>{selected?.item ?? "item do checklist"}</b>. A próxima etapa será liberada somente após todas as ocorrências serem resolvidas.</p></div></div>
       <div className="mt-5 grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2">{ncs.map((nc) => <button key={nc.id} type="button" onClick={() => setSelectedId(nc.id)} className={`w-full border-l-4 p-3 text-left ${selected?.id === nc.id ? "border-l-cicopal-red bg-red-50" : "border-l-gray-300 bg-gray-50"}`}><strong className="block">{nc.item}</strong><span className="text-xs font-bold text-gray-500">Aberta há {nc.aberta_em ? Math.max(0, Math.floor((Date.now() - new Date(nc.aberta_em)) / 60000)) : 0} min</span></button>)}</div>
-        <div className="relative border border-gray-200 p-4"><h3 className="text-lg font-black">Resolver NC</h3><p className="mt-1 text-sm font-semibold text-gray-500">Descreva exatamente o que foi feito e registre a evidência depois da correção.</p><textarea className="mt-4 min-h-28 w-full border border-gray-300 p-3 font-semibold" placeholder="Ação executada para resolver a não conformidade" value={resolution} onChange={(event) => setResolution(event.target.value)} /><label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue"><Camera size={22} />{photoAfter ? "Foto posterior registrada" : "Registrar foto depois da correção"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhotoAfter(reader.result); reader.readAsDataURL(file); }} /></label>{photoAfter ? <img src={photoAfter} alt="Evidência após resolução" className="mt-3 max-h-52 w-full object-contain" /> : null}<button type="button" disabled={!resolution.trim() || !photoAfter || saving} onClick={resolve} className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-green px-5 text-lg font-black text-white disabled:bg-gray-300">{saving ? <><RotateCcw size={20} className="animate-spin" /> Salvando correção...</> : "RESOLVER NC"}</button>{saving ? <div className="absolute inset-0 grid place-items-center bg-white/75"><span className="inline-flex items-center gap-3 bg-white px-5 py-4 font-black text-cicopal-blue shadow-lg"><RotateCcw className="animate-spin" /> Enviando ação e fotografia</span></div> : null}</div>
+        <div className="relative border border-gray-200 p-4">
+          <h3 className="text-lg font-black">Resolver NC</h3>
+          <div className="mt-3 grid gap-3 border-l-4 border-red-600 bg-red-50 p-3 sm:grid-cols-[140px_1fr]">
+            {(selected?.foto_antes ?? selected?.fotoAntes) ? <img src={selected.foto_antes ?? selected.fotoAntes} alt="Evidência antes da correção" className="h-28 w-full bg-white object-cover" /> : <div className="grid h-20 place-items-center border border-dashed border-red-300 bg-white text-xs font-bold text-red-700">Sem foto anterior</div>}
+            <div><b className="block text-slate-950">{selected?.item}</b>{selected?.descricao ? <p className="mt-1 text-sm text-slate-700">{selected.descricao}</p> : null}{selected?.causa ? <p className="mt-1 text-sm text-slate-700"><b>Causa:</b> {selected.causa}</p> : null}</div>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-gray-500">Descreva exatamente o que foi feito e registre a evidência depois da correção.</p>
+          <textarea className="mt-4 min-h-28 w-full border border-gray-300 p-3 font-semibold" placeholder="Ação executada para resolver a não conformidade" value={resolution} onChange={(event) => setResolution(event.target.value)} />
+          <label className="mt-3 flex min-h-16 cursor-pointer items-center justify-center gap-2 border-2 border-dashed border-cicopal-blue bg-blue-50 px-4 font-black text-cicopal-blue"><Camera size={22} />{photoAfter ? "Foto posterior registrada" : "Registrar foto depois da correção"}<input type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhotoAfter(reader.result); reader.readAsDataURL(file); }} /></label>
+          {photoAfter ? <img src={photoAfter} alt="Evidência após resolução" className="mt-3 max-h-52 w-full object-contain" /> : null}
+          <button type="button" disabled={!resolution.trim() || !photoAfter || saving} onClick={resolve} className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-2 bg-cicopal-green px-5 text-lg font-black text-white disabled:bg-gray-300">{saving ? <><RotateCcw size={20} className="animate-spin" /> Salvando correção...</> : "RESOLVER NC"}</button>
+          {saving ? <div className="absolute inset-0 grid place-items-center bg-white/75"><span className="inline-flex items-center gap-3 bg-white px-5 py-4 font-black text-cicopal-blue shadow-lg"><RotateCcw className="animate-spin" /> Enviando ação e fotografia</span></div> : null}
+        </div>
       </div>
     </section>
   );
@@ -4394,6 +4449,7 @@ export function Rg005SubregistroForm({
             {hygieneRounds.length ? <div className="mt-4 flex gap-2 overflow-x-auto border-t border-gray-100 pt-3">{hygieneRounds.map((round) => <span key={round.id} className={`min-w-max border-l-4 px-3 py-2 text-xs font-bold ${round.status === "aprovada" ? "border-l-cicopal-green bg-green-50" : round.status === "em_correcao" ? "border-l-cicopal-red bg-red-50" : "border-l-amber-500 bg-amber-50"}`}>Rodada {round.numero} · {round.status.replaceAll("_", " ")}</span>)}</div> : null}
           </section>
         ) : null}
+        {!hygieneLoading && openPrerequisiteNcs.length ? <NcPreviewPanel ncs={openPrerequisiteNcs} title="NCs encontradas na higienização" /> : null}
         {hygieneLoading ? <section className="grid min-h-52 place-items-center border border-blue-100 bg-white shadow-sm"><div className="text-center"><RotateCcw size={34} className="mx-auto animate-spin text-cicopal-blue" /><h3 className="mt-4 text-lg font-black text-gray-950">Atualizando a higienização</h3><p className="mt-1 font-semibold text-gray-500">Buscando a rodada, as NCs e as correções mais recentes.</p></div></section> : correcting && openPrerequisiteNcs.length && !canInspectHygiene ? (
           <NcResolutionGate
             title="Higienização não liberada"

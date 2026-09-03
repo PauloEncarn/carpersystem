@@ -379,6 +379,12 @@ export function ProductionTraceabilitySetup({
     }
   }
   const recipeInputs = recipe?.receita_insumos ?? [];
+  const missingBatchInputs = inputsForBatch().filter(
+    (item) => !item.lot || !item.expiry || item.used === "" || item.used == null,
+  );
+  const missingActiveLots = recipeInputs.filter(
+    (item) => !activeLots.some((lotItem) => lotItem.insumo_id === item.insumos.id),
+  );
   const statusLabel = {
     em_preparacao: "Em preparação",
     pronta: "Pronta",
@@ -407,15 +413,18 @@ export function ProductionTraceabilitySetup({
   if (mode === "prep")
     return (
       <section className="border border-slate-200 bg-white">
-        <header className="border-b border-slate-200 p-4 sm:p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-cicopal-blue">
-            Preparação
-          </p>
-          <h2 className="mt-1 text-2xl font-bold">Controle de bateladas</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Prepare, confirme a massa pronta e registre o envio ao tombador.
-            A receita permanece vinculada ao sabor produzido.
-          </p>
+        <header className="border-b border-slate-200 bg-slate-950 p-4 text-white sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-300">Preparação</p>
+              <h2 className="mt-1 text-2xl font-bold text-white">Controle de bateladas</h2>
+              <p className="mt-1 text-sm text-slate-300">Lotes → preparo → massa pronta → tombador</p>
+            </div>
+            <div className="border-l-4 border-cicopal-blue bg-white/10 px-4 py-2">
+              <small className="block font-bold uppercase text-slate-300">Situação</small>
+              <b>{activeBatch ? `Batelada ${activeBatch.numero} em preparo` : consumingBatch ? `Batelada ${consumingBatch.numero} em consumo` : "Aguardando preparo"}</b>
+            </div>
+          </div>
         </header>
 
         <div className="flex flex-col gap-6 p-4 sm:p-5">
@@ -431,6 +440,14 @@ export function ProductionTraceabilitySetup({
                 {activeLots.length}/{recipeInputs.length} cadastrados
               </span>
             </div>
+            {missingActiveLots.length ? (
+              <div className="mb-3 border-l-4 border-red-600 bg-red-50 p-3 text-red-900">
+                <b>Faltam {missingActiveLots.length} lote(s) para preparar a primeira massa.</b>
+                <p className="mt-1 text-sm">Cadastre os itens destacados abaixo.</p>
+              </div>
+            ) : (
+              <div className="mb-3 border-l-4 border-green-600 bg-green-50 p-3 font-bold text-green-900">Todos os lotes obrigatórios foram informados.</div>
+            )}
             <div className="divide-y divide-slate-200 border border-slate-200">
               {recipeInputs.map((item) => {
                 const supply = item.insumos;
@@ -442,7 +459,7 @@ export function ProductionTraceabilitySetup({
                 return (
                   <article
                     key={supply.id}
-                    className="grid gap-3 p-4 sm:grid-cols-[minmax(140px,1fr)_minmax(170px,1fr)_130px_auto] sm:items-center"
+                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(140px,1fr)_minmax(170px,1fr)_130px_auto] sm:items-center ${current ? "border-green-500 bg-white" : "border-red-500 bg-red-50"}`}
                   >
                     <div>
                       <small className="font-bold uppercase text-slate-400">
@@ -468,7 +485,7 @@ export function ProductionTraceabilitySetup({
                           </span>
                         </>
                       ) : (
-                        <b className="text-amber-700">Lote não informado</b>
+                        <b className="text-red-700">Informe lote e validade</b>
                       )}
                     </div>
                     <label>
@@ -555,6 +572,7 @@ export function ProductionTraceabilitySetup({
                   >
                     Preparar massa
                   </button>
+                  {!recipe ? <p className="mt-2 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-800">Não existe receita ativa para este produto. Solicite a configuração antes de continuar.</p> : missingBatchInputs.length ? <p className="mt-2 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-bold text-amber-900">Informe lote, validade e quantidade dos insumos pendentes.</p> : null}
                 </div>
               ) : !batchReview ? (
                 <div className="p-4">
@@ -566,7 +584,7 @@ export function ProductionTraceabilitySetup({
                     <button
                       type="button"
                       onClick={addBatch}
-                      disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
+                      disabled={saving || missingBatchInputs.length > 0}
                       className="min-h-20 border-l-4 border-green-700 bg-green-600 px-4 text-left font-bold text-white disabled:bg-slate-300"
                     >
                       <span className="block text-lg">Preparar igual</span>
@@ -636,11 +654,12 @@ export function ProductionTraceabilitySetup({
                   <button
                     type="button"
                     onClick={startBatchWithFormulaCheck}
-                    disabled={saving || inputsForBatch().some((item) => !item.lot || !item.expiry)}
+                    disabled={saving || missingBatchInputs.length > 0}
                     className="mt-3 min-h-14 w-full bg-green-600 px-4 font-bold text-white"
                   >
                     Confirmar e preparar massa
                   </button>
+                  {missingBatchInputs.length ? <p className="mt-2 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-800">Revise os campos destacados: lote, validade e quantidade são obrigatórios.</p> : null}
                   <button
                     type="button"
                     onClick={() => data.batches.length ? setBatchReview(false) : setBatchOpen(false)}
@@ -711,7 +730,7 @@ export function ProductionTraceabilitySetup({
         </div>
 
         {message ? (
-          <p className="border-t border-slate-200 bg-blue-50 p-3 text-sm font-bold text-cicopal-blue">
+          <p role="alert" className={`border-l-4 p-4 text-sm font-bold ${/não|erro|falha|preencha|informe|falta/i.test(message) ? "border-red-600 bg-red-50 text-red-900" : "border-cicopal-blue bg-blue-50 text-cicopal-blue"}`}>
             {message}
           </p>
         ) : null}
@@ -724,28 +743,8 @@ export function ProductionTraceabilitySetup({
               </p>
               <h3 className="mt-1 text-2xl font-bold">Dados do lote</h3>
               <div className="mt-5 grid gap-3">
-                <input
-                  value={lot.supplierLot}
-                  onChange={(event) =>
-                    setLot((value) => ({
-                      ...value,
-                      supplierLot: event.target.value,
-                    }))
-                  }
-                  className="min-h-14 border border-slate-300 px-3"
-                  placeholder="Lote do fornecedor"
-                />
-                <input
-                  value={lot.supplier}
-                  onChange={(event) =>
-                    setLot((value) => ({
-                      ...value,
-                      supplier: event.target.value,
-                    }))
-                  }
-                  className="min-h-14 border border-slate-300 px-3"
-                  placeholder="Fornecedor"
-                />
+                <label><span className="mb-1 block text-xs font-bold uppercase text-slate-600">Lote do fornecedor *</span><input value={lot.supplierLot} onChange={(event) => setLot((value) => ({ ...value, supplierLot: event.target.value }))} className={`min-h-14 w-full border px-3 ${lot.supplierLot ? "border-slate-300" : "border-red-500 bg-red-50"}`} placeholder="Informe o lote" />{!lot.supplierLot ? <small className="mt-1 block font-bold text-red-700">O lote é obrigatório.</small> : null}</label>
+                <label><span className="mb-1 block text-xs font-bold uppercase text-slate-600">Fornecedor *</span><input value={lot.supplier} onChange={(event) => setLot((value) => ({ ...value, supplier: event.target.value }))} className={`min-h-14 w-full border px-3 ${lot.supplier ? "border-slate-300" : "border-red-500 bg-red-50"}`} placeholder="Informe o fornecedor" />{!lot.supplier ? <small className="mt-1 block font-bold text-red-700">O fornecedor é obrigatório.</small> : null}</label>
                 <label>
                   <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
                     Validade
@@ -759,14 +758,15 @@ export function ProductionTraceabilitySetup({
                         expiry: event.target.value,
                       }))
                     }
-                    className="min-h-14 w-full border border-slate-300 px-3"
+                    className={`min-h-14 w-full border px-3 ${lot.expiry ? "border-slate-300" : "border-red-500 bg-red-50"}`}
                   />
+                  {!lot.expiry ? <small className="mt-1 block font-bold text-red-700">A validade é obrigatória.</small> : null}
                 </label>
               </div>
               <button
                 type="button"
                 onClick={saveLot}
-                disabled={saving}
+                disabled={saving || !lot.supplierLot || !lot.supplier || !lot.expiry}
                 className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 font-bold text-white"
               >
                 Salvar lote vigente
