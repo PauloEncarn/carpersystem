@@ -61,7 +61,7 @@ const liberacaoProdutoColumns = [
   "Selagem",
   "Datador",
   "Impressao",
-  "Microfuro maq. 1",
+  "Microfuro",
   "Temp. oleo",
   "Tempo residencia",
 ];
@@ -1463,6 +1463,7 @@ function ProductEvaluationTabletFlow({
   const [packerMessage, setPackerMessage] = useState("");
   const [packerSaving, setPackerSaving] = useState(false);
   const [packerRevision, setPackerRevision] = useState(0);
+  const packerInitializedRef = useRef(false);
   const [packerConfiguredByProduction, setPackerConfiguredByProduction] =
     useState(false);
 
@@ -1471,7 +1472,7 @@ function ProductEvaluationTabletFlow({
       setPackerLoading(false);
       return;
     }
-    setPackerLoading(true);
+    if (!packerInitializedRef.current) setPackerLoading(true);
     try {
       const traceability = await loadProductionTraceability(cycleId);
       const targetTime = activeSlot ? new Date(activeSlot).getTime() : Date.now();
@@ -1519,6 +1520,7 @@ function ProductEvaluationTabletFlow({
         ),
       );
       setConfigured(true);
+      packerInitializedRef.current = true;
     } catch (error) {
       setPackerMessage(error?.message ?? "Não foi possível carregar as máquinas da Produção.");
     } finally {
@@ -1896,10 +1898,11 @@ function ProcessEvaluationTabletFlow({
     useState(false);
   const [packerMessage, setPackerMessage] = useState("");
   const [packerRevision, setPackerRevision] = useState(0);
+  const packerInitializedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function synchronizePackers() {
-      setPackerLoading(Boolean(cycleId));
+      if (!packerInitializedRef.current) setPackerLoading(Boolean(cycleId));
       setPackerMessage("");
       try {
         const traceability = cycleId
@@ -1948,6 +1951,7 @@ function ProcessEvaluationTabletFlow({
           ),
         );
         setConfigured(true);
+        packerInitializedRef.current = true;
       } catch (error) {
         if (!cancelled)
           setPackerMessage(

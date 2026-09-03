@@ -8,6 +8,7 @@ import {
   Clock3,
   Download,
   LoaderCircle,
+  Printer,
   RefreshCw,
   Search,
   X,
@@ -461,9 +462,27 @@ export function ProductionReports() {
     URL.revokeObjectURL(url);
   }
 
+  function exportPdf() {
+    window.print();
+  }
+
   return (
-    <div className="space-y-5">
-      <section className="border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="production-report space-y-5">
+      <style jsx global>{`
+        @media print {
+          @page { size: A4 portrait; margin: 11mm; }
+          body { background: #fff !important; }
+          body > * { visibility: hidden; }
+          .production-report, .production-report * { visibility: visible; }
+          .production-report { position: absolute; inset: 0; width: 100%; }
+          .report-controls { display: none !important; }
+          .report-cycle { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10mm; }
+          .production-report details > * { display: block !important; }
+          .production-report details > summary { list-style: none; }
+          .production-report .shadow-sm { box-shadow: none !important; }
+        }
+      `}</style>
+      <section className="report-controls border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">
@@ -627,11 +646,28 @@ export function ProductionReports() {
             <Download size={18} />
             Exportar CSV
           </button>
+          <button
+            type="button"
+            disabled={!filteredData.length}
+            onClick={exportPdf}
+            className="inline-flex min-h-12 items-center gap-2 bg-gray-950 px-5 font-bold text-white disabled:opacity-40"
+          >
+            <Printer size={18} />
+            Exportar PDF
+          </button>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="overflow-hidden border border-blue-200 bg-white shadow-sm">
+        <header className="bg-cicopal-blue p-5 text-white">
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-blue-200">CICOPAL · Controle industrial</p>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+            <div><h2 className="text-3xl font-bold text-white">Relatório consolidado de produção</h2><p className="mt-1 text-sm font-semibold text-blue-100">Período de {new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} a {new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}</p></div>
+            <p className="text-sm font-bold text-blue-100">Emitido em {new Date().toLocaleString("pt-BR")}</p>
+          </div>
+        </header>
+        <div className="grid gap-px bg-gray-200 sm:grid-cols-2 xl:grid-cols-5">
         <Metric icon={<Clock3 />} label="Produções" value={totals.cycles} />
         <Metric icon={<CheckCircle2 />} label="Ativas" value={totals.active} />
         <Metric
@@ -646,6 +682,11 @@ export function ProductionReports() {
           alert={totals.ncs > 0}
         />
         <Metric icon={<Camera />} label="Fotos" value={totals.photos} />
+        </div>
+        <div className="border-t border-gray-200 p-5">
+          <div className="flex items-center justify-between text-sm font-bold"><span>Cumprimento geral dos controles</span><span className={totals.compliance < 90 ? "text-amber-700" : "text-cicopal-green"}>{totals.compliance}%</span></div>
+          <div className="mt-2 h-3 overflow-hidden bg-gray-200"><div className={`h-full ${totals.compliance < 90 ? "bg-amber-500" : "bg-cicopal-green"}`} style={{ width: `${totals.compliance}%` }} /></div>
+        </div>
       </section>
 
       <section className="overflow-hidden border border-gray-200 bg-white shadow-sm">
@@ -710,7 +751,7 @@ export function ProductionReports() {
                           {product.cycles.map((cycle) => (
                             <details
                               key={cycle.id}
-                              className="border border-gray-200 bg-white"
+                              className="report-cycle border border-gray-200 bg-white"
                             >
                               <summary className="grid cursor-pointer list-none gap-3 p-4 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
                                 <div>
@@ -776,7 +817,21 @@ export function ProductionReports() {
                                 </div>
                               </summary>
                               <div className="border-t border-gray-200 p-4">
-                                <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                                <div className="mb-4 grid grid-cols-2 gap-px overflow-hidden border border-gray-200 bg-gray-200 sm:grid-cols-4">
+                                  {[
+                                    ["Higienização", cycle.hygiene],
+                                    ["Liberação", cycle.release],
+                                    ["Produção", Boolean(cycle.producao_iniciada_em)],
+                                    [cycle.encerrado_em ? "Encerrada" : "Em andamento", true],
+                                  ].map(([label, ok], index) => (
+                                    <article key={label} className="bg-white p-4">
+                                      <span className={`grid size-8 place-items-center text-sm font-bold text-white ${ok ? "bg-cicopal-green" : "bg-amber-500"}`}>{index + 1}</span>
+                                      <strong className="mt-3 block text-sm text-gray-950">{label}</strong>
+                                      <span className={`mt-1 block text-xs font-bold ${ok ? "text-cicopal-green" : "text-amber-700"}`}>{ok ? "CONFIRMADO" : "PENDENTE"}</span>
+                                    </article>
+                                  ))}
+                                </div>
+                                <div className="mb-4 grid gap-2 border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
                                   <Status
                                     ok={cycle.hygiene}
                                     text="Higienização confirmada"

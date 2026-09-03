@@ -36,7 +36,10 @@ import { repairTextDeep } from "@/lib/textEncoding";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
 import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
-import { finishActiveBatch } from "@/lib/productionTraceabilityPersistence";
+import {
+  finishActiveBatch,
+  savePackerConfiguration,
+} from "@/lib/productionTraceabilityPersistence";
 import { documentsForProfile } from "@/lib/profileAccess";
 
 const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
@@ -1481,6 +1484,7 @@ function Rg003ProductionControl({
   };
   const products = productOptions[lineId] ?? [];
   const [product, setProduct] = useState("");
+  const [initialMachineCount, setInitialMachineCount] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [ready, setReady] = useState(false);
   const [dayCycles, setDayCycles] = useState([]);
@@ -1490,6 +1494,7 @@ function Rg003ProductionControl({
   const [stopMode, setStopMode] = useState("finish");
   const [shiftData, setShiftData] = useState({ turno: "B", responsavel: "", observacao: "" });
   const [nextProduct, setNextProduct] = useState("");
+  const [nextMachineCount, setNextMachineCount] = useState("");
   const [genericNcOpen, setGenericNcOpen] = useState(false);
   const [genericNc, setGenericNc] = useState({
     quantidade: "",
@@ -1607,7 +1612,12 @@ function Rg003ProductionControl({
   async function prepare(
     reason = "Início de produção",
     selectedProduct = product,
+    machineCount = initialMachineCount,
   ) {
+    const normalizedMachineCount = Number(machineCount);
+    if (!Number.isInteger(normalizedMachineCount) || normalizedMachineCount < 1 || normalizedMachineCount > 4)
+      return false;
+    if (!selectedProduct || !normalizedMachineCount) return false;
     const at = new Date().toISOString();
     let next = {
       id: `CICLO-${Date.now()}`,
@@ -1651,7 +1661,36 @@ function Rg003ProductionControl({
         return false;
       }
     }
+    if (next?.id && !String(next.id).startsWith("CICLO-")) {
+      try {
+        await savePackerConfiguration(
+          next.id,
+          [1, 2, 3, 4].map((machine) => ({
+            machine,
+            active: machine <= normalizedMachineCount,
+            grammage: "",
+          })),
+          operatorId,
+          "Configuração inicial da produção",
+        );
+        window.dispatchEvent(
+          new CustomEvent("production-packers-updated", {
+            detail: { cycleId: next.id },
+          }),
+        );
+      } catch {
+        setSyncState("error");
+      }
+    }
+    next = {
+      ...next,
+      metadata: {
+        ...(next.metadata ?? {}),
+        initialMachineCount: normalizedMachineCount,
+      },
+    };
     store(next);
+    setInitialMachineCount("");
     return true;
   }
 
@@ -1704,7 +1743,7 @@ function Rg003ProductionControl({
       if (!ended) return;
       await finishCycleSubprocesses(cycle.id, operatorId);
       await finishActiveBatch(cycle.id, operatorId);
-      await prepare("Troca de produto", nextProduct);
+      await prepare("Troca de produto", nextProduct, nextMachineCount);
     } else if (stopMode === "cancel") {
       const saved = await transition(
         "ended",
@@ -2047,6 +2086,30 @@ function Rg003ProductionControl({
               );
             })}
           </div>
+          <div className="mt-5 border-l-4 border-cicopal-blue bg-blue-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-cicopal-blue">
+              Configuração inicial
+            </p>
+            <h4 className="mt-1 text-lg font-bold text-gray-950">
+              Quantas empacotadoras iniciarão em operação?
+            </h4>
+            <p className="mt-1 text-sm font-semibold text-gray-600">
+              Essa será a referência da Produção e da Qualidade. Alterações posteriores ficam registradas com data e hora.
+            </p>
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  aria-pressed={Number(initialMachineCount) === count}
+                  onClick={() => setInitialMachineCount(String(count))}
+                  className={`min-h-14 border-2 text-lg font-bold ${Number(initialMachineCount) === count ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-blue-200 bg-white text-cicopal-blue"}`}
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
             <div>
               <p className="text-xs font-bold uppercase text-gray-500">
@@ -2065,13 +2128,15 @@ function Rg003ProductionControl({
             </div>
             <button
               type="button"
-              disabled={!product}
+              disabled={!product || !initialMachineCount}
               className="min-h-16 rounded-md bg-cicopal-blue px-6 text-lg font-bold text-white disabled:bg-gray-300 disabled:text-gray-600"
               onClick={() => prepare()}
             >
-              {product
+              {product && initialMachineCount
                 ? `Criar produção de ${product.replace(/^Rosca /, "")}`
-                : "Selecione um produto"}
+                : !product
+                  ? "Selecione um produto"
+                  : "Informe as máquinas"}
             </button>
           </div>
         </section>
@@ -2457,7 +2522,8 @@ function Rg003ProductionControl({
                     <button type="button" className={`min-h-20 border-2 font-bold ${stopMode === "shift" ? "border-green-500 bg-green-50 text-green-800" : "border-gray-200"}`} onClick={() => setStopMode("shift")}>Troca de turno</button>
                   </div>
                   {stopMode === "change" ? (
-                    <label className="mt-4 block">
+                    <div className="mt-4 grid gap-4">
+                    <label className="block">
                       <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
                         Próximo produto
                       </span>
@@ -2478,6 +2544,13 @@ function Rg003ProductionControl({
                           ))}
                       </select>
                     </label>
+                    <fieldset>
+                      <legend className="mb-2 text-xs font-bold uppercase text-gray-500">Empacotadoras no início da próxima produção</legend>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[1, 2, 3, 4].map((count) => <button key={count} type="button" onClick={() => setNextMachineCount(String(count))} className={`min-h-12 border-2 font-bold ${Number(nextMachineCount) === count ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-white"}`}>{count}</button>)}
+                      </div>
+                    </fieldset>
+                    </div>
                   ) : null}
                   {stopMode === "shift" ? <div className="mt-4 grid gap-3"><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Próximo turno</span><select className="min-h-14 w-full border border-gray-300 bg-white px-3 font-bold" value={shiftData.turno} onChange={(event) => setShiftData((current) => ({ ...current, turno: event.target.value }))}><option>A</option><option>B</option><option>C</option></select></label><label><span className="mb-1 block text-xs font-bold uppercase text-gray-500">Supervisor que assume</span><input className="min-h-14 w-full border border-gray-300 px-3 font-bold" value={shiftData.responsavel} onChange={(event) => setShiftData((current) => ({ ...current, responsavel: event.target.value }))} placeholder="Nome do responsável" /></label><textarea className="min-h-20 w-full border border-gray-300 p-3" placeholder="Observação da passagem (opcional)" value={shiftData.observacao} onChange={(event) => setShiftData((current) => ({ ...current, observacao: event.target.value }))} /><p className="border-l-4 border-green-500 bg-green-50 p-3 text-sm font-bold text-green-900">A produção continuará com o mesmo código, lotes, bateladas e horários. Apenas a responsabilidade será transferida.</p></div> : null}
                 </>
@@ -2493,7 +2566,7 @@ function Rg003ProductionControl({
               </button>
               <button
                 type="button"
-                disabled={stopMode === "shift" && !shiftData.responsavel.trim()}
+                disabled={(stopMode === "shift" && !shiftData.responsavel.trim()) || (stopMode === "change" && (!nextProduct || !nextMachineCount))}
                 className="min-h-14 bg-cicopal-red font-bold text-white disabled:bg-gray-300"
                 onClick={stopProduction}
               >
