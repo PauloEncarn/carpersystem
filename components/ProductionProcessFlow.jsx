@@ -868,16 +868,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     );
   }
 
-  if (cycle?.status === "hygiene")
-    return (
-      <section className="border bg-gray-50 p-6 text-center">
-        <Factory className="mx-auto text-gray-400" />
-        <h3 className="mt-2 text-lg font-black">Apontamentos da produção</h3>
-        <p className="font-semibold text-gray-500">
-          Disponíveis após a aprovação da higienização.
-        </p>
-      </section>
-    );
   return (
     <div className="space-y-5 bg-slate-50 p-2 sm:p-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
