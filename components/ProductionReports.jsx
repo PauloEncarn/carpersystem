@@ -214,6 +214,89 @@ function processRecordGroups(cycle) {
   }, new Map()).entries()];
 }
 
+function checklistEntries(payload = {}) {
+  const evaluations = Array.isArray(payload?.avaliacoes)
+    ? payload.avaliacoes
+    : [];
+  const notes = Array.isArray(payload?.apontamentos)
+    ? payload.apontamentos
+    : [];
+  const entries = [...evaluations, ...notes].map((item, index) => ({
+    id: `${item.grupo ?? "item"}-${item.item ?? index}`,
+    group: item.grupo ?? item.group ?? "Avaliação geral",
+    item: item.item ?? item.label ?? `Item ${index + 1}`,
+    result: item.av1 ?? item.resultado ?? item.valor ?? "—",
+    qualityResult: item.av2 ?? null,
+    unit: item.unidade ?? item.unit ?? "",
+    classification: item.classificacao ?? "",
+  }));
+  if (entries.length) return entries;
+  return Object.entries(payload ?? {})
+    .filter(
+      ([key, value]) =>
+        !["ncs", "fotografias", "assinatura", "status"].includes(key) &&
+        !key.startsWith("_") &&
+        ["string", "number", "boolean"].includes(typeof value),
+    )
+    .map(([key, value]) => ({
+      id: key,
+      group: "Resultado registrado",
+      item: fieldLabel(key),
+      result: String(value),
+      qualityResult: null,
+      unit: "",
+      classification: "",
+    }));
+}
+
+function hygieneReportRecords(cycle) {
+  if (cycle.hygieneRounds?.length) {
+    return cycle.hygieneRounds.flatMap((round) => [
+      {
+        id: `${round.id}-operation`,
+        label: `Rodada ${round.numero} · execução da Operação`,
+        at: round.enviada_inspecao_em ?? round.execucao_iniciada_em,
+        operator: round.executada_por,
+        status: round.status,
+        payload: round.dados_operacao ?? {},
+      },
+      ...(round.dados_qualidade
+        ? [{
+            id: `${round.id}-quality`,
+            label: `Rodada ${round.numero} · inspeção da Qualidade`,
+            at: round.inspecao_encerrada_em ?? round.inspecao_iniciada_em,
+            operator: round.inspecionada_por,
+            status: round.status,
+            payload: round.dados_qualidade,
+          }]
+        : []),
+    ]);
+  }
+  return cycle.fillings
+    .filter((item) => item.contexto_tipo === "higienizacao")
+    .map((item) => ({
+      id: item.id,
+      label: "Checklist de higienização",
+      at: item.preenchido_em,
+      operator: item.operador_id,
+      status: item.status,
+      payload: item.valores ?? {},
+    }));
+}
+
+function releaseReportRecords(cycle) {
+  return cycle.fillings
+    .filter((item) => item.contexto_tipo === "produto_liberacao")
+    .map((item) => ({
+      id: item.id,
+      label: "Avaliação geral da liberação",
+      at: item.preenchido_em,
+      operator: item.operador_id,
+      status: item.status,
+      payload: item.valores ?? {},
+    }));
+}
+
 export function ProductionReports() {
   const initialStart = new Date();
   initialStart.setDate(initialStart.getDate() - 6);
@@ -628,7 +711,7 @@ export function ProductionReports() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="report-actions flex flex-wrap gap-3">
           <button
             type="button"
             onClick={load}
@@ -817,7 +900,7 @@ export function ProductionReports() {
                                 </div>
                               </summary>
                               <div className="border-t border-gray-200 p-4">
-                                <div className="mb-4 grid grid-cols-2 gap-px overflow-hidden border border-gray-200 bg-gray-200 sm:grid-cols-4">
+                                <div className="hidden">
                                   {[
                                     ["Higienização", cycle.hygiene],
                                     ["Liberação", cycle.release],
@@ -831,7 +914,7 @@ export function ProductionReports() {
                                     </article>
                                   ))}
                                 </div>
-                                <div className="mb-4 grid gap-2 border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                                <div className="hidden">
                                   <Status
                                     ok={cycle.hygiene}
                                     text="Higienização confirmada"
@@ -841,6 +924,16 @@ export function ProductionReports() {
                                     text="Liberação confirmada"
                                   />
                                 </div>
+                                <ChecklistTechnicalReport
+                                  title="Higienização · resultados completos"
+                                  records={hygieneReportRecords(cycle)}
+                                  emptyText="Nenhuma avaliação de higienização foi registrada nesta produção."
+                                />
+                                <ChecklistTechnicalReport
+                                  title="Liberação do produto · resultados completos"
+                                  records={releaseReportRecords(cycle)}
+                                  emptyText="Nenhuma liberação do produto foi registrada nesta produção."
+                                />
                                 {cycle.hygieneRounds?.length ? (
                                   <details className="mb-4 border border-blue-200 bg-blue-50">
                                     <summary className="cursor-pointer p-4 font-black text-cicopal-blue">Histórico da higienização · {cycle.hygieneRounds.length} rodada(s)</summary>
@@ -1097,6 +1190,66 @@ export function ProductionReports() {
         )}
       </section>
     </div>
+  );
+}
+
+function resultPresentation(value) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "C" || normalized === "CONFORME")
+    return { label: "C · Conforme", className: "border-green-300 bg-green-50 text-green-800" };
+  if (["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized))
+    return { label: "N · Não conforme", className: "border-red-300 bg-red-50 text-red-800" };
+  if (normalized === "NA" || normalized === "N/A")
+    return { label: "NA · Não se aplica", className: "border-gray-300 bg-gray-100 text-gray-700" };
+  return { label: value || "Não informado", className: "border-blue-200 bg-blue-50 text-blue-800" };
+}
+
+function ChecklistTechnicalReport({ title, records, emptyText }) {
+  const entries = records.flatMap((record) => checklistEntries(record.payload));
+  const counts = entries.reduce(
+    (total, entry) => {
+      const value = String(entry.result ?? "").toUpperCase();
+      if (value === "C" || value === "CONFORME") total.conforme += 1;
+      else if (["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(value)) total.nc += 1;
+      else if (["NA", "N/A"].includes(value)) total.na += 1;
+      return total;
+    },
+    { conforme: 0, nc: 0, na: 0 },
+  );
+  return (
+    <section className="mb-4 overflow-hidden border border-gray-300 bg-white">
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-gray-950 p-4 text-white">
+        <div><p className="text-xs font-bold uppercase tracking-wider text-blue-200">Controle da Qualidade</p><h4 className="mt-1 text-lg font-bold text-white">{title}</h4></div>
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
+          <span className="bg-green-600 px-3 py-2">{counts.conforme} conformes</span>
+          <span className="bg-red-600 px-3 py-2">{counts.nc} não conformes</span>
+          <span className="bg-gray-600 px-3 py-2">{counts.na} não aplicáveis</span>
+        </div>
+      </header>
+      {!records.length ? <p className="p-5 font-semibold text-gray-500">{emptyText}</p> : (
+        <div className="divide-y divide-gray-200">
+          {records.map((record) => {
+            const recordEntries = checklistEntries(record.payload);
+            const ncs = record.payload?.ncs ?? [];
+            return (
+              <article key={record.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-3">
+                  <div><strong className="text-gray-950">{record.label}</strong><p className="mt-1 text-xs font-semibold text-gray-500">{record.at ? new Date(record.at).toLocaleString("pt-BR") : "Horário não informado"}{record.operator ? ` · responsável ${record.operator}` : ""}</p></div>
+                  <span className="border border-gray-300 bg-gray-50 px-3 py-1 text-xs font-bold uppercase text-gray-600">{String(record.status ?? "registrado").replaceAll("_", " ")}</span>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-[680px] text-left">
+                    <thead><tr><th className="px-3 py-2">Seção</th><th className="px-3 py-2">Item verificado</th><th className="px-3 py-2">Resultado</th><th className="px-3 py-2">2ª avaliação</th></tr></thead>
+                    <tbody>{recordEntries.map((entry) => { const presentation = resultPresentation(entry.result); const qualityPresentation = entry.qualityResult ? resultPresentation(entry.qualityResult) : null; return <tr key={entry.id} className="border-t border-gray-100"><td className="px-3 py-3 text-xs font-bold text-gray-500">{entry.group}</td><td className="px-3 py-3 font-bold text-gray-900">{entry.item}</td><td className="px-3 py-3"><span className={`inline-block border px-2 py-1 text-xs font-bold ${presentation.className}`}>{presentation.label}{entry.unit ? ` ${entry.unit}` : ""}</span></td><td className="px-3 py-3">{qualityPresentation ? <span className={`inline-block border px-2 py-1 text-xs font-bold ${qualityPresentation.className}`}>{qualityPresentation.label}</span> : <span className="text-gray-400">—</span>}</td></tr>; })}</tbody>
+                  </table>
+                </div>
+                {ncs.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{ncs.map((nc, index) => <div key={nc.id ?? index} className="border-l-4 border-red-600 bg-red-50 p-3"><strong className="text-red-900">NC · {nc.item ?? nc.descricao}</strong><p className="mt-1 text-sm text-red-800">{nc.causa ?? nc.descricao ?? "Causa não informada"}</p><p className="mt-1 text-xs font-bold text-red-700">Ação: {nc.acao ?? nc.acao_tomada ?? "não informada"}</p></div>)}</div> : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

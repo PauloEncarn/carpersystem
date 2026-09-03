@@ -258,10 +258,10 @@ function StatusClickButton({ value: controlledValue, onChange, onConfirm }) {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="status-choice-grid grid grid-cols-3 gap-3">
       <button
         type="button"
-        className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white shadow-lg" : "border-green-200 bg-green-50 text-cicopal-green"}`}
+        className={`status-choice min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "C" ? "border-cicopal-green bg-cicopal-green text-white shadow-lg" : "border-green-200 bg-green-50 text-cicopal-green"}`}
         onClick={() => setValue("C")}
       >
         <span className="block text-2xl">C</span>
@@ -269,7 +269,7 @@ function StatusClickButton({ value: controlledValue, onChange, onConfirm }) {
       </button>
       <button
         type="button"
-        className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white shadow-lg" : "border-red-200 bg-red-50 text-cicopal-red"}`}
+        className={`status-choice min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "N" || value === "NC" ? "border-cicopal-red bg-cicopal-red text-white shadow-lg" : "border-red-200 bg-red-50 text-cicopal-red"}`}
         onClick={() => setValue("N")}
       >
         <span className="block text-2xl">N</span>
@@ -277,7 +277,7 @@ function StatusClickButton({ value: controlledValue, onChange, onConfirm }) {
       </button>
       <button
         type="button"
-        className={`min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "NA" ? "border-gray-500 bg-gray-600 text-white shadow-lg" : "border-gray-300 bg-gray-100 text-gray-600"}`}
+        className={`status-choice min-h-24 touch-manipulation rounded-2xl border-2 text-lg font-black transition ${value === "NA" ? "border-gray-500 bg-gray-600 text-white shadow-lg" : "border-gray-300 bg-gray-100 text-gray-600"}`}
         onClick={() => setValue("NA")}
       >
         <span className="block text-2xl">NA</span>
