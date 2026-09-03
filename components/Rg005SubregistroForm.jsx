@@ -3727,7 +3727,11 @@ export function Rg005SubregistroForm({
     }
     loadCycle();
     window.addEventListener("rg003-cycle-updated", loadCycle);
-    return () => window.removeEventListener("rg003-cycle-updated", loadCycle);
+    window.addEventListener("rg003-cycle-context-synced", loadCycle);
+    return () => {
+      window.removeEventListener("rg003-cycle-updated", loadCycle);
+      window.removeEventListener("rg003-cycle-context-synced", loadCycle);
+    };
   }, [cycleStorageKey, isRg003]);
   useEffect(() => {
     const product = cycleContext?.product ?? cycleContext?.produto;

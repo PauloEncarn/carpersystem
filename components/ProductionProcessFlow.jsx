@@ -386,6 +386,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
 
   function isUnlocked(code) {
     if (cycle?.status === "blocked") return false;
+    if (cycle?.status === "hygiene") return false;
     if (["automacao", "masseira"].includes(code)) return true;
     return Boolean(activeBatch);
   }
@@ -937,12 +938,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {stations.map(({ id, label, Icon }, stationIndex) => {
               const problems = openProblemsForCodes(stationProcessCodes[id]);
+              const stationLocked = id !== "hygiene" && cycle?.status === "hygiene";
               return (
               <button
                 key={id}
                 type="button"
+                disabled={stationLocked}
                 onClick={() => id === "hygiene" ? onOpenHygiene?.() : setWorkspace(id)}
-                className={`group relative min-h-32 overflow-hidden rounded-lg border p-4 text-left font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:scale-[.98] ${problems.length ? "animate-pulse border-red-500 bg-red-50 text-red-950 ring-4 ring-red-100" : "border-slate-200 bg-white text-slate-800 hover:border-cicopal-blue"}`}
+                className={`group relative min-h-32 overflow-hidden rounded-lg border p-4 text-left font-bold shadow-sm transition active:scale-[.98] ${stationLocked ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-65" : problems.length ? "animate-pulse border-red-500 bg-red-50 text-red-950 ring-4 ring-red-100" : "border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-cicopal-blue hover:shadow-md"}`}
               >
                 {problems.length ? (
                   <span className="absolute right-3 top-3 inline-flex items-center gap-1 bg-red-600 px-2 py-1 text-[10px] font-black uppercase text-white">
@@ -967,6 +970,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         : "Higienização liberada · Qualidade aprovou"}
                   </span>
                 ) : null}
+                {stationLocked ? <span className="mt-2 block text-xs font-bold">Liberada após aprovação da higienização</span> : null}
               </button>
               );
             })}

@@ -2949,7 +2949,20 @@ function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene }) {
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    const load = () => loadActiveRg003Cycle("ROS").then((result) => { if (!active) return; const remoteCycle = result.cycle ?? JSON.parse(window.localStorage.getItem("carper_rg003_cycle_ROS") ?? "null"); setCycle(remoteCycle); setError(""); setLoading(false); }).catch(() => { if (active) { setError("Não foi possível localizar a produção ativa de Rosca."); setLoading(false); } });
+    const load = () => loadActiveRg003Cycle("ROS").then((result) => {
+      if (!active) return;
+      const storageKey = "carper_rg003_cycle_ROS";
+      const localCycle = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+      const resolvedCycle = result.remote ? result.cycle : localCycle;
+      setCycle(resolvedCycle);
+      if (result.remote) {
+        if (resolvedCycle) window.localStorage.setItem(storageKey, JSON.stringify(resolvedCycle));
+        else window.localStorage.removeItem(storageKey);
+        window.dispatchEvent(new CustomEvent("rg003-cycle-context-synced", { detail: resolvedCycle }));
+      }
+      setError("");
+      setLoading(false);
+    }).catch(() => { if (active) { setError("Não foi possível localizar a produção ativa de Rosca."); setLoading(false); } });
     load();
     const sync = () => load();
     const timer = window.setInterval(load, 30_000);
