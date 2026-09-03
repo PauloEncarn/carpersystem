@@ -902,6 +902,45 @@ button {
   box-shadow: 0 10px 30px rgb(15 23 42 / 0.1) !important;
 }
 
+/* Linguagem operacional: superfícies planas, hierarquia por borda e estado. */
+.modern-ui .machine-panel {
+  border-top: 4px solid var(--cicopal-blue);
+  box-shadow: 0 2px 10px rgb(15 23 42 / 0.06);
+}
+
+.modern-ui .machine-status-card {
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  touch-action: manipulation;
+}
+
+.modern-ui .machine-status-card::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  content: "";
+  background: #cbd5e1;
+}
+
+.modern-ui .machine-status-card.is-running::after,
+.modern-ui .machine-status-card.is-complete::after {
+  background: var(--cicopal-green);
+}
+
+.modern-ui .machine-status-card.is-current::after {
+  background: var(--cicopal-blue);
+}
+
+.modern-ui .machine-status-card.is-current {
+  box-shadow: 0 0 0 3px rgb(30 34 168 / 0.12);
+}
+
+.modern-ui .machine-status-card:not(:disabled):hover {
+  transform: none;
+  border-color: #64748b;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 0.09);
+}
+
 .modern-ui table {
   width: 100%;
   border-collapse: separate;

@@ -316,6 +316,11 @@ export function ProductionTraceabilitySetup({
         packerChangeReason,
       );
       await reload();
+      window.dispatchEvent(
+        new CustomEvent("production-packers-updated", {
+          detail: { cycleId: cycle.id },
+        }),
+      );
       setPackerChangeReason("");
       setPackerEditing(false);
       setPackerEditConfirm(false);

@@ -1397,14 +1397,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex((machine - 1) * 3)}
-                            className={`${position} group relative min-h-28 overflow-hidden rounded-xl border p-3 text-left shadow-sm transition ${active ? "border-cicopal-blue bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : availability.state === "final" ? "border-amber-300 bg-amber-50" : running ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-400"}`}
+                            className={`${position} machine-status-card group relative min-h-28 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
                           >
                             <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : availability.state === "final" ? "bg-amber-500" : running ? "bg-emerald-500" : "bg-slate-300"}`} />
                             <span className="flex items-start justify-between gap-2">
                               <span className={`grid size-9 place-items-center rounded-lg ${running ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
                                 <Cog size={19} className={running ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
                               </span>
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-black uppercase ${running ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                              <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[9px] font-bold uppercase ${running ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
                                 <Power size={10} /> {running ? "Operando" : "Parada"}
                               </span>
                             </span>

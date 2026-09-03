@@ -1443,6 +1443,7 @@ function ProductEvaluationTabletFlow({
   const [packerChangeReason, setPackerChangeReason] = useState("");
   const [packerMessage, setPackerMessage] = useState("");
   const [packerSaving, setPackerSaving] = useState(false);
+  const [packerRevision, setPackerRevision] = useState(0);
   const [packerConfiguredByProduction, setPackerConfiguredByProduction] =
     useState(false);
 
@@ -1508,8 +1509,34 @@ function ProductEvaluationTabletFlow({
 
   useEffect(() => {
     refreshPackerConfiguration();
-  }, [activeSlot, cycleId, initialConfiguration, machines]);
+  }, [activeSlot, cycleId, initialConfiguration, machines, packerRevision]);
   useEffect(() => {
+    function synchronizeMachineChange(event) {
+      if (event.detail?.cycleId && event.detail.cycleId !== cycleId) return;
+      setPackerRevision((current) => current + 1);
+    }
+    window.addEventListener(
+      "production-packers-updated",
+      synchronizeMachineChange,
+    );
+    return () =>
+      window.removeEventListener(
+        "production-packers-updated",
+        synchronizeMachineChange,
+      );
+  }, [cycleId]);
+  useEffect(() => {
+    if (!cycleId) return undefined;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible")
+        setPackerRevision((current) => current + 1);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [cycleId]);
+  useEffect(() => {
+    // No ciclo real, o banco e a linha do tempo são a única fonte de verdade.
+    // O armazenamento local serve somente ao modo de demonstração sem ciclo.
+    if (cycleId) return;
     try {
       const saved = JSON.parse(
         window.localStorage.getItem(storageKey) ?? "null",
@@ -1523,7 +1550,7 @@ function ProductEvaluationTabletFlow({
     } catch {
       /* inicia uma configuração limpa */
     }
-  }, [initialConfiguration, storageKey]);
+  }, [cycleId, initialConfiguration, storageKey]);
   const productionConfigurationAvailable = packerConfiguration.length > 0;
   const canChangeMachines =
     !activeSlot || new Date(activeSlot).getTime() + 3600000 > Date.now();
@@ -1806,14 +1833,14 @@ function ProductEvaluationTabletFlow({
                       at: new Date(),
                     })
                   }
-                  className={`group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-default disabled:hover:translate-y-0 ${machine.active ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-emerald-950" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-500"}`}
+                  className={`machine-status-card group relative min-h-36 overflow-hidden border p-4 text-left transition disabled:cursor-default ${machine.active ? "is-running border-emerald-400 bg-white text-emerald-950" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
                 >
                   <span className={`absolute inset-x-0 top-0 h-1 ${machine.active ? "bg-emerald-500" : "bg-slate-300"}`} />
                   <span className="flex items-start justify-between gap-3">
                     <span className={`grid size-11 place-items-center rounded-xl ${machine.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
                       <Cog size={23} className={machine.active ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
                     </span>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${machine.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                    <span className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-[10px] font-bold uppercase ${machine.active ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
                       <Power size={12} /> {machine.active ? "Em operação" : "Desligada"}
                     </span>
                   </span>
@@ -1863,7 +1890,7 @@ function ProductEvaluationTabletFlow({
           <button
             key={machine.label}
             type="button"
-            className={`group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${done ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : pending ? "border-blue-400 bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : "border-slate-200 bg-gradient-to-br from-white to-slate-50"}`}
+            className={`machine-status-card group relative min-h-36 overflow-hidden border p-4 text-left transition ${done ? "is-complete border-emerald-400 bg-white" : pending ? "is-current border-blue-500 bg-white" : "border-slate-300 bg-slate-50"}`}
             onClick={() => setView(machine.label)}
           >
             <span className={`absolute inset-x-0 top-0 h-1 ${done ? "bg-emerald-500" : pending ? "bg-blue-600" : "bg-amber-400"}`} />
@@ -1933,6 +1960,7 @@ function ProcessEvaluationTabletFlow({
   const [packerConfiguredByProduction, setPackerConfiguredByProduction] =
     useState(false);
   const [packerMessage, setPackerMessage] = useState("");
+  const [packerRevision, setPackerRevision] = useState(0);
   useEffect(() => {
     let cancelled = false;
     async function synchronizePackers() {
@@ -1999,7 +2027,30 @@ function ProcessEvaluationTabletFlow({
     return () => {
       cancelled = true;
     };
-  }, [activeSlot, cycleId, initialConfiguration, machines]);
+  }, [activeSlot, cycleId, initialConfiguration, machines, packerRevision]);
+  useEffect(() => {
+    function synchronizeMachineChange(event) {
+      if (event.detail?.cycleId && event.detail.cycleId !== cycleId) return;
+      setPackerRevision((current) => current + 1);
+    }
+    window.addEventListener(
+      "production-packers-updated",
+      synchronizeMachineChange,
+    );
+    return () =>
+      window.removeEventListener(
+        "production-packers-updated",
+        synchronizeMachineChange,
+      );
+  }, [cycleId]);
+  useEffect(() => {
+    if (!cycleId) return undefined;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible")
+        setPackerRevision((current) => current + 1);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [cycleId]);
   const activeMachines = packerConfiguration.length
     ? machines.filter((_, index) => packerConfiguration[index]?.active)
     : machines.slice(0, Number(activeCount || 0));
@@ -2169,7 +2220,7 @@ function ProcessEvaluationTabletFlow({
       </div>
     );
   return (
-    <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <section className="machine-panel overflow-hidden border border-gray-300 bg-white">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-5">
         <div>
           <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
@@ -2182,7 +2233,7 @@ function ProcessEvaluationTabletFlow({
             {completedCount} de {activeMachines.length} máquinas avaliadas
           </p>
         </div>
-        <span className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-black ${packerConfiguredByProduction ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+        <span className={`inline-flex min-h-11 items-center gap-2 border-l-4 px-4 text-sm font-bold ${packerConfiguredByProduction ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-amber-500 bg-amber-50 text-amber-800"}`}>
           <CheckCircle2 size={17} />
           {packerConfiguredByProduction
             ? "Sincronizado com a Produção"
@@ -2203,7 +2254,7 @@ function ProcessEvaluationTabletFlow({
             <button
               key={machine.label}
               type="button"
-              className={`group relative min-h-44 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${done ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50" : pending ? "border-blue-400 bg-gradient-to-br from-white to-blue-50 ring-4 ring-blue-100" : "border-slate-200 bg-gradient-to-br from-white to-slate-50"}`}
+              className={`machine-status-card group relative min-h-36 overflow-hidden border p-4 text-left transition ${done ? "is-complete border-emerald-400 bg-white" : pending ? "is-current border-blue-500 bg-white" : "border-slate-300 bg-slate-50"}`}
               onClick={() => setSelectedMachine(machine.label)}
             >
               <span className={`absolute inset-x-0 top-0 h-1 ${done ? "bg-emerald-500" : pending ? "bg-blue-600" : "bg-amber-400"}`} />
