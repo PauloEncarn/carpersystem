@@ -179,6 +179,34 @@ export function ProductionTraceabilitySetup({
       setSaving(false);
     }
   }
+  async function saveInlineSupply(supply) {
+    const current = activeLots.find((item) => item.insumo_id === supply.id);
+    const input = batchInputs[supply.id] ?? {};
+    const supplierLot = input.lot ?? current?.lote_fornecedor ?? "";
+    const supplier = input.supplier ?? current?.fornecedor ?? "";
+    const expiry = input.expiry ?? current?.validade ?? "";
+    if (!supplierLot || !supplier || !expiry) {
+      setMessage(`Preencha lote, fornecedor e validade de ${supply.nome}.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      await replaceAutomationLot({
+        cycleId: cycle.id,
+        supplyId: supply.id,
+        supplierLot,
+        supplier,
+        expiry,
+        userId: operatorId,
+      });
+      await reload();
+      setMessage(`${supply.nome}: dados de rastreabilidade salvos.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
   async function saveMixerSupply(supply) {
     const input = batchInputs[supply.id] ?? {};
     if (!input.lot || !input.expiry)
@@ -463,7 +491,7 @@ export function ProductionTraceabilitySetup({
                 return (
                   <article
                     key={supply.id}
-                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(140px,1fr)_minmax(170px,1fr)_130px_auto] sm:items-center ${current ? "border-cicopal-blue bg-white" : "border-red-500 bg-red-50"}`}
+                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(120px,.8fr)_minmax(300px,1.8fr)_120px_auto] sm:items-end ${current ? "border-cicopal-blue bg-white" : "border-red-500 bg-red-50"}`}
                   >
                     <div>
                       <small className="font-bold uppercase text-slate-400">
@@ -475,16 +503,10 @@ export function ProductionTraceabilitySetup({
                         {supply.nome}
                       </b>
                     </div>
-                    <div className="grid gap-1 text-sm sm:grid-cols-3 sm:gap-x-3">
-                      {current ? (
-                        <>
-                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Lote</small><b className="text-slate-900">{current.lote_fornecedor}</b></span>
-                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Fornecedor</small><b className="text-slate-900">{current.fornecedor || "Interno"}</b></span>
-                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Validade</small><b className="text-slate-900">{new Date(`${current.validade}T12:00`).toLocaleDateString("pt-BR")}</b></span>
-                        </>
-                      ) : (
-                        <b className="text-red-700">Cadastre lote, fornecedor e validade</b>
-                      )}
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Lote</span><input value={batchInputs[supply.id]?.lot ?? current?.lote_fornecedor ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], lot: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" placeholder="Lote" /></label>
+                      <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Fornecedor</span><input value={batchInputs[supply.id]?.supplier ?? current?.fornecedor ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], supplier: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" placeholder="Fornecedor" /></label>
+                      <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Validade</span><input type="date" value={batchInputs[supply.id]?.expiry ?? current?.validade ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], expiry: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" /></label>
                     </div>
                     <label>
                       <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
@@ -513,10 +535,11 @@ export function ProductionTraceabilitySetup({
                     </label>
                     <button
                       type="button"
-                      onClick={() => editSupply(supply)}
-                      className={`min-h-11 border px-4 font-bold ${current ? "border-slate-300 bg-white text-cicopal-blue" : "border-cicopal-blue bg-cicopal-blue text-white"}`}
+                      disabled={saving}
+                      onClick={() => saveInlineSupply(supply)}
+                      className="min-h-11 border border-cicopal-blue bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
                     >
-                      {current ? "Alterar" : "Cadastrar"}
+                      Salvar
                     </button>
                   </article>
                 );
