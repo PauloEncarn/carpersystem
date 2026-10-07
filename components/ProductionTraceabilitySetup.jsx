@@ -380,6 +380,7 @@ export function ProductionTraceabilitySetup({
   );
   const showSupplyEditor = data.batches.length === 0 || batchReview;
   const showPreparationPanel = data.batches.length === 0 || batchOpen;
+  const showBatches = !(batchReview && data.batches.length > 0);
   async function completePreparation(batchId) {
     setSaving(true);
     try {
@@ -445,7 +446,7 @@ export function ProductionTraceabilitySetup({
           </div>
         </header>
 
-        <div className={showPreparationPanel ? "grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start" : "p-4 sm:p-6"}>
+        <div className={showPreparationPanel && showBatches ? "grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start" : "p-4 sm:p-6"}>
           {showPreparationPanel ? <div className="flex min-w-0 flex-col gap-5">
             {showSupplyEditor ? <section>
             <div className="mb-3 flex items-end justify-between gap-3">
@@ -610,7 +611,7 @@ export function ProductionTraceabilitySetup({
 
           </div> : null}
 
-          <aside className={showPreparationPanel ? "min-w-0 border-t-2 border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" : "min-w-0"}>
+          {showBatches ? <aside className={showPreparationPanel ? "min-w-0 border-t-2 border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" : "min-w-0"}>
               <div className="mb-3 flex items-end justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-slate-500">Acompanhamento</p>
@@ -685,7 +686,7 @@ export function ProductionTraceabilitySetup({
                   </div>
                 </details>
               ) : null}
-          </aside>
+          </aside> : null}
         </div>
 
         {message ? (
