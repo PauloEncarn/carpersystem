@@ -747,10 +747,10 @@ export function ProductionTraceabilitySetup({
     const configured = data.packers.some((item) => !item.vigente_ate);
     const runningCount = packers.filter((item) => item.active).length;
     const machinePosition = {
-      1: "col-start-1 row-start-1",
-      2: "col-start-2 row-start-2",
-      3: "col-start-2 row-start-1",
-      4: "col-start-1 row-start-2",
+      1: "sm:col-start-1 sm:row-start-1",
+      2: "sm:col-start-2 sm:row-start-2",
+      3: "sm:col-start-2 sm:row-start-1",
+      4: "sm:col-start-1 sm:row-start-2",
     };
     return (
       <section className="border border-slate-200 bg-white p-4 sm:p-5">
@@ -766,7 +766,7 @@ export function ProductionTraceabilitySetup({
           </b>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 grid-rows-2 gap-3">
+        <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 sm:grid-rows-2">
           {packers.map((machine) => (
             <button
               key={machine.machine}
@@ -1428,7 +1428,7 @@ export function ProductionTraceabilitySetup({
                   <section className="w-full max-w-xl border-t-8 border-amber-500 bg-white shadow-2xl">
                     <header className="border-b p-5"><p className="text-xs font-black uppercase text-amber-700">Desvio da fórmula</p><h3 className="mt-1 text-2xl font-black">Confirmar quantidades diferentes?</h3><p className="mt-2 font-semibold text-gray-600">A fórmula desta batelada foi alterada. A justificativa ficará vinculada ao registro para rastreabilidade.</p></header>
                     <div className="p-5"><label><span className="mb-1 block text-xs font-black uppercase text-gray-500">Motivo da alteração</span><textarea value={batchDeviationReason} onChange={(event) => setBatchDeviationReason(event.target.value)} className="min-h-28 w-full border border-gray-300 p-3" placeholder="Descreva por que a quantidade da fórmula foi alterada" /></label></div>
-                    <footer className="grid grid-cols-2 gap-3 border-t p-4"><button type="button" onClick={() => setBatchDeviationConfirm(false)} className="min-h-14 border border-gray-300 font-black">Cancelar</button><button type="button" disabled={batchDeviationReason.trim().length < 5 || saving} onClick={addBatch} className="min-h-14 bg-amber-600 font-black text-white disabled:bg-gray-300">Confirmar desvio e iniciar</button></footer>
+                    <footer className="grid grid-cols-1 gap-3 border-t p-4 sm:grid-cols-2"><button type="button" onClick={() => setBatchDeviationConfirm(false)} className="min-h-14 border border-gray-300 font-black">Cancelar</button><button type="button" disabled={batchDeviationReason.trim().length < 5 || saving} onClick={addBatch} className="min-h-14 bg-amber-600 font-black text-white disabled:bg-gray-300">Confirmar desvio e iniciar</button></footer>
                   </section>
                 </div>
               ) : null}

@@ -316,7 +316,7 @@ function SystemConfirmationDialog({ confirmation, onAnswer }) {
             Produto, usuário, data e hora serão vinculados automaticamente.
           </div>
         </div>
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4">
+        <footer className="grid grid-cols-1 gap-3 border-t border-gray-200 p-4 sm:grid-cols-2">
           <button
             type="button"
             className="min-h-14 border border-gray-300 bg-white font-black text-gray-700"
@@ -727,11 +727,11 @@ function TabletHourNavigator({
             {activeEntry?.label}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full gap-2 sm:w-auto">
           <button
             type="button"
             disabled={activeIndex === 0}
-            className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30"
+            className="min-h-11 flex-1 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30 sm:flex-none"
             onClick={() => requestHour(entries[activeIndex - 1])}
           >
             ← Anterior
@@ -741,7 +741,7 @@ function TabletHourNavigator({
             disabled={
               activeIndex >= entries.length - 1
             }
-            className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30"
+            className="min-h-11 flex-1 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30 sm:flex-none"
             onClick={() => requestHour(entries[activeIndex + 1])}
           >
             Próximo →
@@ -814,7 +814,7 @@ function TabletHourNavigator({
             <p className="text-xs font-black uppercase tracking-wider text-amber-700">Apontamento antecipado</p>
             <h3 className="mt-1 text-2xl font-black text-slate-950">Confirmar preenchimento?</h3>
             <p className="mt-3 text-slate-600">O registro será vinculado ao horário de <strong>{earlyHourConfirmation.hour}</strong> da produção.</p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => setEarlyHourConfirmation(null)} className="min-h-12 border border-slate-300 bg-white font-black text-slate-600">Cancelar</button>
               <button type="button" onClick={() => { onChange(earlyHourConfirmation.value); setEarlyHourConfirmation(null); }} className="min-h-12 bg-cicopal-blue font-black text-white">Confirmar preenchimento</button>
             </div>
@@ -1385,7 +1385,7 @@ function MachineHourlySections({
               Alterar configuração
             </button>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activeMachines.map((machine, index) => (
               <button
                 key={machine.label}
@@ -1719,7 +1719,7 @@ function ProductEvaluationTabletFlow({
           </select>
         </label>
         {activeMachines.length ? (
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activeMachines.map((machine, index) => (
               <label
                 key={machine.label}
@@ -1832,7 +1832,7 @@ function ProductEvaluationTabletFlow({
           {canChangeMachines ? "Use ON/OFF para alterar" : "Histórico preservado"}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {packerConfigurationForGrid.map((configuration) => {
           const machine = machines[configuration.machine - 1];
           const machineNumber = configuration.machine;
@@ -2189,7 +2189,7 @@ function ProcessEvaluationTabletFlow({
           {packerMessage}
         </p>
       ) : null}
-      <div className="grid grid-cols-2 gap-3 p-5">
+      <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
         {activeMachinesForGrid.map((machine) => {
           const done = Boolean(machineResults[machine.label]);
           const pending = nextPendingMachine?.label === machine.label;
@@ -2427,7 +2427,7 @@ function ClextralParameterTable({ registro }) {
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
           {hours.map((hour) => {
             const active = hour === activeHour;
             const saved = savedHours.includes(hour);
@@ -2435,7 +2435,7 @@ function ClextralParameterTable({ registro }) {
               <button
                 key={hour}
                 type="button"
-                className={`min-h-12 min-w-20 rounded-md border px-3 text-sm font-black ${
+                className={`min-h-12 min-w-20 snap-start rounded-md border px-3 text-sm font-black ${
                   active
                     ? "border-cicopal-blue bg-cicopal-blue text-white"
                     : saved
@@ -3370,7 +3370,7 @@ function LegacyPersistedRg003Summary({ data, onEdit }) {
                 A nova versão registrará o Técnico, data e hora da modificação.
               </p>
             </div>
-            <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 p-4">
+            <footer className="grid grid-cols-1 gap-3 border-t border-gray-200 p-4 sm:grid-cols-2">
               <button
                 type="button"
                 className="min-h-14 border border-gray-300 bg-white font-bold"

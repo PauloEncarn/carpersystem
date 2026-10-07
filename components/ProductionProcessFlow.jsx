@@ -1024,7 +1024,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
               <p className="text-xs font-black uppercase text-cicopal-blue">
                 RG.PROD.ROS.001 · produção interligada
               </p>
-              <h2 className="text-2xl font-black">
+              <h2 className="text-xl font-black sm:text-2xl">
                 {workspace === "cut"
                   ? "Corte a fio"
                   : workspace === "oven"
@@ -1082,7 +1082,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   ).length} pendente(s)
                 </span>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                 {visibleSlots.map((slot) => {
                   const processCode =
                     workspace === "cut"
@@ -1106,7 +1106,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                       key={slot}
                       type="button"
                       onClick={() => openProcess(processCode, slot)}
-                      className={`relative min-h-20 min-w-36 shrink-0 border px-3 py-2 text-left text-sm font-bold transition ${isCurrent && !record ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : record ? "border-green-200 bg-green-50 text-green-700" : isFuture ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-cicopal-blue" : isPast ? "border-red-200 bg-red-50 text-red-700" : "border-slate-300 bg-white text-slate-700"}`}
+                      className={`relative min-h-20 min-w-36 shrink-0 snap-start border px-3 py-2 text-left text-sm font-bold transition ${isCurrent && !record ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : record ? "border-green-200 bg-green-50 text-green-700" : isFuture ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-cicopal-blue" : isPast ? "border-red-200 bg-red-50 text-red-700" : "border-slate-300 bg-white text-slate-700"}`}
                     >
                       <span className="block text-[10px] uppercase opacity-70">
                         {record
@@ -1159,7 +1159,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 </div>
                 <b className="text-sm text-slate-600">2 máquinas cadastradas</b>
               </div>
-              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3">
+              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
                 {[1, 2].map((machine) => (
                   <article key={machine} className="group relative min-h-40 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-4 text-left shadow-sm">
                     <span className="absolute inset-x-0 top-0 h-1 bg-cicopal-blue" />
@@ -1183,7 +1183,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 <p className="mt-3 text-slate-600">
                   Você está iniciando o apontamento de <strong>{ROSCA_SUBPROCESSES.find((item) => item.code === scheduleConfirmation.code)?.name}</strong> previsto para <strong>{fmt(scheduleConfirmation.slot)}</strong>. O registro ficará vinculado a este horário programado.
                 </p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button type="button" onClick={() => setScheduleConfirmation(null)} className="min-h-12 border border-slate-300 bg-white font-black text-slate-600">Cancelar</button>
                   <button type="button" onClick={() => { const confirmation = scheduleConfirmation; setScheduleConfirmation(null); openProcess(confirmation.code, confirmation.slot, true); }} className="min-h-12 bg-cicopal-blue font-black text-white">Confirmar preenchimento</button>
                 </div>
@@ -1278,7 +1278,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   !viewOnly &&
                   !review ? (
                     <nav
-                      className="mt-3 grid grid-cols-2 grid-rows-2 gap-2"
+                      className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:grid-rows-2"
                       aria-label="Empacotadoras"
                     >
                       {[1, 3, 4, 2]
@@ -1299,10 +1299,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         ].includes(availability.state);
                         const active = parameter?.group === `Máquina ${machine}`;
                         const position = {
-                          1: "col-start-1 row-start-1",
-                          2: "col-start-2 row-start-2",
-                          3: "col-start-2 row-start-1",
-                          4: "col-start-1 row-start-2",
+                          1: "sm:col-start-1 sm:row-start-1",
+                          2: "sm:col-start-2 sm:row-start-2",
+                          3: "sm:col-start-2 sm:row-start-1",
+                          4: "sm:col-start-1 sm:row-start-2",
                         }[machine];
                         return (
                           <button
@@ -1329,7 +1329,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
-                      className="mt-4 grid grid-cols-2 gap-3"
+                      className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
                       aria-label="Encaixotadeiras"
                     >
                       {[1, 2].map((machine, index) => {
