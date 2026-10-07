@@ -237,8 +237,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
         .filter(Boolean),
     ),
   ];
-  const automationLot = automationLots[0] ?? "";
-  const mixerLot = recordsFor("masseira")[0]?.valores?.lote_automacao ?? "";
   const hourlyRecords = records
     .filter((item) => item.tipo === "horario" && item.janela_inicio)
     .sort((a, b) => new Date(b.janela_inicio) - new Date(a.janela_inicio));
@@ -850,58 +848,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     ).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   }
 
-  function processButton(item, nested = false) {
-    const row = rowByCode(item.code);
-    const latest = recordsFor(item.code)[0];
-    const pendingCount = fixedSlots.filter(
-      (slot) =>
-        !sameInstant(slot, optionalFirstSlot) &&
-        isSlotReleased(slot) &&
-        !recordsFor(item.code).some(
-          (record) => sameInstant(record.horario_previsto, slot),
-        ),
-    ).length;
-    const filledCurrent =
-      activeWindow && latest?.janela_indice === activeWindow.janela_indice;
-    const unlocked = isUnlocked(item.code);
-    const pendingTone =
-      windowUrgency === "late" || windowUrgency === "danger"
-        ? "border-red-600 bg-red-50"
-        : windowUrgency === "warning"
-          ? "border-amber-500 bg-amber-50"
-          : "border-cicopal-blue bg-white";
-    return (
-      <button
-        key={item.code}
-        disabled={!unlocked}
-        onClick={() => openProcess(item.code)}
-        className={`min-h-28 border-l-4 p-4 text-left shadow-sm ${nested ? "bg-white" : ""} ${filledCurrent ? "border-green-500 bg-green-50" : unlocked ? pendingTone : "border-gray-200 bg-gray-50 opacity-50"}`}
-      >
-        <div className="flex justify-between gap-2">
-          <span>
-            <b className="block text-lg">{item.name}</b>
-            <small className="font-bold text-gray-500">{item.equipment}</small>
-          </span>
-          <span
-            className={`h-fit px-2 py-1 text-[10px] font-black uppercase ${filledCurrent ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}
-          >
-            {pendingCount ? `${pendingCount} pendente(s)` : "Em dia"}
-          </span>
-        </div>
-        <p className="mt-2 text-sm font-semibold text-gray-500">
-          {!unlocked
-            ? "Finalize uma batelada na Masseira"
-            : latest
-              ? `Resultado anterior · ${fmt(latest.preenchido_em)}`
-              : "Sem resultado anterior · início em zero"}
-        </p>
-        <small className="mt-2 block font-black uppercase text-gray-500">
-          {labels[row?.status ?? "nao_iniciado"]}
-        </small>
-      </button>
-    );
-  }
-
   return (
     <div className="space-y-5 bg-slate-50 p-2 sm:p-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -1249,84 +1195,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
               mode="pack"
             />
           ) : null}
-
-          <div className="mt-6 grid gap-5">
-            <section className="hidden">
-              <p className="mb-2 text-xs font-black uppercase text-gray-500">
-                1 · Preparação dos lotes
-              </p>
-              <div className="space-y-2">
-                {ROSCA_SUBPROCESSES.slice(0, 2).map((item, index) => {
-                  const done = index === 0 ? automationLot : mixerLot;
-                  const unlocked = isUnlocked(item.code);
-                  return (
-                    <button
-                      key={item.code}
-                      disabled={!unlocked}
-                      onClick={() => openProcess(item.code)}
-                      className={`flex min-h-20 w-full items-center gap-3 border p-3 text-left ${done ? "border-green-400 bg-green-50" : unlocked ? "border-cicopal-blue bg-blue-50" : "border-gray-200 bg-gray-50 opacity-50"}`}
-                    >
-                      <span
-                        className={`grid h-10 w-10 shrink-0 place-items-center font-black ${done ? "bg-green-600 text-white" : "bg-white text-cicopal-blue"}`}
-                      >
-                        {done ? <Check /> : index + 1}
-                      </span>
-                      <span>
-                        <b className="block">{item.name}</b>
-                        <small className="font-semibold text-gray-600">
-                          {done
-                            ? `Lote ${done}`
-                            : unlocked
-                              ? "Preencher lote"
-                              : "Aguardando lote da Automação"}
-                        </small>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-            <section>
-              <div
-                className={`mb-2 items-end justify-between ${["cut", "oven", "pack"].includes(workspace) ? "hidden" : "flex"}`}
-              >
-                <p className="text-xs font-black uppercase text-gray-500">
-                  2 · Leituras da janela de 60 minutos
-                </p>
-                <small className="font-bold text-gray-500">
-                  Confirmados não podem ser alterados
-                </small>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {["overview", "cut"].includes(workspace)
-                  ? processButton(
-                      ROSCA_SUBPROCESSES.find(
-                        (item) => item.code === "corte_fio",
-                      ),
-                    )
-                  : null}
-                {["overview", "oven"].includes(workspace)
-                  ? processButton(
-                      ROSCA_SUBPROCESSES.find((item) => item.code === "forno"),
-                    )
-                  : null}
-                {["overview", "pack"].includes(workspace)
-                  ? processButton(
-                      ROSCA_SUBPROCESSES.find(
-                        (item) => item.code === "empacotamento",
-                      ),
-                    )
-                  : null}
-                {["overview", "box"].includes(workspace)
-                  ? processButton(
-                      ROSCA_SUBPROCESSES.find(
-                        (item) => item.code === "encaixotamento",
-                      ),
-                    )
-                  : null}
-              </div>
-            </section>
-          </div>
 
           {selected && config ? (
             <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
