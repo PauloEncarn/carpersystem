@@ -341,7 +341,7 @@ export default function HomePage() {
           onSelectionChange={setSelection}
           currentStep={currentStep}
           onStepChange={setCurrentStep}
-          hideDates={isTechnicalProfile}
+          hideDates={false}
           operatorName={loggedUser.nome}
           operatorId={loggedUser.id}
           profileCode={loggedUser?.perfil?.codigo ?? ""}

@@ -2958,6 +2958,10 @@ export function HierarchyNavigator({
     selection.documentoId,
   );
   const [activeTab, setActiveTab] = useState("liberacoes");
+  const [showProductionHistory, setShowProductionHistory] = useState(false);
+  const [historyRange, setHistoryRange] = useState("7d");
+  const [historyDate, setHistoryDate] = useState("");
+  const [historyMessage, setHistoryMessage] = useState("");
   const [previewRegistro, setPreviewRegistro] = useState(null);
   const [selectedNc, setSelectedNc] = useState(null);
   const [rg003CycleStatus, setRg003CycleStatus] = useState("");
@@ -3044,6 +3048,23 @@ export function HierarchyNavigator({
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   }, []);
+  const historyProductions = useMemo(() => {
+    const today = new Date(`${todayDateId}T00:00:00`);
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const cutoff = new Date(today);
+    cutoff.setDate(today.getDate() - 6);
+
+    return [...datesById.entries()]
+      .filter(([dateId]) => dateId !== todayDateId)
+      .filter(([dateId]) => {
+        if (historyRange === "all") return true;
+        const productionDate = new Date(`${dateId}T00:00:00`);
+        return historyRange === "month"
+          ? productionDate >= startOfMonth
+          : productionDate >= cutoff;
+      })
+      .sort(([first], [second]) => second.localeCompare(first));
+  }, [datesById, historyRange, todayDateId]);
   const selectedDateLabel = formatDateLabel(selection.dataId);
   const generatedLoteId =
     selected.linha && selection.dataId
@@ -3371,46 +3392,128 @@ export function HierarchyNavigator({
               <>
                 <StageHeader title={`Produções da Linha ${selected.linha?.nome}`} />
                 <p className="mb-4 max-w-3xl text-sm font-semibold text-gray-600">
-                  Selecione uma produção para acessar os RGs e os processos vinculados.
-                  Cada produção reúne os apontamentos do seu ciclo e lote.
+                  Acesse a produção em andamento ou consulte ciclos anteriores no histórico.
                 </p>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {[
-                    { id: todayDateId, data: datesById.get(todayDateId), current: true },
-                    ...[...datesById.entries()]
-                      .filter(([dateId]) => dateId !== todayDateId)
-                      .sort(([first], [second]) => second.localeCompare(first))
-                      .map(([id, data]) => ({ id, data, current: false })),
-                  ].map(({ id, data, current }) => {
-                    const recordCount = data
-                      ? data.documentos.reduce(
-                        (total, documento) => total + documento.lotes.reduce(
-                          (loteTotal, lote) => loteTotal + lote.registros.length,
-                          0,
-                        ),
+                {(() => {
+                  const todayProduction = datesById.get(todayDateId);
+                  const recordCount = todayProduction
+                    ? todayProduction.documentos.reduce(
+                      (total, documento) => total + documento.lotes.reduce(
+                        (loteTotal, lote) => loteTotal + lote.registros.length,
                         0,
-                      )
-                      : 0;
-                    const hasNc = data ? dateHasNc(data) : false;
-                    return (
+                      ),
+                      0,
+                    )
+                    : 0;
+                  return (
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
                       <CardButton
-                        key={id}
-                        icon={current ? Play : CalendarDays}
-                        selected={selection.dataId === id}
-                        danger={hasNc}
-                        title={current ? "Produção do dia" : `Produção de ${formatDateLabel(id)}`}
-                        meta={current
-                          ? `${formatDateLabel(id)} · ${recordCount} apontamento(s)`
-                          : `${recordCount} apontamento(s) no ciclo`}
-                        onClick={() => selectDate(id)}
+                        icon={Play}
+                        selected={selection.dataId === todayDateId}
+                        title="Produção do dia"
+                        meta={`${formatDateLabel(todayDateId)} · ${recordCount} apontamento(s)`}
+                        onClick={() => selectDate(todayDateId)}
                         onDoubleTap={() => {
-                          selectDate(id);
+                          selectDate(todayDateId);
                           onStepChange(3);
                         }}
                       />
-                    );
-                  })}
-                </div>
+                      <button
+                        type="button"
+                        aria-expanded={showProductionHistory}
+                        onClick={() => {
+                          setShowProductionHistory((current) => !current);
+                          setHistoryMessage("");
+                        }}
+                        className="min-h-24 border border-gray-300 bg-white px-5 text-left font-black text-cicopal-blue shadow-soft transition hover:border-cicopal-blue"
+                      >
+                        <span className="flex items-center gap-2 text-lg"><CalendarDays size={22} /> Histórico de produções</span>
+                        <span className="mt-1 block text-sm font-semibold text-gray-500">Consultar outro dia ou período</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {showProductionHistory ? (
+                  <section className="mt-5 border-l-4 border-cicopal-blue bg-slate-50 p-4" aria-label="Histórico de produções">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black text-gray-950">Histórico de produções</p>
+                        <p className="mt-1 text-sm font-semibold text-gray-600">Localize um ciclo anterior por período ou pela data de produção.</p>
+                      </div>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-black uppercase tracking-wider text-gray-500">Data específica</span>
+                        <input
+                          type="date"
+                          value={historyDate}
+                          className="min-h-11 border border-gray-300 bg-white px-3 font-bold text-gray-800"
+                          onChange={(event) => {
+                            const dateId = event.target.value;
+                            setHistoryDate(dateId);
+                            if (!dateId) return;
+                            if (datesById.has(dateId)) {
+                              setHistoryMessage("");
+                              selectDate(dateId);
+                              onStepChange(3);
+                            } else {
+                              setHistoryMessage("Nenhuma produção registrada nesta data.");
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Período do histórico">
+                      {[
+                        ["7d", "Últimos 7 dias"],
+                        ["month", "Este mês"],
+                        ["all", "Todas"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={historyRange === value}
+                          onClick={() => setHistoryRange(value)}
+                          className={`min-h-10 border px-3 text-sm font-black ${historyRange === value ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-300 bg-white text-gray-700"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {historyMessage ? <p role="status" className="mt-3 text-sm font-bold text-cicopal-red">{historyMessage}</p> : null}
+                    {historyProductions.length ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {historyProductions.map(([id, data]) => {
+                          const recordCount = data.documentos.reduce(
+                            (total, documento) => total + documento.lotes.reduce(
+                              (loteTotal, lote) => loteTotal + lote.registros.length,
+                              0,
+                            ),
+                            0,
+                          );
+                          return (
+                            <CardButton
+                              key={id}
+                              icon={CalendarDays}
+                              selected={selection.dataId === id}
+                              danger={dateHasNc(data)}
+                              title={`Produção de ${formatDateLabel(id)}`}
+                              meta={`${recordCount} apontamento(s) no ciclo`}
+                              onClick={() => selectDate(id)}
+                              onDoubleTap={() => {
+                                selectDate(id);
+                                onStepChange(3);
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-4 border border-dashed border-gray-300 bg-white p-4 text-sm font-semibold text-gray-600">
+                        Não há produções registradas para este filtro.
+                      </p>
+                    )}
+                  </section>
+                ) : null}
               </>
             ) : null}
 
