@@ -1195,6 +1195,31 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
               mode="pack"
             />
           ) : null}
+          {workspace === "box" ? (
+            <section className="mt-5 border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase text-cicopal-blue">Encaixotamento</p>
+                  <h3 className="text-xl font-bold">Encaixotadeiras</h3>
+                </div>
+                <b className="text-sm text-slate-600">2 máquinas cadastradas</b>
+              </div>
+              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3">
+                {[1, 2].map((machine) => (
+                  <article key={machine} className="group relative min-h-40 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-4 text-left shadow-sm">
+                    <span className="absolute inset-x-0 top-0 h-1 bg-cicopal-blue" />
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="grid size-11 place-items-center rounded-xl bg-blue-100 text-cicopal-blue"><Cog size={23} /></span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase text-cicopal-blue"><Power size={12} /> Disponível</span>
+                    </span>
+                    <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Encaixotadeira</span>
+                    <b className="mt-0.5 block text-2xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
+                    <span className="mt-3 block border-t border-slate-200/80 pt-3 text-xs font-bold text-slate-500">Avaliação liberada nos horários de produção</span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {selected && config ? (
             <div className="fixed inset-0 z-[100] bg-slate-950/70 p-0 sm:grid sm:place-items-center sm:p-3">
@@ -1334,19 +1359,28 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
-                      className="mt-3 grid grid-cols-2 gap-2"
+                      className="mt-4 grid grid-cols-2 gap-3"
                       aria-label="Encaixotadeiras"
                     >
-                      {[1, 2].map((machine, index) => (
-                        <button
-                          key={machine}
-                          type="button"
-                          onClick={() => setFieldIndex(index)}
-                          className={`min-h-12 px-3 text-sm font-bold ${parameter?.group === `Encaixotadeira ${machine}` ? "bg-cicopal-blue text-white" : "bg-slate-100 text-slate-600"}`}
-                        >
-                          Encaixotadeira {machine}
-                        </button>
-                      ))}
+                      {[1, 2].map((machine, index) => {
+                        const active = parameter?.group === `Encaixotadeira ${machine}`;
+                        return (
+                          <button
+                            key={machine}
+                            type="button"
+                            onClick={() => setFieldIndex(index)}
+                            className={`machine-status-card group relative min-h-28 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : "is-running border-emerald-400 bg-white hover:border-cicopal-blue"}`}
+                          >
+                            <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : "bg-emerald-500"}`} />
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="grid size-9 place-items-center rounded-lg bg-emerald-100 text-emerald-700"><Cog size={19} className="motion-safe:animate-[spin_6s_linear_infinite]" /></span>
+                              <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[9px] font-bold uppercase ${active ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}><Power size={10} /> {active ? "Em avaliação" : "Operando"}</span>
+                            </span>
+                            <span className="mt-3 block text-[9px] font-black uppercase tracking-wider text-slate-400">Encaixotadeira</span>
+                            <b className="block text-xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
+                          </button>
+                        );
+                      })}
                     </nav>
                   ) : null}
                 </header>
