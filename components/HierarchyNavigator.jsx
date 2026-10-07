@@ -2907,7 +2907,7 @@ function CentralNc({ ncs, onDetail, contextLabel = "Todas as linhas", loading = 
   );
 }
 
-function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene, onBack }) {
+function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene }) {
   const [cycle, setCycle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2936,7 +2936,7 @@ function ProductionOperationsRg({ operatorId, profileCode, onOpenHygiene, onBack
     return () => { active = false; window.clearInterval(timer); window.removeEventListener("rg003-cycle-updated", sync); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
   if (loading) return <div className="min-h-64 animate-pulse bg-gray-100" />;
-  if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}<button type="button" onClick={onBack} className="mt-5 inline-flex min-h-11 items-center gap-2 border border-amber-700 bg-white px-4 font-black text-amber-900"><ArrowLeft size={18} /> Voltar para RGs</button></section>;
+  if (!cycle) return <section className="border-l-4 border-amber-500 bg-amber-50 p-6"><h2 className="text-xl font-black text-amber-950">Nenhuma produção de Rosca ativa</h2><p className="mt-1 font-semibold text-amber-800">O RG operacional é vinculado à produção iniciada no RG003. Inicie ou selecione uma produção para realizar os apontamentos.</p>{error ? <p className="mt-2 text-sm font-bold">{error}</p> : null}</section>;
   return <div className="space-y-3"><section className="border-l-4 border-cicopal-blue bg-blue-50 p-4"><p className="text-xs font-black uppercase text-cicopal-blue">Produção ativa</p><h2 className="text-2xl font-black">{cycle.product}</h2><p className="font-mono text-sm font-bold text-gray-600">{cycle.productionCode}</p></section><ProductionProcessFlow cycle={cycle} operatorId={operatorId} profileCode={profileCode} onOpenHygiene={onOpenHygiene} /></div>;
 }
 
@@ -3087,12 +3087,6 @@ export function HierarchyNavigator({
       return { ...documento, loteId };
     });
 
-  useEffect(() => {
-    if (currentStep !== 3 || documentosDoDia.length !== 1) return;
-    const onlyDocument = documentosDoDia[0];
-    if (selection.documentoId !== onlyDocument.id) selectDocumento(onlyDocument);
-    onStepChange(4);
-  }, [currentStep, documentosDoDia.length, profileCode, selection.linhaId]);
   const processosDoDocumento = useMemo(() => {
     const processIds = selected.documento?.processos;
     if (!processIds?.length)
@@ -3547,7 +3541,7 @@ export function HierarchyNavigator({
                   title={`Processos - ${selected.lote?.id ?? generatedLoteId}`}
                 />
                 {selection.documentoId === "RG.PROD.ROS.001" ? (
-                  <ProductionOperationsRg operatorId={operatorId} profileCode={profileCode} onOpenHygiene={() => abrirRegistroTecnico("higienizacao")} onBack={() => onStepChange(3)} />
+                  <ProductionOperationsRg operatorId={operatorId} profileCode={profileCode} onOpenHygiene={() => abrirRegistroTecnico("higienizacao")} />
                 ) : sequentialFlow ? (
                   <Rg003ProductionControl
                     lineId={selection.linhaId}
