@@ -25,7 +25,6 @@ export function ProductionTraceabilitySetup({
   operatorId,
   onChange,
   mode = "all",
-  hasOpenOperationalProblem = false,
 }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState(
@@ -379,13 +378,9 @@ export function ProductionTraceabilitySetup({
   const completedBatches = data.batches.filter(
     (batch) => !["em_preparacao", "pronta", "em_consumo"].includes(batch.status),
   );
+  const showSupplyEditor = data.batches.length === 0 || batchReview;
+  const showPreparationPanel = data.batches.length === 0 || batchOpen;
   async function completePreparation(batchId) {
-    if (readyBatches.length >= 1 && !hasOpenOperationalProblem) {
-      setMessage(
-        "Já existe uma massa pré-pronta na fila. Relate o problema operacional que causou o acúmulo antes de liberar outra massa.",
-      );
-      return;
-    }
     setSaving(true);
     try {
       await finishBatch(batchId, operatorId);
@@ -450,22 +445,12 @@ export function ProductionTraceabilitySetup({
           </div>
         </header>
 
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-black uppercase tracking-wide">
-            <span className="text-cicopal-blue">1. Insumos</span>
-            <span className="h-px w-6 bg-slate-300" aria-hidden="true" />
-            <span className={activeBatch ? "text-cicopal-blue" : "text-slate-500"}>2. Preparar</span>
-            <span className="h-px w-6 bg-slate-300" aria-hidden="true" />
-            <span className={activeWorkflowBatches.length ? "text-cicopal-blue" : "text-slate-500"}>3. Acompanhar batelada</span>
-          </div>
-        </div>
-
-        <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start">
-          <div className="flex min-w-0 flex-col gap-5">
-            <section>
+        <div className={showPreparationPanel ? "grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start" : "p-4 sm:p-6"}>
+          {showPreparationPanel ? <div className="flex min-w-0 flex-col gap-5">
+            {showSupplyEditor ? <section>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Etapa 1 · Insumos</p>
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Insumos da receita</p>
                 <h3 className="mt-1 text-xl font-black text-slate-950">Dados da receita</h3>
               </div>
               <span className="border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-600">
@@ -545,7 +530,7 @@ export function ProductionTraceabilitySetup({
                 );
               })}
             </div>
-            </section>
+            </section> : null}
 
             <div className="border-t-2 border-slate-200 pt-5">
               {!batchOpen ? (
@@ -567,9 +552,9 @@ export function ProductionTraceabilitySetup({
                 </div>
               ) : !batchReview ? (
                 <div>
-                  <h4 className="text-xl font-bold">Preparar outra massa?</h4>
+                  <h4 className="text-xl font-bold">Houve alteração nos insumos?</h4>
                   <p className="mt-1 text-sm text-slate-500">
-                    Escolha como iniciar a próxima batelada.
+                    Se nada mudou, a próxima massa será iniciada com os mesmos dados da batelada anterior.
                   </p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <button
@@ -578,16 +563,16 @@ export function ProductionTraceabilitySetup({
                       disabled={saving || missingBatchInputs.length > 0}
                       className="min-h-20 border-l-4 border-green-700 bg-green-600 px-4 text-left font-bold text-white disabled:bg-slate-300"
                     >
-                      <span className="block text-lg">Preparar igual</span>
-                      <small>Mesmos lotes e quantidades</small>
+                      <span className="block text-lg">Não, continuar preparo</span>
+                      <small>Usar os mesmos lotes e quantidades</small>
                     </button>
                     <button
                       type="button"
                       onClick={() => setBatchReview(true)}
                       className="min-h-20 border-l-4 border-amber-500 bg-amber-50 px-4 text-left font-bold text-amber-950"
                     >
-                      <span className="block text-lg">Houve alteração</span>
-                      <small>Revisar lote ou quantidade</small>
+                      <span className="block text-lg">Sim, revisar insumos</span>
+                      <small>Alterar lote, fornecedor, validade ou quantidade</small>
                     </button>
                   </div>
                   <button
@@ -655,20 +640,12 @@ export function ProductionTraceabilitySetup({
               )}
             </div>
 
-          </div>
+          </div> : null}
 
-          <aside className="min-w-0 border-t-2 border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
-              {readyBatches.length >= 1 && !hasOpenOperationalProblem ? (
-                <div className="mb-4 border-l-8 border-red-600 bg-red-50 p-4 text-red-900">
-                  <b className="block">Já existe uma massa pré-pronta na fila</b>
-                  <p className="mt-1 text-sm font-semibold">
-                    Para acumular outra massa pronta, use “Relatar problema” no topo e informe em qual subprocesso ocorreu o impedimento.
-                  </p>
-                </div>
-              ) : null}
+          <aside className={showPreparationPanel ? "min-w-0 border-t-2 border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" : "min-w-0"}>
               <div className="mb-3 flex items-end justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Etapa 3 · Acompanhamento</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Acompanhamento</p>
                   <h3 className="mt-1 text-xl font-black text-slate-950">Bateladas em andamento</h3>
                 </div>
                 <span className="text-sm font-bold text-slate-500">
