@@ -345,6 +345,12 @@ export function ProductionTraceabilitySetup({
   const readyBatches = data.batches.filter(
     (batch) => batch.status === "pronta",
   );
+  const activeWorkflowBatches = data.batches.filter((batch) =>
+    ["em_preparacao", "pronta", "em_consumo"].includes(batch.status),
+  );
+  const completedBatches = data.batches.filter(
+    (batch) => !["em_preparacao", "pronta", "em_consumo"].includes(batch.status),
+  );
   async function completePreparation(batchId) {
     if (readyBatches.length >= 1 && !hasOpenOperationalProblem) {
       setMessage(
@@ -412,31 +418,29 @@ export function ProductionTraceabilitySetup({
   }
   if (mode === "prep")
     return (
-      <section className="border border-slate-200 bg-white">
-        <header className="border-b border-slate-200 bg-slate-950 p-4 text-white sm:p-5">
+      <section className="border border-slate-200 bg-slate-50">
+        <header className="border-b-4 border-cicopal-blue bg-slate-950 px-5 py-6 text-white sm:px-7">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-blue-300">Preparação</p>
-              <h2 className="mt-1 text-2xl font-bold text-white">Controle de bateladas</h2>
-              <p className="mt-1 text-sm text-slate-300">Lotes → preparo → massa pronta → tombador</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-300">Produção · preparação</p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Preparar massa</h2>
+              <p className="mt-1 text-sm font-medium text-slate-300">Registre a batelada e acompanhe até o tombador.</p>
             </div>
-            <div className="border-l-4 border-cicopal-blue bg-white/10 px-4 py-2">
-              <small className="block font-bold uppercase text-slate-300">Situação</small>
-              <b>{activeBatch ? `Batelada ${activeBatch.numero} em preparo` : consumingBatch ? `Batelada ${consumingBatch.numero} em consumo` : "Aguardando preparo"}</b>
+            <div className="border border-white/20 bg-white/10 px-4 py-3">
+              <small className="block text-[10px] font-black uppercase tracking-wider text-slate-300">Agora</small>
+              <b className="mt-1 block text-sm">{activeBatch ? `Batelada ${activeBatch.numero} em preparo` : consumingBatch ? `Batelada ${consumingBatch.numero} no tombador` : readyBatches.length ? "Massa pronta para o tombador" : "Pronto para iniciar"}</b>
             </div>
           </div>
         </header>
 
-        <div className="flex flex-col gap-6 p-4 sm:p-5">
+        <div className="flex flex-col gap-5 p-4 sm:p-6">
           {!data.batches.length ? <section className="order-2">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase text-slate-500">
-                  Receita e rastreabilidade
-                </p>
-                <h3 className="text-xl font-bold">{cycle.product} · insumos vigentes</h3>
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Antes de iniciar</p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">Conferir insumos da receita</h3>
               </div>
-              <span className="text-sm text-slate-500">
+              <span className="border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-600">
                 {activeLots.length}/{recipeInputs.length} cadastrados
               </span>
             </div>
@@ -448,7 +452,7 @@ export function ProductionTraceabilitySetup({
             ) : (
               <div className="mb-3 border-l-4 border-green-600 bg-green-50 p-3 font-bold text-green-900">Todos os lotes obrigatórios foram informados.</div>
             )}
-            <div className="divide-y divide-slate-200 border border-slate-200">
+            <div className="divide-y divide-slate-200 border border-slate-200 bg-white">
               {recipeInputs.map((item) => {
                 const supply = item.insumos;
                 const current = activeLots.find(
@@ -459,7 +463,7 @@ export function ProductionTraceabilitySetup({
                 return (
                   <article
                     key={supply.id}
-                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(140px,1fr)_minmax(170px,1fr)_130px_auto] sm:items-center ${current ? "border-green-500 bg-white" : "border-red-500 bg-red-50"}`}
+                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(140px,1fr)_minmax(170px,1fr)_130px_auto] sm:items-center ${current ? "border-cicopal-blue bg-white" : "border-red-500 bg-red-50"}`}
                   >
                     <div>
                       <small className="font-bold uppercase text-slate-400">
@@ -527,13 +531,13 @@ export function ProductionTraceabilitySetup({
           </section> : null}
 
           <section className="order-1">
-            <div className="border border-slate-200">
-              <div className="border-b border-slate-200 p-4">
-                <p className="text-xs font-bold uppercase text-cicopal-blue">
-                  Controle de bateladas
+            <div className="border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-5 py-4">
+                <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
+                  Próxima ação
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-3">
-                  <h3 className="text-xl font-bold">
+                  <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
                     {activeBatch
                       ? `Batelada ${activeBatch.numero} em preparo`
                       : readyBatches.length
@@ -542,15 +546,15 @@ export function ProductionTraceabilitySetup({
                           ? `Batelada ${consumingBatch.numero} em consumo`
                           : "Preparar primeira massa"}
                   </h3>
-                  <b className="text-sm text-slate-500">
+                  <b className="text-sm tabular-nums text-slate-500">
                     {batchTotal.toLocaleString("pt-BR")} kg
                   </b>
                 </div>
               </div>
 
               {!batchOpen ? (
-                <div className="p-4">
-                  <div className="border-l-4 border-cicopal-blue bg-blue-50 p-3">
+                <div className="p-5">
+                  <div className="border-l-4 border-cicopal-blue bg-blue-50 px-4 py-3">
                     <b className="block text-cicopal-blue">
                       {data.batches.length
                         ? "Pronto para preparar a próxima massa"
@@ -568,7 +572,7 @@ export function ProductionTraceabilitySetup({
                       !recipe
                     }
                     onClick={openNewBatchForm}
-                    className="mt-4 min-h-14 w-full bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
+                    className="mt-5 min-h-14 w-full bg-cicopal-blue px-5 text-lg font-black text-white transition-colors hover:bg-blue-800 disabled:bg-slate-300"
                   >
                     Preparar massa
                   </button>
@@ -680,14 +684,17 @@ export function ProductionTraceabilitySetup({
                   </p>
                 </div>
               ) : null}
-              <div className="mb-2 flex items-end justify-between">
-                <h3 className="text-lg font-bold">Histórico da produção</h3>
-                <span className="text-sm text-slate-500">
-                  {data.batches.length} registro(s)
+              <div className="mb-3 flex items-end justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Acompanhamento</p>
+                  <h3 className="mt-1 text-xl font-black text-slate-950">Bateladas em andamento</h3>
+                </div>
+                <span className="text-sm font-bold text-slate-500">
+                  {activeWorkflowBatches.length} ativa(s)
                 </span>
               </div>
               <div className="space-y-3">
-                {data.batches.map((batch) => {
+                {activeWorkflowBatches.map((batch) => {
                   const preparationEnd = batch.pronta_em ?? (batch.status !== "em_preparacao" ? batch.enviada_tombador_em : null);
                   const formatMoment = (value) => value ? new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—";
                   return (
@@ -723,8 +730,24 @@ export function ProductionTraceabilitySetup({
                     </article>
                   );
                 })}
-                {!data.batches.length ? <div className="border-2 border-dashed border-slate-300 p-6 text-center font-bold text-slate-500">Nenhuma massa preparada nesta produção.</div> : null}
+                {!activeWorkflowBatches.length ? <div className="border-2 border-dashed border-slate-300 bg-white p-6 text-center"><b className="block text-slate-700">Nenhuma massa em andamento.</b><span className="mt-1 block text-sm text-slate-500">Use “Preparar massa” quando estiver pronto para iniciar.</span></div> : null}
               </div>
+              {completedBatches.length ? (
+                <details className="mt-4 border border-slate-200 bg-white">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-700 marker:text-cicopal-blue">
+                    Ver histórico concluído ({completedBatches.length})
+                  </summary>
+                  <div className="divide-y divide-slate-100 border-t border-slate-200">
+                    {completedBatches.map((batch) => (
+                      <div key={batch.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                        <span className="font-black text-slate-900">Batelada #{batch.numero}</span>
+                        <span className="font-semibold text-slate-500">Preparo: {elapsedTime(batch.iniciada_em, batch.pronta_em ?? batch.enviada_tombador_em)}</span>
+                        <span className={`px-2 py-1 text-xs font-black uppercase ${batchTone[batch.status] ?? "bg-slate-100 text-slate-700"}`}>{statusLabel[batch.status] ?? batch.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </div>
           </section>
         </div>
