@@ -436,12 +436,12 @@ export function ProductionTraceabilitySetup({
   if (mode === "prep")
     return (
       <section className="border border-slate-200 bg-white">
-        <header className="border-b-4 border-cicopal-blue bg-slate-950 px-5 py-6 text-white sm:px-7">
+        <header className="border-b-4 border-blue-800 bg-cicopal-blue px-5 py-6 text-white sm:px-7">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-300">Produção · preparação</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Produção · preparação</p>
               <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Preparar massa</h2>
-              <p className="mt-1 text-sm font-medium text-slate-300">Registre a batelada e acompanhe até o tombador.</p>
+              <p className="mt-1 text-sm font-medium text-blue-100">Registre a batelada e acompanhe até o tombador.</p>
             </div>
             <div className="border border-white/20 bg-white/10 px-4 py-3">
               <small className="block text-[10px] font-black uppercase tracking-wider text-slate-300">Agora</small>
