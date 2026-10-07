@@ -42,8 +42,6 @@ import {
 } from "@/lib/productionTraceabilityPersistence";
 import { documentsForProfile } from "@/lib/profileAccess";
 
-const weekDays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
-
 function isSequentialDocument(lineId, documentId) {
   return (
     (lineId === "ROS" && documentId === "RG.QUA.BA.003") ||
@@ -54,10 +52,12 @@ function isSequentialDocument(lineId, documentId) {
 
 const steps = [
   { id: 1, label: "Linha" },
-  { id: 2, label: "Data" },
+  { id: 2, label: "Produção" },
   { id: 3, label: "RG" },
   { id: 4, label: "Processo" },
-  { id: 5, label: "Registros" },
+  // O passo 5 é o histórico técnico de um processo. Ele não é um nível da
+  // hierarquia apresentada ao usuário: o quinto nível visível é o formulário.
+  { id: 5, label: "Histórico" },
   { id: 6, label: "Preenchimento" },
 ];
 
@@ -118,29 +118,6 @@ function dateHasNc(data) {
       ),
     ),
   );
-}
-
-function makeCalendarDays(monthDate) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  const days = [];
-
-  for (let index = 0; index < firstDay.getDay(); index += 1) {
-    days.push(null);
-  }
-
-  for (let day = 1; day <= totalDays; day += 1) {
-    const dateId = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    days.push({ day, dateId });
-  }
-
-  return days;
-}
-
-function getBaseMonth() {
-  return new Date();
 }
 
 const processDisplayPrefixes = {
@@ -217,54 +194,14 @@ function CardButton({
   );
 }
 
-function CalendarDateButton({
-  day,
-  tone,
-  filledDate,
-  hasNc,
-  today,
-  onClick,
-  onDoubleTap,
-}) {
-  const lastTapRef = useRef(0);
-
-  return (
-    <button
-      type="button"
-      className={`flex min-h-20 flex-col items-center justify-center rounded-md border p-2 font-bold ${tone}`}
-      onClick={onClick}
-      onDoubleClick={onDoubleTap}
-      onPointerUp={() => {
-        const now = Date.now();
-        if (now - lastTapRef.current < 320) {
-          onDoubleTap();
-        }
-        lastTapRef.current = now;
-      }}
-    >
-      <span className="text-lg">{day.day}</span>
-      {filledDate ? (
-        <span className="mt-1 flex items-center gap-1 text-[11px] font-bold">
-          {hasNc ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
-          {hasNc ? "NC" : "OK"}
-        </span>
-      ) : (
-        <span className="mt-1 text-[11px] font-bold">
-          {today ? "Hoje" : "Vazio"}
-        </span>
-      )}
-    </button>
-  );
-}
-
 function Stepper({ currentStep, hideDates = false }) {
-  const visibleSteps = hideDates
-    ? steps.filter((step) => ![2, 5].includes(step.id))
-    : steps;
+  const visibleSteps = steps.filter(
+    (step) => step.id !== 5 && (!hideDates || step.id !== 2),
+  );
   return (
     <ol
       aria-label="Progresso da seleção do registro"
-      className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-6"}`}
+      className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-5"}`}
     >
       {visibleSteps.map((step) => {
         const active = step.id === currentStep;
@@ -3066,9 +3003,6 @@ export function HierarchyNavigator({
     selection.linhaId,
     selection.documentoId,
   );
-  const [monthDate, setMonthDate] = useState(() =>
-    getBaseMonth(selection, selected.linha),
-  );
   const [activeTab, setActiveTab] = useState("liberacoes");
   const [previewRegistro, setPreviewRegistro] = useState(null);
   const [selectedNc, setSelectedNc] = useState(null);
@@ -3152,11 +3086,6 @@ export function HierarchyNavigator({
     return new Map(selected.linha?.datas.map((data) => [data.id, data]) ?? []);
   }, [selected.linha]);
 
-  const calendarDays = useMemo(() => makeCalendarDays(monthDate), [monthDate]);
-  const monthTitle = monthDate.toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
   const todayDateId = useMemo(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -3231,10 +3160,10 @@ export function HierarchyNavigator({
             : `Registro atual · ${selected.registro?.produto ?? selection.documentoId}`;
   const navigationLabel = {
     1: "Linhas",
-    2: `Datas · ${selected.linha?.nome ?? "Linha"}`,
+    2: `Produções · ${selected.linha?.nome ?? "Linha"}`,
     3: `RGs · ${selectedDateLabel || selected.linha?.nome || "Linha"}`,
     4: `Fluxo · ${selection.documentoId || "RG"}`,
-    5: `Registros · ${selected.subregistro?.nome ?? "Processo"}`,
+    5: `Histórico · ${selected.subregistro?.nome ?? "Processo"}`,
     6: `Preenchimento · ${selected.subregistro?.nome ?? "Registro"}`,
   }[currentStep];
 
@@ -3269,8 +3198,6 @@ export function HierarchyNavigator({
   }
 
   function selectLinha(linha) {
-    const baseMonth = getBaseMonth({ dataId: linha.datas[0]?.id }, linha);
-    setMonthDate(baseMonth);
     const today = new Date();
     const operationalDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     onSelectionChange({
@@ -3490,87 +3417,42 @@ export function HierarchyNavigator({
 
             {currentStep === 2 ? (
               <>
-                <StageHeader
-                  title={`Calendario da Linha ${selected.linha?.nome}`}
-                />
-
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    className="min-h-14 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
-                    onClick={() =>
-                      setMonthDate(
-                        new Date(
-                          monthDate.getFullYear(),
-                          monthDate.getMonth() - 1,
-                          1,
+                <StageHeader title={`Produções da Linha ${selected.linha?.nome}`} />
+                <p className="mb-4 max-w-3xl text-sm font-semibold text-gray-600">
+                  Selecione uma produção para acessar os RGs e os processos vinculados.
+                  Cada produção reúne os apontamentos do seu ciclo e lote.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    { id: todayDateId, data: datesById.get(todayDateId), current: true },
+                    ...[...datesById.entries()]
+                      .filter(([dateId]) => dateId !== todayDateId)
+                      .sort(([first], [second]) => second.localeCompare(first))
+                      .map(([id, data]) => ({ id, data, current: false })),
+                  ].map(({ id, data, current }) => {
+                    const recordCount = data
+                      ? data.documentos.reduce(
+                        (total, documento) => total + documento.lotes.reduce(
+                          (loteTotal, lote) => loteTotal + lote.registros.length,
+                          0,
                         ),
+                        0,
                       )
-                    }
-                  >
-                    Mes anterior
-                  </button>
-                  <div className="flex items-center gap-2 text-lg font-bold capitalize text-gray-950">
-                    <CalendarDays size={22} className="text-cicopal-blue" />
-                    {monthTitle}
-                  </div>
-                  <button
-                    type="button"
-                    className="min-h-14 rounded-md border border-gray-300 bg-white px-4 font-bold text-gray-700"
-                    onClick={() =>
-                      setMonthDate(
-                        new Date(
-                          monthDate.getFullYear(),
-                          monthDate.getMonth() + 1,
-                          1,
-                        ),
-                      )
-                    }
-                  >
-                    Proximo mes
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                  {weekDays.map((day) => (
-                    <div
-                      key={day}
-                      className="rounded-md bg-gray-100 py-2 text-center text-xs font-bold text-gray-600"
-                    >
-                      {day}
-                    </div>
-                  ))}
-                  {calendarDays.map((day, index) => {
-                    if (!day)
-                      return (
-                        <div key={`empty-${index}`} className="min-h-16" />
-                      );
-
-                    const filledDate = datesById.get(day.dateId);
-                    const hasNc = filledDate ? dateHasNc(filledDate) : false;
-                    const selectedDay = selection.dataId === day.dateId;
-                    const today = todayDateId === day.dateId;
-                    const tone = selectedDay
-                      ? "border-cicopal-blue bg-cicopal-blue text-white"
-                      : hasNc
-                        ? "border-cicopal-red bg-red-50 text-cicopal-red"
-                        : filledDate
-                          ? "border-cicopal-green bg-green-50 text-cicopal-green"
-                          : today
-                            ? "border-cicopal-blue bg-white text-cicopal-blue ring-2 ring-cicopal-red/30"
-                            : "border-gray-200 bg-white text-gray-500";
-
+                      : 0;
+                    const hasNc = data ? dateHasNc(data) : false;
                     return (
-                      <CalendarDateButton
-                        key={day.dateId}
-                        day={day}
-                        tone={tone}
-                        filledDate={filledDate}
-                        hasNc={hasNc}
-                        today={today}
-                        onClick={() => selectDate(day.dateId)}
+                      <CardButton
+                        key={id}
+                        icon={current ? Play : CalendarDays}
+                        selected={selection.dataId === id}
+                        danger={hasNc}
+                        title={current ? "Produção do dia" : `Produção de ${formatDateLabel(id)}`}
+                        meta={current
+                          ? `${formatDateLabel(id)} · ${recordCount} apontamento(s)`
+                          : `${recordCount} apontamento(s) no ciclo`}
+                        onClick={() => selectDate(id)}
                         onDoubleTap={() => {
-                          selectDate(day.dateId);
+                          selectDate(id);
                           onStepChange(3);
                         }}
                       />
@@ -3582,7 +3464,7 @@ export function HierarchyNavigator({
 
             {currentStep === 3 ? (
               <>
-                <StageHeader title={`RGs do dia ${selectedDateLabel}`} />
+                <StageHeader title={`RGs da produção ${selectedDateLabel}`} />
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {documentosDoDia.map((documento) => (
                     <CardButton
@@ -3590,7 +3472,7 @@ export function HierarchyNavigator({
                       icon={FileText}
                       selected={documento.id === selected.documento?.id}
                       title={documento.nome}
-                      meta={`Lote automatico: ${documento.loteId}`}
+                      meta={`Lote da produção: ${documento.loteId}`}
                       onClick={() => selectDocumento(documento)}
                       onDoubleTap={() => {
                         selectDocumento(documento);
@@ -3657,21 +3539,21 @@ export function HierarchyNavigator({
             {currentStep === 5 && !sequentialFlow ? (
               <>
                 <StageHeader
-                  title={`Registros de ${selected.subregistro?.nome ?? "processo"}`}
+                  title={`Histórico de preenchimentos - ${selected.subregistro?.nome ?? "processo"}`}
                 />
                 {registrosDoProcesso.length ? (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-xl font-bold text-gray-700">
                         <ClipboardList size={22} />
-                        <span>REGISTROS</span>
+                        <span>PREENCHIMENTOS</span>
                       </div>
                       <button
                         type="button"
                         className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 text-base font-bold text-white shadow-soft"
                         onClick={novoRegistroProcesso}
                       >
-                        Criar registro
+                        Novo preenchimento
                       </button>
                     </div>
                     {registrosDoProcesso.map((registro) => (
@@ -3691,10 +3573,10 @@ export function HierarchyNavigator({
                   <div className="grid gap-3 md:grid-cols-[1fr_280px]">
                     <div className="rounded-md border border-dashed border-gray-300 bg-white p-5">
                       <p className="text-xl font-bold text-gray-950">
-                        Nenhum registro criado
+                        Nenhum preenchimento criado
                       </p>
                       <p className="mt-2 text-base font-semibold text-gray-600">
-                        Crie um novo registro para este processo.
+                        Crie o primeiro preenchimento deste processo.
                       </p>
                     </div>
                     <button
@@ -3702,7 +3584,7 @@ export function HierarchyNavigator({
                       className="inline-flex min-h-24 items-center justify-center rounded-md bg-cicopal-blue px-5 text-xl font-bold text-white shadow-soft"
                       onClick={novoRegistroProcesso}
                     >
-                      Criar primeiro registro
+                      Criar preenchimento
                     </button>
                   </div>
                 )}
