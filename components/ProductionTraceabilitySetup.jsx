@@ -584,47 +584,15 @@ export function ProductionTraceabilitySetup({
                   </button>
                 </div>
               ) : (
-                <div>
-                  <h4 className="text-lg font-bold">
-                    {data.batches.length ? "Informe o que mudou" : "Confirme a primeira receita"}
-                  </h4>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Ajuste os dados do lote no painel de insumos acima; aqui, confirme somente a quantidade desta batelada.
-                  </p>
-                  <div className="mt-3 divide-y border border-slate-200">
-                    {recipeInputs.map((item) => {
-                      const supply = item.insumos;
-                      const current = activeLots.find(
-                        (lotItem) => lotItem.insumo_id === supply.id,
-                      );
-                      return (
-                        <div key={supply.id} className="p-3 text-sm">
-                          <div className="grid gap-3 sm:grid-cols-[1fr_150px] sm:items-end">
-                            <span>
-                              <b className="block">{supply.nome}</b>
-                              <span className="text-slate-500">
-                                {current
-                                  ? `Lote ${current.lote_fornecedor} · validade ${new Date(`${current.validade}T12:00`).toLocaleDateString("pt-BR")}`
-                                  : "Sem lote"}
-                              </span>
-                            </span>
-                            <label>
-                              <span className="mb-1 block text-[10px] font-black uppercase text-slate-500">Quantidade</span>
-                              <span className="flex border border-slate-300">
-                                <input type="number" inputMode="decimal" value={batchInputs[supply.id]?.used ?? item.quantidade ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], used: event.target.value } }))} className="min-h-12 min-w-0 flex-1 px-2 font-black" />
-                                <b className="grid place-items-center border-l px-2">{item.unidade}</b>
-                              </span>
-                            </label>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="border-l-4 border-cicopal-blue bg-blue-50 px-4 py-4">
+                  <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Revisão dos insumos</p>
+                  <h4 className="mt-1 text-lg font-black text-slate-950">Dados revisados?</h4>
+                  <p className="mt-1 text-sm font-medium text-slate-600">Confira os campos acima. Os dados salvos e as quantidades informadas serão vinculados à nova batelada.</p>
                   <button
                     type="button"
                     onClick={startBatchWithFormulaCheck}
                     disabled={saving || missingBatchInputs.length > 0}
-                    className="mt-3 min-h-14 w-full bg-green-600 px-4 font-bold text-white"
+                    className="mt-4 min-h-14 w-full bg-green-600 px-4 font-black text-white disabled:bg-slate-300"
                   >
                     Confirmar e preparar massa
                   </button>
