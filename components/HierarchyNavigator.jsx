@@ -1879,7 +1879,7 @@ function Rg003ProductionControl({
         </div>
       </section>
 
-      <details className="group production-app-card bg-white">
+      {cycle ? <details className="group production-app-card bg-white">
         <summary className="flex min-h-16 cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cicopal-blue">Histórico do dia</p>
@@ -1919,23 +1919,16 @@ function Rg003ProductionControl({
         ) : (
           <p className="p-6 text-center font-semibold text-gray-500">Nenhuma produção iniciada nesta data.</p>
         )}
-      </details>
+      </details> : null}
 
       {!cycle ? (
-        <section className="production-app-card bg-white p-5 md:p-6">
-          <div className="mb-4">
-            <p className="text-xs font-bold uppercase text-gray-500">
-              Produtos do dia
-            </p>
-            <h3 className="mt-1 text-xl font-bold text-gray-950">
-              Escolha o produto da nova produção
-            </h3>
-            <p className="mt-1 text-sm font-semibold text-gray-600">
-              Nenhum produto vem pré-selecionado. Toque no cartão correto antes
-              de continuar.
-            </p>
+        <section className="border border-gray-200 bg-white p-5 md:p-6">
+          <div className="border-l-4 border-cicopal-blue pl-4">
+            <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">Iniciar produção</p>
+            <h3 className="mt-1 text-2xl font-black text-gray-950">Defina o produto e a operação inicial</h3>
+            <p className="mt-1 text-sm font-semibold text-gray-600">O ciclo será criado após a confirmação abaixo.</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {products.map((item) => {
               const productions = dayCycles.filter(
                 (entry) => entry.product === item,
@@ -1946,21 +1939,19 @@ function Rg003ProductionControl({
                   key={item}
                   type="button"
                   onClick={() => setProduct(item)}
-                  className={`min-h-32 p-4 text-left transition active:scale-[.98] ${selectedProduct ? "bg-cicopal-blue text-white shadow-lg" : "bg-gray-50 text-gray-950 hover:bg-blue-50"}`}
+                  className={`min-h-28 border-2 p-5 text-left transition active:scale-[.98] ${selectedProduct ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-200 bg-white text-gray-950 hover:border-blue-300 hover:bg-blue-50"}`}
                 >
                   <span className={`block text-lg font-bold ${selectedProduct ? "text-white" : "text-gray-950"}`}>
                     {selectedProduct ? "✓ " : ""}
                     {item}
                   </span>
                   <span className={`mt-1 block text-sm font-semibold ${selectedProduct ? "text-blue-100" : "text-gray-500"}`}>
-                    {productions.length
-                      ? `${productions.length} produção(ões) iniciada(s)`
-                      : "Nenhuma produção neste dia"}
+                    {productions.length ? `${productions.length} produção(ões) hoje` : "Sem produção hoje"}
                   </span>
                   {productions.map((entry) => (
                     <span
                       key={entry.id}
-                      className="mt-2 block rounded bg-white px-2 py-1 text-xs font-bold text-cicopal-blue"
+                      className="mt-2 block border border-blue-100 bg-white px-2 py-1 text-xs font-bold text-cicopal-blue"
                     >
                       {entry.productionCode ||
                         makeRg003ProductionCode(
@@ -1977,36 +1968,28 @@ function Rg003ProductionControl({
               );
             })}
           </div>
-          <div className="mt-5 border-l-4 border-cicopal-blue bg-blue-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-cicopal-blue">
-              Configuração inicial
-            </p>
-            <h4 className="mt-1 text-lg font-bold text-gray-950">
-              Quantas empacotadoras iniciarão em operação?
-            </h4>
-            <p className="mt-1 text-sm font-semibold text-gray-600">
-              Essa será a referência da Produção e da Qualidade. Alterações posteriores ficam registradas com data e hora.
-            </p>
-            <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="mt-5 border border-gray-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div><p className="text-xs font-black uppercase tracking-wide text-gray-500">Configuração inicial</p><h4 className="mt-1 text-lg font-black text-gray-950">Empacotadoras em operação</h4></div>
+              <p className="text-sm font-semibold text-gray-600">Informe a quantidade inicial.</p>
+            </div>
+            <div className="mt-4 grid grid-cols-4 gap-2">
               {[1, 2, 3, 4].map((count) => (
                 <button
                   key={count}
                   type="button"
                   aria-pressed={Number(initialMachineCount) === count}
                   onClick={() => setInitialMachineCount(String(count))}
-                  className={`min-h-14 border-2 text-lg font-bold ${Number(initialMachineCount) === count ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-blue-200 bg-white text-cicopal-blue"}`}
+                  className={`min-h-14 border-2 text-lg font-black ${Number(initialMachineCount) === count ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-300 bg-white text-gray-700 hover:border-cicopal-blue"}`}
                 >
                   {count}
                 </button>
               ))}
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4">
-            <div>
-              <p className="text-xs font-bold uppercase text-gray-500">
-                Código previsto
-              </p>
-              <p className="font-bold text-gray-950">
+          <div className="mt-5 border-t border-gray-200 pt-4">
+            <p className="text-xs font-black uppercase tracking-wide text-gray-500">Código previsto</p>
+            <p className="mt-1 font-mono text-sm font-bold text-gray-700">
                 {product
                   ? makeRg003ProductionCode(
                       product,
@@ -2015,12 +1998,11 @@ function Rg003ProductionControl({
                       lineId,
                     )
                   : "Selecione um produto"}
-              </p>
-            </div>
+            </p>
             <button
               type="button"
               disabled={!product || !initialMachineCount}
-              className="min-h-16 rounded-md bg-cicopal-blue px-6 text-lg font-bold text-white disabled:bg-gray-300 disabled:text-gray-600"
+              className="mt-4 min-h-16 w-full bg-cicopal-blue px-6 text-lg font-black text-white disabled:bg-gray-300 disabled:text-gray-600"
               onClick={() => prepare()}
             >
               {product && initialMachineCount
