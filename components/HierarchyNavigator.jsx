@@ -203,7 +203,7 @@ function Stepper({ currentStep, hideDates = false }) {
       aria-label="Progresso da seleção do registro"
       className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-5"}`}
     >
-      {visibleSteps.map((step) => {
+      {visibleSteps.map((step, visibleIndex) => {
         const active = step.id === currentStep;
         const done = step.id < currentStep;
         const tone = active
@@ -219,7 +219,11 @@ function Stepper({ currentStep, hideDates = false }) {
             className={`relative rounded-md border px-3 py-3 text-left text-sm font-bold shadow-soft ${tone}`}
           >
             <span className="mb-1 block text-[10px] font-black uppercase tracking-wider opacity-70">
-              {done ? "Concluída" : active ? "Etapa atual" : `Etapa ${step.id}`}
+              {done
+                ? "Concluída"
+                : active
+                  ? `Etapa ${visibleIndex + 1} atual`
+                  : `Etapa ${visibleIndex + 1}`}
             </span>
             <span className="block">{step.label}</span>
           </li>
