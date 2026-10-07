@@ -686,6 +686,7 @@ function TabletHourNavigator({
     typeof item === "string" ? { key: item, value: item, label: item } : item,
   );
   const [now, setNow] = useState(() => new Date());
+  const [earlyHourConfirmation, setEarlyHourConfirmation] = useState(null);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
@@ -695,29 +696,23 @@ function TabletHourNavigator({
     entries.findIndex((entry) => entry.value === activeHour),
   );
   const activeEntry = entries[activeIndex];
-  const currentSlotTime = new Date(now);
-  currentSlotTime.setMinutes(0, 0, 0);
-  const currentTimestamp = currentSlotTime.getTime();
   const missing = entries.filter(
     (entry) =>
-      !entry.locked &&
-      !entry.optional &&
       !completedHours.includes(entry.value),
   ).length;
   const overdue = entries.filter(
     (entry) =>
-      !entry.locked &&
-      !entry.optional &&
       !completedHours.includes(entry.value) &&
       Number.isFinite(entry.timestamp) &&
-      entry.timestamp < currentTimestamp,
+      entry.timestamp + 3_600_000 <= now.getTime(),
   ).length;
-  const nextHour = new Date(now);
-  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
-  const minutesToNext = Math.max(
-    0,
-    Math.ceil((nextHour.getTime() - now.getTime()) / 60_000),
-  );
+  function requestHour(entry) {
+    if (entry.timestamp > now.getTime()) {
+      setEarlyHourConfirmation(entry);
+      return;
+    }
+    onChange(entry.value);
+  }
   return (
     <section className={`sticky top-[72px] z-10 mb-4 border-t-4 bg-white p-3 shadow-md ${overdue ? "border-red-600" : "border-cicopal-blue"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -737,18 +732,17 @@ function TabletHourNavigator({
             type="button"
             disabled={activeIndex === 0}
             className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30"
-            onClick={() => onChange(entries[activeIndex - 1].value)}
+            onClick={() => requestHour(entries[activeIndex - 1])}
           >
             ← Anterior
           </button>
           <button
             type="button"
             disabled={
-              activeIndex >= entries.length - 1 ||
-              entries[activeIndex + 1]?.locked
+              activeIndex >= entries.length - 1
             }
             className="min-h-11 rounded-md border border-gray-300 px-3 font-bold disabled:opacity-30"
-            onClick={() => onChange(entries[activeIndex + 1].value)}
+            onClick={() => requestHour(entries[activeIndex + 1])}
           >
             Próximo →
           </button>
@@ -758,25 +752,26 @@ function TabletHourNavigator({
         {entries.map((entry, index) => {
           const completed = completedHours.includes(entry.value);
           const isSelected = entry.value === activeHour;
-          const isCurrent = entry.timestamp === currentTimestamp;
-          const isNext = entry.timestamp === currentTimestamp + 3_600_000;
-          const isPast = entry.timestamp < currentTimestamp;
+          const isCurrent =
+            entry.timestamp <= now.getTime() &&
+            now.getTime() < entry.timestamp + 3_600_000;
+          const isFuture = entry.timestamp > now.getTime();
+          const isPast = !isCurrent && !isFuture;
           const isOverdue =
-            isPast && !completed && !entry.locked;
+            isPast && !completed;
           const relation = isCurrent
-            ? "Em preenchimento"
-            : isNext
-              ? "Próximo controle"
+            ? "Horário atual"
+            : isFuture
+              ? "Preenchimento"
               : isPast
-                ? "Anterior"
-                : "Programado";
+                ? "Pendente"
+                : "Preenchimento";
           return (
             <button
               key={entry.key}
               type="button"
-              disabled={entry.locked}
-              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${isSelected ? isOverdue ? "border-red-700 bg-red-600 text-white shadow-lg" : "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isCurrent ? "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isOverdue ? "border-2 border-red-500 bg-red-50 text-red-800" : isNext ? "border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900" : completed ? "border-green-100 bg-green-50/60 text-cicopal-green opacity-60" : isPast ? "border-gray-200 bg-gray-50 text-gray-500 opacity-55" : "border-gray-200 bg-gray-100 text-gray-400"}`}
-              onClick={() => onChange(entry.value)}
+              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${isSelected ? isOverdue ? "border-red-700 bg-red-600 text-white shadow-lg" : "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isCurrent ? "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isOverdue ? "border-2 border-red-500 bg-red-50 text-red-800" : completed ? "border-green-200 bg-green-50 text-cicopal-green" : isFuture ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-cicopal-blue" : "border-slate-300 bg-white text-slate-700"}`}
+              onClick={() => requestHour(entry)}
             >
               <span className="block text-[10px] uppercase opacity-70">
                 {relation}
@@ -792,10 +787,8 @@ function TabletHourNavigator({
               <span className="mt-1 block text-[10px] uppercase">
                 {completed
                   ? "Preenchido"
-                  : entry.optional
-                    ? "Opcional · início fracionado"
-                  : entry.locked
-                    ? "Ainda não liberado"
+                  : isFuture
+                    ? "Preenchimento"
                     : isOverdue
                       ? "ATRASADO · PREENCHER"
                       : "Pendente"}
@@ -814,8 +807,20 @@ function TabletHourNavigator({
               ? `${missing} horário(s) pendente(s)`
             : "Todos os horários preenchidos"}
         </span>
-        <span>Próximo controle em {minutesToNext} min</span>
       </div>
+      {earlyHourConfirmation ? (
+        <div className="fixed inset-0 z-[120] grid place-items-center bg-slate-950/60 p-4">
+          <section className="w-full max-w-md border border-amber-300 bg-white p-5 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-wider text-amber-700">Apontamento antecipado</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">Confirmar preenchimento?</h3>
+            <p className="mt-3 text-slate-600">O registro será vinculado ao horário de <strong>{earlyHourConfirmation.hour}</strong> da produção.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setEarlyHourConfirmation(null)} className="min-h-12 border border-slate-300 bg-white font-black text-slate-600">Cancelar</button>
+              <button type="button" onClick={() => { onChange(earlyHourConfirmation.value); setEarlyHourConfirmation(null); }} className="min-h-12 bg-cicopal-blue font-black text-white">Confirmar preenchimento</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -3529,17 +3534,6 @@ function PersistedRg003Summary({ data, onEdit }) {
 }
 
 function buildAllowedCycleHours(cycle) {
-  const currentSlot = getCurrentHourSlot();
-  const fallback = [
-    {
-      key: currentSlot,
-      value: currentSlot,
-      hour: currentSlot,
-      label: currentSlot,
-      timestamp: Date.now(),
-      locked: false,
-    },
-  ];
   const productionStart =
     cycle?.productionStartedAt ??
     cycle?.events?.find((item) =>
@@ -3547,33 +3541,16 @@ function buildAllowedCycleHours(cycle) {
         .toLowerCase()
         .includes("produção iniciada"),
     )?.at;
-  if (!productionStart) return fallback;
-  const start = new Date(productionStart);
-  if (!Number.isFinite(start.getTime())) return fallback;
-  const startsBetweenHours =
-    start.getMinutes() !== 0 ||
-    start.getSeconds() !== 0 ||
-    start.getMilliseconds() !== 0;
-  start.setMinutes(0, 0, 0);
-  if (startsBetweenHours) start.setHours(start.getHours() + 1);
-  const productionEnd =
-    cycle.productionEndedAt ?? cycle.endedAt ?? Date.now() + 3_600_000;
-  const end = new Date(productionEnd);
-  if (!Number.isFinite(end.getTime())) return fallback;
-  end.setMinutes(0, 0, 0);
-  if (end < start) end.setTime(start.getTime());
-  const result = [];
-  for (
-    let cursor = new Date(start);
-    cursor <= end && result.length < 145;
-    cursor = new Date(cursor.getTime() + 3_600_000)
-  ) {
-    const value = `${String(cursor.getHours()).padStart(2, "0")}:00`;
+  const start = new Date(productionStart ?? Date.now());
+  if (!Number.isFinite(start.getTime())) return [];
+  return Array.from({ length: 10 }, (_, index) => {
+    const cursor = new Date(start.getTime() + index * 3_600_000);
+    const hour = `${String(cursor.getHours()).padStart(2, "0")}h`;
     const slot = cursor.toISOString();
-    result.push({
+    return {
       key: slot,
       value: slot,
-      hour: value,
+      hour,
       timestamp: cursor.getTime(),
       dateLabel: cursor.toLocaleDateString("pt-BR", {
         day: "2-digit",
@@ -3582,12 +3559,9 @@ function buildAllowedCycleHours(cycle) {
       label:
         cursor
           .toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" })
-          .replace(".", "") + ` · ${value}`,
-      locked: cursor.getTime() > Date.now(),
-      optional: startsBetweenHours && result.length === 0,
-    });
-  }
-  return result.length ? result : fallback;
+          .replace(".", "") + ` · ${hour}`,
+    };
+  });
 }
 
 function NcPreviewPanel({ ncs = [], title = "Não conformidades abertas" }) {
@@ -3882,10 +3856,12 @@ export function Rg005SubregistroForm({
       allowedHours.some((entry) => entry.value === activeHour)
     )
       return;
-    const latestAvailable =
-      [...allowedHours].reverse().find((entry) => !entry.locked) ??
-      allowedHours[0];
-    setActiveHour(latestAvailable.value);
+    const currentHour = allowedHours.find(
+      (entry) =>
+        entry.timestamp <= Date.now() &&
+        Date.now() < entry.timestamp + 3_600_000,
+    );
+    setActiveHour((currentHour ?? allowedHours[0]).value);
   }, [activeHour, allowedHours, isRg003]);
   if (!subregistro) return null;
   const config = getRgDocumentConfig(documentCode);
@@ -4617,39 +4593,19 @@ export function Rg005SubregistroForm({
             onEdit={() => setEditMode(true)}
           />
         ) : isRg003 ? (
-          <div className="space-y-4">
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
-                Controle hora a hora
-              </p>
-              <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-2xl font-black text-gray-950">
-                    Avaliação do produto
-                  </h2>
-                  <p className="mt-1 font-semibold text-gray-600">
-                    Selecione uma máquina e conclua todas as informações dela.
-                  </p>
-                </div>
-                <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-cicopal-blue">
-                  Horário {activeHourLabel}
-                </span>
-              </div>
-            </section>
-            <ProductEvaluationTabletFlow
-              key={activeHour}
-              columns={configuredProductColumns}
-              machines={config.produtoMaquinas}
-              gramaturas={config.produtoOptions.gramaturas}
-              registro={effectiveRegistro}
-              activeHour={activeHourLabel}
-              activeSlot={activeHour}
-              onSave={saveProcesso}
-              initialConfiguration={latestMachineConfiguration}
-              cycleId={cycleContext?.id}
-              operatorId={effectiveRegistro.operadorId}
-            />
-          </div>
+          <ProductEvaluationTabletFlow
+            key={activeHour}
+            columns={configuredProductColumns}
+            machines={config.produtoMaquinas}
+            gramaturas={config.produtoOptions.gramaturas}
+            registro={effectiveRegistro}
+            activeHour={activeHourLabel}
+            activeSlot={activeHour}
+            onSave={saveProcesso}
+            initialConfiguration={latestMachineConfiguration}
+            cycleId={cycleContext?.id}
+            operatorId={effectiveRegistro.operadorId}
+          />
         ) : (
           <>
             <ProductEvaluationHourlyTable
