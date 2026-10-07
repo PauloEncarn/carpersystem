@@ -3048,6 +3048,9 @@ export function HierarchyNavigator({
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   }, []);
+  const canAccessProductionHistory = ["supervisao", "supervisor", "admin"].includes(
+    profileCode,
+  );
   const historyProductions = useMemo(() => {
     const today = new Date(`${todayDateId}T00:00:00`);
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -3406,7 +3409,7 @@ export function HierarchyNavigator({
                     )
                     : 0;
                   return (
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
+                    <div className={canAccessProductionHistory ? "grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]" : "max-w-2xl"}>
                       <CardButton
                         icon={Play}
                         selected={selection.dataId === todayDateId}
@@ -3418,7 +3421,7 @@ export function HierarchyNavigator({
                           onStepChange(3);
                         }}
                       />
-                      <button
+                      {canAccessProductionHistory ? <button
                         type="button"
                         aria-expanded={showProductionHistory}
                         onClick={() => {
@@ -3429,12 +3432,12 @@ export function HierarchyNavigator({
                       >
                         <span className="flex items-center gap-2 text-lg"><CalendarDays size={22} /> Histórico de produções</span>
                         <span className="mt-1 block text-sm font-semibold text-gray-500">Consultar outro dia ou período</span>
-                      </button>
+                      </button> : null}
                     </div>
                   );
                 })()}
 
-                {showProductionHistory ? (
+                {canAccessProductionHistory && showProductionHistory ? (
                   <section className="mt-5 border-l-4 border-cicopal-blue bg-slate-50 p-4" aria-label="Histórico de produções">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
