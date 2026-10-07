@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Factory,
-  Lock,
   Cog,
   Power,
   RefreshCw,
@@ -116,6 +115,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
   const [interruptOpen, setInterruptOpen] = useState(false);
   const [problemModal, setProblemModal] = useState(null);
   const [problemResolution, setProblemResolution] = useState(null);
+  const [scheduleConfirmation, setScheduleConfirmation] = useState(null);
   const [workspace, setWorkspace] = useState("overview");
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
@@ -295,51 +295,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           : earliest;
       }, null)
     : null;
-  const optionalFirstSlot = useMemo(() => {
-    if (!firstBatchStartedAt) return "";
-    const original = new Date(firstBatchStartedAt);
-    if (!Number.isFinite(original.getTime()) || original.getMinutes() === 0)
-      return "";
-    const next = new Date(original);
-    next.setMinutes(0, 0, 0);
-    next.setHours(next.getHours() + 1);
-    return next.toISOString();
-  }, [firstBatchStartedAt]);
   const fixedSlots = useMemo(() => {
-    if (!firstBatchStartedAt) return [];
-    const start = new Date(firstBatchStartedAt);
-    start.setMinutes(0, 0, 0);
-    if (start < new Date(firstBatchStartedAt))
-      start.setHours(start.getHours() + 1);
-    const end = new Date(
-      cycle.productionEndedAt ?? cycle.endedAt ?? now,
+    const startedAt = cycle.productionStartedAt ?? firstBatchStartedAt;
+    if (!startedAt) return [];
+    const start = new Date(startedAt);
+    if (!Number.isFinite(start.getTime())) return [];
+    return Array.from({ length: 10 }, (_, index) =>
+      new Date(start.getTime() + index * 3_600_000).toISOString(),
     );
-    end.setMinutes(0, 0, 0);
-    if (!cycle.productionEndedAt && !cycle.endedAt) {
-      const minimumEnd = new Date(start.getTime() + 3_600_000);
-      const nextCurrentHour = new Date(now);
-      nextCurrentHour.setMinutes(0, 0, 0);
-      nextCurrentHour.setHours(nextCurrentHour.getHours() + 1);
-      end.setTime(Math.max(end.getTime(), minimumEnd.getTime(), nextCurrentHour.getTime()));
-    }
-    const slots = [];
-    for (
-      let cursor = new Date(start);
-      cursor <= end;
-      cursor = new Date(cursor.getTime() + 3600000)
-    )
-      slots.push(cursor.toISOString());
-    return slots;
-  }, [
-    firstBatchStartedAt,
-    cycle.productionEndedAt,
-    cycle.endedAt,
-    now.getHours(),
-  ]);
-  // Mantém todo o histórico da produção acessível, inclusive pendências antigas.
+  }, [cycle.productionStartedAt, firstBatchStartedAt]);
   const visibleSlots = fixedSlots;
-  const isSlotReleased = (slot) =>
-    Boolean(slot) && new Date(slot).getTime() <= now.getTime();
 
   async function refreshConcurrentProcesses() {
     if (!cycle?.id || refreshing) return;
@@ -421,10 +386,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     if (["automacao", "masseira"].includes(code)) return true;
     return Boolean(activeBatch);
   }
-  function openProcess(code, requestedSlot = null) {
+  function openProcess(code, requestedSlot = null, confirmedEarly = false) {
     if (!isUnlocked(code)) return;
-    if (requestedSlot && !isSlotReleased(requestedSlot)) {
-      setMessage("Este horário ainda não foi liberado.");
+    if (
+      requestedSlot &&
+      new Date(requestedSlot).getTime() > now.getTime() &&
+      !confirmedEarly
+    ) {
+      setScheduleConfirmation({ code, slot: requestedSlot });
       return;
     }
     const cfg = ROSCA_SUBPROCESSES.find((item) => item.code === code);
@@ -441,7 +410,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
         : requestedSlot
       : fixedSlots.find(
           (slot) =>
-            isSlotReleased(slot) &&
             !processRecords.some((record) =>
               sameInstant(record.horario_previsto, slot),
             ),
@@ -1088,7 +1056,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
               </div>
             ) : (
               <div className="bg-gray-100 px-4 py-3 text-sm font-bold text-gray-600">
-                O primeiro apontamento abrirá a janela de 60 min
+                Agenda com os próximos 10 controles da produção
               </div>
             )}
           </header>
@@ -1100,8 +1068,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 <span className="text-sm font-bold text-red-700">
                   {fixedSlots.filter(
                     (slot) =>
-                      !sameInstant(slot, optionalFirstSlot) &&
-                      isSlotReleased(slot) &&
                       !recordsFor(
                         workspace === "cut"
                           ? "corte_fio"
@@ -1129,32 +1095,27 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   const record = recordsFor(processCode).find(
                     (item) => sameInstant(item.horario_previsto, slot),
                   );
-                  const released = isSlotReleased(slot);
                   const slotTime = new Date(slot);
-                  const currentHour = new Date(now);
-                  currentHour.setMinutes(0, 0, 0);
                   const isCurrent =
-                    released && slotTime.getTime() === currentHour.getTime();
-                  const isNext =
-                    slotTime.getTime() === currentHour.getTime() + 3_600_000;
-                  const isPast = slotTime.getTime() < currentHour.getTime();
-                  const optional = sameInstant(slot, optionalFirstSlot);
+                    slotTime.getTime() <= now.getTime() &&
+                    now.getTime() < slotTime.getTime() + 3_600_000;
+                  const isFuture = slotTime.getTime() > now.getTime();
+                  const isPast = !isCurrent && !isFuture;
                   return (
                     <button
                       key={slot}
                       type="button"
-                      disabled={!released}
                       onClick={() => openProcess(processCode, slot)}
-                      className={`relative min-h-20 min-w-36 shrink-0 border px-3 py-2 text-left text-sm font-bold transition ${isCurrent ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isNext ? "cursor-not-allowed border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900" : record ? "border-green-100 bg-green-50/60 text-green-700 opacity-60" : isPast ? "border-red-200 bg-red-50 text-red-700" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"}`}
+                      className={`relative min-h-20 min-w-36 shrink-0 border px-3 py-2 text-left text-sm font-bold transition ${isCurrent && !record ? "scale-[1.02] border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : record ? "border-green-200 bg-green-50 text-green-700" : isFuture ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-cicopal-blue" : isPast ? "border-red-200 bg-red-50 text-red-700" : "border-slate-300 bg-white text-slate-700"}`}
                     >
                       <span className="block text-[10px] uppercase opacity-70">
-                        {isCurrent
-                          ? "Em preenchimento"
-                          : isNext
-                            ? "Próximo controle"
-                            : isPast
-                              ? "Anterior"
-                              : "Programado"}
+                        {record
+                          ? "Preenchido"
+                          : isCurrent
+                            ? "Horário atual"
+                            : isFuture
+                              ? "Antecipar controle"
+                              : "Pendente"}
                       </span>
                       <b className="mt-1 block text-lg tabular-nums">
                         {new Date(slot).toLocaleTimeString("pt-BR", {
@@ -1169,13 +1130,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         })}
                       </span>
                       <small className="flex items-center justify-center gap-1 font-bold uppercase">
-                        {!released ? <Lock size={12} /> : null}
                         {record
                           ? "Preenchido"
-                          : optional
-                            ? "Opcional"
-                          : !released
-                            ? "Ainda não liberado"
+                          : isFuture
+                            ? "Preencher antes"
                             : isCurrent
                               ? "Atual"
                               : "Pendente"}
@@ -1219,6 +1177,21 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 ))}
               </div>
             </section>
+          ) : null}
+          {scheduleConfirmation ? (
+            <div className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/60 p-4">
+              <section className="w-full max-w-md border border-amber-300 bg-white p-5 shadow-2xl">
+                <p className="text-xs font-black uppercase tracking-wider text-amber-700">Apontamento antecipado</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">Preencher antes do horário?</h3>
+                <p className="mt-3 text-slate-600">
+                  Você está iniciando o apontamento de <strong>{ROSCA_SUBPROCESSES.find((item) => item.code === scheduleConfirmation.code)?.name}</strong> previsto para <strong>{fmt(scheduleConfirmation.slot)}</strong>. O registro ficará vinculado a este horário programado.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setScheduleConfirmation(null)} className="min-h-12 border border-slate-300 bg-white font-black text-slate-600">Cancelar</button>
+                  <button type="button" onClick={() => { const confirmation = scheduleConfirmation; setScheduleConfirmation(null); openProcess(confirmation.code, confirmation.slot, true); }} className="min-h-12 bg-cicopal-blue font-black text-white">Confirmar preenchimento</button>
+                </div>
+              </section>
+            </div>
           ) : null}
 
           {selected && config ? (
