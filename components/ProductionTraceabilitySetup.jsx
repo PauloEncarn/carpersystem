@@ -461,8 +461,8 @@ export function ProductionTraceabilitySetup({
           </div>
         </header>
 
-        <div className="flex flex-col gap-5 p-4 sm:p-6">
-          {!data.batches.length ? <section className="order-2">
+        <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start">
+          <section className="xl:col-start-1 xl:row-start-1">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-slate-500">Antes de iniciar</p>
@@ -545,10 +545,10 @@ export function ProductionTraceabilitySetup({
                 );
               })}
             </div>
-          </section> : null}
+          </section>
 
-          <section className="order-1">
-            <div className="border border-slate-200 bg-white">
+          <section className="contents">
+            <div className="border border-slate-200 bg-white xl:col-start-1 xl:row-start-2">
               <div className="border-b border-slate-200 px-5 py-4">
                 <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
                   Próxima ação
@@ -692,7 +692,7 @@ export function ProductionTraceabilitySetup({
               )}
             </div>
 
-            <div className="mt-5">
+            <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2">
               {readyBatches.length >= 1 && !hasOpenOperationalProblem ? (
                 <div className="mb-4 border-l-8 border-red-600 bg-red-50 p-4 text-red-900">
                   <b className="block">Já existe uma massa pré-pronta na fila</b>
