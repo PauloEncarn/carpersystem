@@ -475,21 +475,15 @@ export function ProductionTraceabilitySetup({
                         {supply.nome}
                       </b>
                     </div>
-                    <div className="text-sm">
+                    <div className="grid gap-1 text-sm sm:grid-cols-3 sm:gap-x-3">
                       {current ? (
                         <>
-                          <b className="block">
-                            Lote {current.lote_fornecedor}
-                          </b>
-                          <span className="text-slate-500">
-                            Validade{" "}
-                            {new Date(
-                              `${current.validade}T12:00`,
-                            ).toLocaleDateString("pt-BR")}
-                          </span>
+                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Lote</small><b className="text-slate-900">{current.lote_fornecedor}</b></span>
+                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Fornecedor</small><b className="text-slate-900">{current.fornecedor || "Interno"}</b></span>
+                          <span><small className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Validade</small><b className="text-slate-900">{new Date(`${current.validade}T12:00`).toLocaleDateString("pt-BR")}</b></span>
                         </>
                       ) : (
-                        <b className="text-red-700">Informe lote e validade</b>
+                        <b className="text-red-700">Cadastre lote, fornecedor e validade</b>
                       )}
                     </div>
                     <label>
