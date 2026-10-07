@@ -435,7 +435,7 @@ export function ProductionTraceabilitySetup({
   };
   if (mode === "prep")
     return (
-      <section className="border border-slate-200 bg-slate-50">
+      <section className="border border-slate-200 bg-white">
         <header className="border-b-4 border-cicopal-blue bg-slate-950 px-5 py-6 text-white sm:px-7">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -450,13 +450,23 @@ export function ProductionTraceabilitySetup({
           </div>
         </header>
 
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-black uppercase tracking-wide">
+            <span className="text-cicopal-blue">1. Insumos</span>
+            <span className="h-px w-6 bg-slate-300" aria-hidden="true" />
+            <span className={activeBatch ? "text-cicopal-blue" : "text-slate-500"}>2. Preparar</span>
+            <span className="h-px w-6 bg-slate-300" aria-hidden="true" />
+            <span className={activeWorkflowBatches.length ? "text-cicopal-blue" : "text-slate-500"}>3. Acompanhar batelada</span>
+          </div>
+        </div>
+
         <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start">
           <div className="flex min-w-0 flex-col gap-5">
             <section>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Antes de iniciar</p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">Conferir insumos da receita</h3>
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Etapa 1 · Insumos</p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">Dados da receita</h3>
               </div>
               <span className="border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-600">
                 {activeLots.length}/{recipeInputs.length} cadastrados
@@ -537,9 +547,9 @@ export function ProductionTraceabilitySetup({
             </div>
             </section>
 
-            <div className="border border-slate-200 bg-white">
+            <div className="border-t-2 border-slate-200 pt-5">
               {!batchOpen ? (
-                <div className="p-5">
+                <div>
                   {activeBatch ? <p className="mb-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">Finalize a batelada em preparo antes de iniciar outra massa.</p> : null}
                   <button
                     type="button"
@@ -556,7 +566,7 @@ export function ProductionTraceabilitySetup({
                   {!recipe ? <p className="mt-2 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-800">Não existe receita ativa para este produto. Solicite a configuração antes de continuar.</p> : missingBatchInputs.length ? <p className="mt-2 border-l-4 border-amber-500 bg-amber-50 p-3 text-sm font-bold text-amber-900">Informe lote, validade e quantidade dos insumos pendentes.</p> : null}
                 </div>
               ) : !batchReview ? (
-                <div className="p-4">
+                <div>
                   <h4 className="text-xl font-bold">Preparar outra massa?</h4>
                   <p className="mt-1 text-sm text-slate-500">
                     Escolha como iniciar a próxima batelada.
@@ -589,7 +599,7 @@ export function ProductionTraceabilitySetup({
                   </button>
                 </div>
               ) : (
-                <div className="p-4">
+                <div>
                   <h4 className="text-lg font-bold">
                     {data.batches.length ? "Informe o que mudou" : "Confirme a primeira receita"}
                   </h4>
@@ -647,7 +657,7 @@ export function ProductionTraceabilitySetup({
 
           </div>
 
-          <aside className="min-w-0 border-l-0 border-slate-200 xl:border-l xl:pl-5">
+          <aside className="min-w-0 border-t-2 border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
               {readyBatches.length >= 1 && !hasOpenOperationalProblem ? (
                 <div className="mb-4 border-l-8 border-red-600 bg-red-50 p-4 text-red-900">
                   <b className="block">Já existe uma massa pré-pronta na fila</b>
@@ -658,7 +668,7 @@ export function ProductionTraceabilitySetup({
               ) : null}
               <div className="mb-3 flex items-end justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Acompanhamento</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Etapa 3 · Acompanhamento</p>
                   <h3 className="mt-1 text-xl font-black text-slate-950">Bateladas em andamento</h3>
                 </div>
                 <span className="text-sm font-bold text-slate-500">
