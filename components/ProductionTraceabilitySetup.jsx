@@ -433,17 +433,6 @@ export function ProductionTraceabilitySetup({
     consumida: "bg-slate-100 text-slate-700",
     enviada_tombador: "bg-slate-100 text-slate-700",
   };
-  function editSupply(supply) {
-    const current = activeLots.find((item) => item.insumo_id === supply.id);
-    setLot({
-      supplyId: supply.id,
-      supplierLot: current?.lote_fornecedor ?? "",
-      supplier: current?.fornecedor ?? "Interno",
-      expiry: current?.validade ?? "",
-    });
-    setLotClosure({ outcome: "finalizado", problem: "" });
-    setEditingLot(true);
-  }
   if (mode === "prep")
     return (
       <section className="border border-slate-200 bg-slate-50">
@@ -462,7 +451,8 @@ export function ProductionTraceabilitySetup({
         </header>
 
         <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,.85fr)] xl:items-start">
-          <section className="xl:col-start-1 xl:row-start-1">
+          <div className="flex min-w-0 flex-col gap-5">
+            <section>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-slate-500">Antes de iniciar</p>
@@ -545,10 +535,9 @@ export function ProductionTraceabilitySetup({
                 );
               })}
             </div>
-          </section>
+            </section>
 
-          <section className="contents">
-            <div className="border border-slate-200 bg-white xl:col-start-1 xl:row-start-2">
+            <div className="border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-5 py-4">
                 <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
                   Próxima ação
@@ -634,7 +623,7 @@ export function ProductionTraceabilitySetup({
                     {data.batches.length ? "Informe o que mudou" : "Confirme a primeira receita"}
                   </h4>
                   <p className="mt-1 text-sm text-slate-500">
-                    Lote, validade e quantidade ficarão vinculados a esta batelada.
+                    Ajuste os dados do lote no painel de insumos acima; aqui, confirme somente a quantidade desta batelada.
                   </p>
                   <div className="mt-3 divide-y border border-slate-200">
                     {recipeInputs.map((item) => {
@@ -644,7 +633,7 @@ export function ProductionTraceabilitySetup({
                       );
                       return (
                         <div key={supply.id} className="p-3 text-sm">
-                          <div className="grid gap-3 sm:grid-cols-[1fr_150px_auto] sm:items-end">
+                          <div className="grid gap-3 sm:grid-cols-[1fr_150px] sm:items-end">
                             <span>
                               <b className="block">{supply.nome}</b>
                               <span className="text-slate-500">
@@ -660,13 +649,6 @@ export function ProductionTraceabilitySetup({
                                 <b className="grid place-items-center border-l px-2">{item.unidade}</b>
                               </span>
                             </label>
-                            <button
-                              type="button"
-                              onClick={() => editSupply(supply)}
-                              className="min-h-12 border border-cicopal-blue bg-white px-3 font-bold text-cicopal-blue"
-                            >
-                              Alterar lote
-                            </button>
                           </div>
                         </div>
                       );
@@ -692,7 +674,9 @@ export function ProductionTraceabilitySetup({
               )}
             </div>
 
-            <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2">
+          </div>
+
+          <aside className="min-w-0 border-l-0 border-slate-200 xl:border-l xl:pl-5">
               {readyBatches.length >= 1 && !hasOpenOperationalProblem ? (
                 <div className="mb-4 border-l-8 border-red-600 bg-red-50 p-4 text-red-900">
                   <b className="block">Já existe uma massa pré-pronta na fila</b>
@@ -765,8 +749,7 @@ export function ProductionTraceabilitySetup({
                   </div>
                 </details>
               ) : null}
-            </div>
-          </section>
+          </aside>
         </div>
 
         {message ? (
