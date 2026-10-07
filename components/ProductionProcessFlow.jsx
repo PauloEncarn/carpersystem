@@ -1114,14 +1114,11 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                           : isCurrent
                             ? "Horário atual"
                             : isFuture
-                              ? "Antecipar controle"
+                              ? "Preenchimento"
                               : "Pendente"}
                       </span>
                       <b className="mt-1 block text-lg tabular-nums">
-                        {new Date(slot).toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {`${String(new Date(slot).getHours()).padStart(2, "0")}h`}
                       </b>
                       <span className="block text-[11px] opacity-75">
                         {new Date(slot).toLocaleDateString("pt-BR", {
@@ -1133,7 +1130,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         {record
                           ? "Preenchido"
                           : isFuture
-                            ? "Preencher antes"
+                            ? "Preenchimento"
                             : isCurrent
                               ? "Atual"
                               : "Pendente"}
@@ -1182,7 +1179,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
             <div className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/60 p-4">
               <section className="w-full max-w-md border border-amber-300 bg-white p-5 shadow-2xl">
                 <p className="text-xs font-black uppercase tracking-wider text-amber-700">Apontamento antecipado</p>
-                <h3 className="mt-1 text-2xl font-black text-slate-950">Preencher antes do horário?</h3>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">Confirmar preenchimento?</h3>
                 <p className="mt-3 text-slate-600">
                   Você está iniciando o apontamento de <strong>{ROSCA_SUBPROCESSES.find((item) => item.code === scheduleConfirmation.code)?.name}</strong> previsto para <strong>{fmt(scheduleConfirmation.slot)}</strong>. O registro ficará vinculado a este horário programado.
                 </p>
