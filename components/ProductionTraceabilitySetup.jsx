@@ -481,9 +481,9 @@ export function ProductionTraceabilitySetup({
                 return (
                   <article
                     key={supply.id}
-                    className={`grid gap-3 border-l-4 p-4 sm:grid-cols-[minmax(120px,.8fr)_minmax(300px,1.8fr)_120px_auto] sm:items-end ${current ? "border-cicopal-blue bg-white" : "border-red-500 bg-red-50"}`}
+                    className={`grid gap-3 border-l-4 p-4 lg:grid-cols-[minmax(0,1fr)_120px_auto] lg:items-end ${current ? "border-cicopal-blue bg-white" : "border-red-500 bg-red-50"}`}
                   >
-                    <div>
+                    <div className="lg:col-span-3">
                       <small className="font-bold uppercase text-slate-400">
                         {["FARINHA", "ACUCAR"].includes(supply.codigo)
                           ? "Automação"
@@ -493,12 +493,12 @@ export function ProductionTraceabilitySetup({
                         {supply.nome}
                       </b>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-3 lg:col-span-3">
                       <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Lote</span><input value={batchInputs[supply.id]?.lot ?? current?.lote_fornecedor ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], lot: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" placeholder="Lote" /></label>
                       <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Fornecedor</span><input value={batchInputs[supply.id]?.supplier ?? current?.fornecedor ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], supplier: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" placeholder="Fornecedor" /></label>
                       <label><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Validade</span><input type="date" value={batchInputs[supply.id]?.expiry ?? current?.validade ?? ""} onChange={(event) => setBatchInputs((all) => ({ ...all, [supply.id]: { ...all[supply.id], expiry: event.target.value } }))} className="min-h-11 w-full border border-slate-300 bg-white px-2 text-sm font-bold text-slate-900 outline-none focus:border-cicopal-blue" /></label>
                     </div>
-                    <label>
+                    <label className="lg:col-start-2">
                       <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
                         Quantidade
                       </span>
@@ -527,7 +527,7 @@ export function ProductionTraceabilitySetup({
                       type="button"
                       disabled={saving}
                       onClick={() => saveInlineSupply(supply)}
-                      className="min-h-11 border border-cicopal-blue bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300"
+                      className="min-h-11 min-w-28 border border-cicopal-blue bg-cicopal-blue px-4 font-bold text-white disabled:bg-slate-300 lg:col-start-3"
                     >
                       Salvar
                     </button>
@@ -538,38 +538,9 @@ export function ProductionTraceabilitySetup({
             </section>
 
             <div className="border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-5 py-4">
-                <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
-                  Próxima ação
-                </p>
-                <div className="mt-1 flex items-center justify-between gap-3">
-                  <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                    {activeBatch
-                      ? `Batelada ${activeBatch.numero} em preparo`
-                      : readyBatches.length
-                        ? `${readyBatches.length} massa(s) pronta(s)`
-                        : consumingBatch
-                          ? `Batelada ${consumingBatch.numero} em consumo`
-                          : "Preparar primeira massa"}
-                  </h3>
-                  <b className="text-sm tabular-nums text-slate-500">
-                    {batchTotal.toLocaleString("pt-BR")} kg
-                  </b>
-                </div>
-              </div>
-
               {!batchOpen ? (
                 <div className="p-5">
-                  <div className="border-l-4 border-cicopal-blue bg-blue-50 px-4 py-3">
-                    <b className="block text-cicopal-blue">
-                      {data.batches.length
-                        ? "Pronto para preparar a próxima massa"
-                        : "Cadastre os lotes da primeira massa"}
-                    </b>
-                    <p className="mt-1 text-sm text-slate-600">
-                      A receita padrão permanece registrada e só será exibida se houver alteração.
-                    </p>
-                  </div>
+                  {activeBatch ? <p className="mb-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">Finalize a batelada em preparo antes de iniciar outra massa.</p> : null}
                   <button
                     type="button"
                     disabled={
@@ -578,7 +549,7 @@ export function ProductionTraceabilitySetup({
                       !recipe
                     }
                     onClick={openNewBatchForm}
-                    className="mt-5 min-h-14 w-full bg-cicopal-blue px-5 text-lg font-black text-white transition-colors hover:bg-blue-800 disabled:bg-slate-300"
+                    className="min-h-14 w-full bg-cicopal-blue px-5 text-lg font-black text-white transition-colors hover:bg-blue-800 disabled:bg-slate-300"
                   >
                     Preparar massa
                   </button>
