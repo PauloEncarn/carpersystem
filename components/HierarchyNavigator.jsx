@@ -50,17 +50,6 @@ function isSequentialDocument(lineId, documentId) {
   );
 }
 
-const steps = [
-  { id: 1, label: "Linha" },
-  { id: 2, label: "Produção" },
-  { id: 3, label: "RG" },
-  { id: 4, label: "Processo" },
-  // O passo 5 é o histórico técnico de um processo. Ele não é um nível da
-  // hierarquia apresentada ao usuário: o quinto nível visível é o formulário.
-  { id: 5, label: "Histórico" },
-  { id: 6, label: "Preenchimento" },
-];
-
 const processCatalog = [
   { id: "higienizacao", nome: "Higienizacao", frequencia: "Por registro" },
   {
@@ -191,45 +180,6 @@ function CardButton({
         ) : null}
       </span>
     </button>
-  );
-}
-
-function Stepper({ currentStep, hideDates = false }) {
-  const visibleSteps = steps.filter(
-    (step) => step.id !== 5 && (!hideDates || step.id !== 2),
-  );
-  return (
-    <ol
-      aria-label="Progresso da seleção do registro"
-      className={`grid grid-cols-2 gap-2 ${hideDates ? "md:grid-cols-4" : "md:grid-cols-5"}`}
-    >
-      {visibleSteps.map((step, visibleIndex) => {
-        const active = step.id === currentStep;
-        const done = step.id < currentStep;
-        const tone = active
-          ? "border-cicopal-blue bg-cicopal-blue text-white"
-          : done
-            ? "border-cicopal-green bg-white text-cicopal-green"
-            : "border-gray-200 bg-white text-gray-500";
-
-        return (
-          <li
-            key={step.id}
-            aria-current={active ? "step" : undefined}
-            className={`relative rounded-md border px-3 py-3 text-left text-sm font-bold shadow-soft ${tone}`}
-          >
-            <span className="mb-1 block text-[10px] font-black uppercase tracking-wider opacity-70">
-              {done
-                ? "Concluída"
-                : active
-                  ? `Etapa ${visibleIndex + 1} atual`
-                  : `Etapa ${visibleIndex + 1}`}
-            </span>
-            <span className="block">{step.label}</span>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -3394,8 +3344,6 @@ export function HierarchyNavigator({
         />
       ) : (
         <>
-          <Stepper currentStep={currentStep} hideDates={hideDates} />
-
           <div className="mt-4 min-h-[430px]">
             {currentStep === 1 ? (
               <>
