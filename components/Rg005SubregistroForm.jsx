@@ -3713,6 +3713,7 @@ function HourlySaveOverlay({ state }) {
 export function Rg005SubregistroForm({
   lineId = "ROS",
   documentName,
+  documentCode = documentName,
   loteId,
   registro,
   subregistro,
@@ -3733,7 +3734,7 @@ export function Rg005SubregistroForm({
   const [hourlySaveFeedback, setHourlySaveFeedback] = useState("");
   const confirmationResolver = useRef(null);
   const isRg003 = ["RG.QUA.BA.003", "RG.QUA.005", "RG.QUA.004"].includes(
-    documentName,
+    documentCode,
   );
   const cycleStorageKey = `carper_rg003_cycle_${lineId}`;
   function requestConfirmation(options) {
@@ -3887,7 +3888,7 @@ export function Rg005SubregistroForm({
     setActiveHour(latestAvailable.value);
   }, [activeHour, allowedHours, isRg003]);
   if (!subregistro) return null;
-  const config = getRgDocumentConfig(documentName);
+  const config = getRgDocumentConfig(documentCode);
   const effectiveProductSpecifications = productSpecifications.length
     ? productSpecifications
     : makeTestSpecifications(config.avaliacaoProdutoColumns);
@@ -4427,6 +4428,8 @@ export function Rg005SubregistroForm({
     const waitingQuality = latestHygieneRound?.status === "aguardando_qualidade";
     const correcting = latestHygieneRound?.status === "em_correcao";
     const approved = latestHygieneRound?.status === "aprovada";
+    const qualityWaitingForOperation =
+      isRg003 && canInspectHygiene && !latestHygieneRound;
     const workflowMessage = waitingQuality
       ? "A execução foi concluída e está aguardando a inspeção da Qualidade."
       : correcting
@@ -4436,10 +4439,10 @@ export function Rg005SubregistroForm({
           : "A Operação deve executar e registrar a higienização antes da inspeção.";
     return (
       <>
-        {isRg003 ? (
+        {isRg003 && !qualityWaitingForOperation ? (
           <Rg003ProcessObjective registro={effectiveRegistro} lineId={lineId} />
         ) : (
-          <HigienizacaoContexto registro={effectiveRegistro} />
+          !isRg003 ? <HigienizacaoContexto registro={effectiveRegistro} /> : null
         )}
         {isRg003 ? (
           <section className="mb-4 border border-gray-200 bg-white p-4 shadow-sm">
@@ -4526,7 +4529,7 @@ export function Rg005SubregistroForm({
           flowTitle="Execução da higienização · Operação"
           successTitle="Higienização enviada para a Qualidade"
           confirmationLabel="Enviar para inspeção"
-        /> : <section className="border-l-8 border-cicopal-blue bg-white p-6 shadow-sm"><h3 className="text-xl font-black">Aguardando execução pela Operação</h3><p className="mt-2 font-semibold text-gray-600">A inspeção ficará disponível quando o operador concluir o primeiro checklist.</p></section>}
+        /> : <section className="border-l-8 border-cicopal-blue bg-white p-6 text-center shadow-sm"><Clock size={42} className="mx-auto text-cicopal-blue" /><p className="mt-3 text-xs font-black uppercase tracking-wider text-cicopal-blue">Higienização em andamento</p><h3 className="mt-1 text-xl font-black">Aguardando execução pela Operação</h3><p className="mt-2 font-semibold text-gray-600">A Qualidade não precisa realizar nenhum preenchimento agora. A inspeção será liberada automaticamente quando o operador enviar o checklist de higienização.</p></section>}
         {!isRg003 || savedAt ? (
           <AssinaturasRegistro registro={effectiveRegistro} />
         ) : null}

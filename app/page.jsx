@@ -350,12 +350,13 @@ export default function HomePage() {
             <Rg005SubregistroForm
               key={`${selection.linhaId}:${selection.documentoId}:${selected.registro.id}`}
               lineId={selection.linhaId}
-              documentName={
+              documentCode={
                 selection.documentoId === "RG.PROD.ROS.001" &&
                 selection.subregistroId === "higienizacao"
                   ? "RG.QUA.BA.003"
-                  : selected.documento?.nome
+                  : selection.documentoId
               }
+              documentName={selected.documento?.nome}
               loteId={selected.lote?.id}
               registro={selected.registro}
               subregistro={selected.subregistro}
