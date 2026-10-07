@@ -659,6 +659,16 @@ export function ProductionTraceabilitySetup({
                 })}
                 {!activeWorkflowBatches.length ? <div className="border-2 border-dashed border-slate-300 bg-white p-6 text-center"><b className="block text-slate-700">Nenhuma massa em andamento.</b><span className="mt-1 block text-sm text-slate-500">Use “Preparar massa” quando estiver pronto para iniciar.</span></div> : null}
               </div>
+              {!activeBatch && !readyBatches.length && !batchOpen && data.batches.length ? (
+                <button
+                  type="button"
+                  onClick={openNewBatchForm}
+                  disabled={saving || !recipe}
+                  className="mt-4 min-h-14 w-full bg-cicopal-blue px-5 text-lg font-black text-white transition-colors hover:bg-blue-800 disabled:bg-slate-300"
+                >
+                  Preparar nova massa
+                </button>
+              ) : null}
               {completedBatches.length ? (
                 <details className="mt-4 border border-slate-200 bg-white">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-700 marker:text-cicopal-blue">
