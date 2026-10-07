@@ -3380,8 +3380,7 @@ export function HierarchyNavigator({
                       selected={linha.id === selected.linha?.id}
                       title={linha.nome}
                       meta={`${linha.datas.length} dias com preenchimento - ${countRegistros(linha)} registros`}
-                      onClick={() => selectLinha(linha)}
-                      onDoubleTap={() => {
+                      onClick={() => {
                         selectLinha(linha);
                         onStepChange(hideDates ? 3 : 2);
                       }}
