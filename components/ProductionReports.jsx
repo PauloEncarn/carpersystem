@@ -549,6 +549,33 @@ export function ProductionReports() {
     window.print();
   }
 
+  if (process.env.NEXT_PUBLIC_LEGACY_REPORT_LAYOUT !== "true") return (
+    <ExecutiveProductionReport
+      startDate={startDate}
+      endDate={endDate}
+      setStartDate={setStartDate}
+      setEndDate={setEndDate}
+      lineId={lineId}
+      setLineId={setLineId}
+      product={product}
+      setProduct={setProduct}
+      productOptions={productOptions}
+      status={status}
+      setStatus={setStatus}
+      ncFilter={ncFilter}
+      setNcFilter={setNcFilter}
+      search={search}
+      setSearch={setSearch}
+      filteredData={filteredData}
+      totals={totals}
+      loading={loading}
+      error={error}
+      onLoad={load}
+      onExportCsv={exportCsv}
+      onExportPdf={exportPdf}
+    />
+  );
+
   return (
     <div className="production-report space-y-5">
       <style jsx global>{`
@@ -1280,4 +1307,267 @@ function Status({ ok, text }) {
       {text}
     </span>
   );
+}
+
+function ExecutiveProductionReport({
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
+  lineId,
+  setLineId,
+  product,
+  setProduct,
+  productOptions,
+  status,
+  setStatus,
+  ncFilter,
+  setNcFilter,
+  search,
+  setSearch,
+  filteredData,
+  totals,
+  loading,
+  error,
+  onLoad,
+  onExportCsv,
+  onExportPdf,
+}) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const interruptionCount = filteredData.reduce(
+    (total, cycle) => total + cycle.interruptions.length,
+    0,
+  );
+  const attention = filteredData.filter(
+    (cycle) =>
+      cycle.ncCount > 0 ||
+      cycle.compliance < 100 ||
+      cycle.interruptions.some((item) => !item.encerrada_em),
+  );
+  const hasFilters =
+    lineId !== "ALL" ||
+    product !== "ALL" ||
+    status !== "ALL" ||
+    ncFilter !== "ALL" ||
+    search;
+  const resetFilters = () => {
+    setLineId("ALL");
+    setProduct("ALL");
+    setStatus("ALL");
+    setNcFilter("ALL");
+    setSearch("");
+  };
+
+  return (
+    <div className="production-report space-y-6 pb-8">
+      <style jsx global>{`
+        @media print {
+          @page { size: A4 portrait; margin: 11mm; }
+          body { background: #fff !important; }
+          .report-toolbar, .report-filters, .report-attention { display: none !important; }
+          .report-row details { display: block !important; }
+          .report-row { break-inside: avoid; page-break-inside: avoid; }
+          .production-report details > * { display: block !important; }
+          .production-report details > summary { list-style: none; }
+        }
+        .report-input {
+          min-height: 3rem;
+          width: 100%;
+          border: 1px solid #cbd5e1;
+          background: #fff;
+          padding: 0 0.75rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #0f172a;
+          outline: none;
+        }
+        .report-input:focus { border-color: #2622b5; box-shadow: 0 0 0 2px rgba(38, 34, 181, .12); }
+      `}</style>
+
+      <section className="overflow-hidden border border-slate-200 bg-white">
+        <div className="border-l-8 border-cicopal-blue px-5 py-6 sm:px-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cicopal-blue">
+                Inteligência de produção
+              </p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                Visão operacional do período
+              </h2>
+              <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
+                Acompanhe o que exige decisão agora e abra somente a produção
+                que precisa de investigação.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-600">
+              <span className="border border-slate-200 bg-slate-50 px-3 py-2">
+                {new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} — {new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}
+              </span>
+              <span className="border border-blue-100 bg-blue-50 px-3 py-2 text-cicopal-blue">
+                {filteredData.length} produção(ões)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid divide-y divide-slate-200 border-t border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+          <ExecutiveMetric label="Produções" value={totals.cycles} note="no período" />
+          <ExecutiveMetric label="Em andamento" value={totals.active} note="ciclos abertos" />
+          <ExecutiveMetric label="Controles" value={`${totals.compliance}%`} note="cumprimento médio" accent={totals.compliance < 90 ? "amber" : "green"} />
+          <ExecutiveMetric label="Não conformidades" value={totals.ncs} note="ocorrências registradas" accent={totals.ncs ? "red" : "green"} />
+          <ExecutiveMetric label="Interrupções" value={interruptionCount} note="paradas apontadas" accent={interruptionCount ? "amber" : "blue"} />
+        </div>
+      </section>
+
+      <section className="report-toolbar border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <label className="flex min-h-12 max-w-xl flex-1 items-center border border-slate-300 bg-slate-50 px-3 focus-within:border-cicopal-blue focus-within:bg-white">
+            <Search size={18} className="shrink-0 text-slate-400" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="min-w-0 flex-1 border-0 bg-transparent px-2 text-sm font-semibold outline-none"
+              placeholder="Buscar por código, produto, operador ou linha"
+              aria-label="Buscar produção"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="min-h-12 border border-slate-300 px-4 text-sm font-black text-slate-700">
+              {filtersOpen ? "Ocultar filtros" : "Filtros"}
+            </button>
+            <button type="button" onClick={onLoad} className="inline-flex min-h-12 items-center justify-center gap-2 bg-cicopal-blue px-4 text-sm font-black text-white">
+              <RefreshCw size={17} /> Atualizar
+            </button>
+            <button type="button" onClick={onExportCsv} disabled={!filteredData.length} className="inline-flex min-h-12 items-center justify-center gap-2 border border-slate-300 px-4 text-sm font-black text-slate-700 disabled:opacity-40">
+              <Download size={17} /> CSV
+            </button>
+            <button type="button" onClick={onExportPdf} disabled={!filteredData.length} className="inline-flex min-h-12 items-center justify-center gap-2 bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-40">
+              <Printer size={17} /> PDF
+            </button>
+          </div>
+        </div>
+
+        {filtersOpen ? (
+          <div className="report-filters mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 xl:grid-cols-5">
+            <ReportField label="Período inicial"><input type="date" className="report-input" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></ReportField>
+            <ReportField label="Período final"><input type="date" className="report-input" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></ReportField>
+            <ReportField label="Linha"><select className="report-input" value={lineId} onChange={(event) => { setLineId(event.target.value); setProduct("ALL"); }}><option value="ALL">Todas as linhas</option>{Object.entries(lines).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select></ReportField>
+            <ReportField label="Produto"><select className="report-input" value={product} onChange={(event) => setProduct(event.target.value)}><option value="ALL">Todos os produtos</option>{productOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></ReportField>
+            <div className="grid grid-cols-2 gap-3">
+              <ReportField label="Situação"><select className="report-input" value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">Todas</option><option value="ACTIVE">Em andamento</option><option value="FINISHED">Encerradas</option></select></ReportField>
+              <ReportField label="NC"><select className="report-input" value={ncFilter} onChange={(event) => setNcFilter(event.target.value)}><option value="ALL">Todas</option><option value="WITH">Com NC</option><option value="WITHOUT">Sem NC</option></select></ReportField>
+            </div>
+            {hasFilters ? <button type="button" onClick={resetFilters} className="min-h-12 self-end text-sm font-black text-cicopal-blue">Limpar filtros</button> : null}
+          </div>
+        ) : null}
+      </section>
+
+      {attention.length ? (
+        <section className="report-attention border border-amber-200 bg-amber-50 px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-800">Atenção necessária</p>
+              <p className="mt-1 font-bold text-slate-900">{attention.length} produção(ões) com pendência, NC ou interrupção.</p>
+            </div>
+            <span className="text-sm font-bold text-amber-900">Priorize os registros destacados abaixo.</span>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="overflow-hidden border border-slate-200 bg-white">
+        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-5 py-5 sm:px-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Produções encontradas</p>
+            <h3 className="mt-1 text-xl font-black text-slate-950">Jornal de produção</h3>
+          </div>
+          <p className="text-sm font-semibold text-slate-500">Selecione uma produção para ver evidências e rastreabilidade.</p>
+        </header>
+
+        {loading ? <div className="flex min-h-72 items-center justify-center gap-3 font-bold text-cicopal-blue"><LoaderCircle className="animate-spin" /> Atualizando indicadores...</div> : null}
+        {!loading && error ? <div className="m-5 border-l-4 border-cicopal-red bg-red-50 p-4 font-bold text-cicopal-red">{error}</div> : null}
+        {!loading && !error && !filteredData.length ? <div className="p-12 text-center"><p className="font-black text-slate-900">Nenhuma produção encontrada.</p><p className="mt-1 text-sm font-medium text-slate-500">Ajuste os filtros ou escolha outro período.</p></div> : null}
+        {!loading && !error && filteredData.length ? <div className="divide-y divide-slate-200">{filteredData.map((cycle) => <ExecutiveCycle key={cycle.id} cycle={cycle} />)}</div> : null}
+      </section>
+    </div>
+  );
+}
+
+function ReportField({ label, children }) {
+  return <label className="block"><span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</span>{children}</label>;
+}
+
+function ExecutiveMetric({ label, value, note, accent = "blue" }) {
+  const colors = {
+    blue: "border-cicopal-blue text-cicopal-blue",
+    green: "border-cicopal-green text-cicopal-green",
+    amber: "border-amber-500 text-amber-700",
+    red: "border-cicopal-red text-cicopal-red",
+  };
+  return <article className="border-l-4 border-transparent bg-white px-5 py-4"><p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p><strong className={`mt-2 block text-3xl font-black tracking-tight ${colors[accent]}`}>{value}</strong><span className="mt-1 block text-xs font-semibold text-slate-500">{note}</span></article>;
+}
+
+function ExecutiveCycle({ cycle }) {
+  const needsAttention = cycle.ncCount > 0 || cycle.compliance < 100 || cycle.interruptions.some((item) => !item.encerrada_em);
+  const processGroups = processRecordGroups(cycle);
+  return (
+    <details className={`report-row group border-l-4 ${needsAttention ? "border-amber-500" : "border-transparent"}`}>
+      <summary className="grid cursor-pointer list-none gap-4 px-5 py-5 transition hover:bg-slate-50 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm font-black text-cicopal-blue">{cycle.metadata?.productionCode ?? cycle.id}</span>
+            <span className={cycle.encerrado_em ? "border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black uppercase text-slate-600" : "bg-cicopal-blue px-2 py-1 text-[10px] font-black uppercase text-white"}>{cycle.encerrado_em ? "Encerrada" : "Em andamento"}</span>
+          </div>
+          <h4 className="mt-2 text-lg font-black text-slate-950">{cycle.line.name} <span className="font-medium text-slate-400">/</span> {cycle.produto ?? "Produto não informado"}</h4>
+          <p className="mt-1 text-sm font-medium text-slate-500">{new Date(cycle.iniciado_em).toLocaleString("pt-BR")} · {cycle.operator}</p>
+        </div>
+        <CycleDatum label="Duração" value={duration(cycle.producao_iniciada_em, cycle.producao_encerrada_em ?? cycle.encerrado_em)} />
+        <CycleDatum label="Controles" value={`${cycle.compliance}%`} note={`${cycle.completedControls}/${cycle.expectedControls} concluídos`} tone={cycle.compliance < 100 ? "amber" : "green"} />
+        <div className="flex items-center gap-2 lg:justify-end">
+          {cycle.ncCount ? <span className="bg-red-50 px-3 py-2 text-xs font-black text-cicopal-red">{cycle.ncCount} NC</span> : <span className="bg-green-50 px-3 py-2 text-xs font-black text-cicopal-green">Sem NC</span>}
+          <span className="border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 group-open:hidden">Detalhar</span>
+          <span className="border border-cicopal-blue bg-blue-50 px-3 py-2 text-xs font-black text-cicopal-blue hidden group-open:inline">Fechar</span>
+        </div>
+      </summary>
+      <div className="border-t border-slate-200 bg-slate-50 px-5 py-5 sm:px-6">
+        <div className="grid gap-3 md:grid-cols-3">
+          <CycleDatum label="Higienização" value={cycle.hygiene ? "Confirmada" : "Pendente"} tone={cycle.hygiene ? "green" : "amber"} />
+          <CycleDatum label="Liberação da qualidade" value={cycle.release ? "Registrada" : "Não registrada"} tone={cycle.release ? "green" : "amber"} />
+          <CycleDatum label="Registros fotográficos" value={cycle.photos} note="evidências anexadas" />
+        </div>
+
+        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+          <ReportDisclosure title={`Qualidade e liberação · ${hygieneReportRecords(cycle).length + releaseReportRecords(cycle).length} registros`}>
+            <ChecklistTechnicalReport title="Higienização" records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização." />
+            <ChecklistTechnicalReport title="Liberação do produto" records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada." />
+          </ReportDisclosure>
+          <ReportDisclosure title={`Rastreabilidade · ${cycle.automationLots.length} lotes · ${cycle.batches.length} bateladas`}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <section><p className="text-xs font-black uppercase text-slate-500">Lotes de insumo</p><div className="mt-2 space-y-2">{cycle.automationLots.length ? cycle.automationLots.map((lot) => <article key={lot.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{lot.input?.nome ?? "Insumo"}</strong><p className="mt-1 text-sm text-slate-600">Lote {lot.lote_fornecedor} · {lot.fornecedor}</p><p className="mt-1 text-xs font-bold text-slate-500">Validade {lot.validade ? new Date(`${lot.validade}T12:00:00`).toLocaleDateString("pt-BR") : "—"}</p></article>) : <EmptyDetail text="Nenhum lote informado." />}</div></section>
+              <section><p className="text-xs font-black uppercase text-slate-500">Bateladas</p><div className="mt-2 space-y-2">{cycle.batches.length ? cycle.batches.map((batch) => <article key={batch.id} className="border border-slate-200 bg-white p-3"><strong>Batelada {batch.numero}</strong><p className="mt-1 text-sm text-slate-600">{batch.status.replaceAll("_", " ")} · {duration(batch.iniciada_em, batch.finalizada_em)}</p><p className="mt-1 text-xs font-bold text-slate-500">{batch.inputs.length} insumo(s) registrado(s)</p></article>) : <EmptyDetail text="Nenhuma batelada registrada." />}</div></section>
+            </div>
+          </ReportDisclosure>
+          <ReportDisclosure title={`Operação · ${cycle.processRecords.length} apontamentos`}>
+            {processGroups.length ? <div className="space-y-2">{processGroups.map(([name, records]) => <article key={name} className="border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{name}</strong><span className="text-xs font-black text-slate-500">{records.length} registro(s)</span></div><p className="mt-2 text-sm text-slate-600">{records.filter((record) => record.status_prazo === "atrasado").length} atraso(s) · {records.filter((record) => record.retificado).length} retificação(ões)</p></article>)}</div> : <EmptyDetail text="Nenhum apontamento operacional." />}
+          </ReportDisclosure>
+          <ReportDisclosure title={`Ocorrências · ${cycle.ncCount} NC · ${cycle.interruptions.length} interrupções`} alert={Boolean(cycle.ncCount || cycle.interruptions.length)}>
+            <div className="space-y-3">{cycle.ncs.map((nc, index) => <article key={nc.id ?? index} className="border-l-4 border-cicopal-red bg-red-50 p-3"><strong className="text-red-900">{nc.item ?? nc.descricao}</strong><p className="mt-1 text-sm text-red-800">{nc.causa ?? nc.descricao ?? "Causa não informada"}</p><p className="mt-1 text-xs font-bold text-red-700">Ação: {nc.acao_tomada ?? nc.acao ?? "Não informada"}</p></article>)}{cycle.interruptions.map((item) => <article key={item.id} className="border-l-4 border-amber-500 bg-amber-50 p-3"><strong className="uppercase text-amber-900">{item.classificacao}</strong><p className="mt-1 text-sm font-semibold text-slate-800">{item.motivo}</p><p className="mt-1 text-xs font-bold text-amber-800">Duração {duration(item.iniciada_em, item.encerrada_em)}</p></article>)}{!cycle.ncs.length && !cycle.interruptions.length ? <EmptyDetail text="Nenhuma ocorrência registrada." /> : null}</div>
+          </ReportDisclosure>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function CycleDatum({ label, value, note, tone = "slate" }) {
+  const colors = { slate: "text-slate-950", green: "text-cicopal-green", amber: "text-amber-700", red: "text-cicopal-red" };
+  return <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</p><strong className={`mt-1 block text-sm font-black ${colors[tone]}`}>{value}</strong>{note ? <span className="mt-1 block text-xs font-medium text-slate-500">{note}</span> : null}</div>;
+}
+
+function ReportDisclosure({ title, children, alert = false }) {
+  return <details className={`border bg-white ${alert ? "border-amber-200" : "border-slate-200"}`}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-black text-slate-900"><span>{title}</span><span className="text-xs text-cicopal-blue">Abrir</span></summary><div className="border-t border-slate-200 p-4">{children}</div></details>;
+}
+
+function EmptyDetail({ text }) {
+  return <p className="border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-500">{text}</p>;
 }
