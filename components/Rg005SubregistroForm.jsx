@@ -995,17 +995,20 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
           Liberação do produto gravada
         </h2>
         <p className="mt-2 font-semibold text-gray-500">
-          Confirmada às {savedAt}. A continuidade da produção foi autorizada.
-          Para alterar este registro, use “Editar registro”.
+          Confirmada às {savedAt}. {onNextStep
+            ? "A continuidade da produção foi autorizada."
+            : "Conclua abaixo o controle de liberação por máquina."} Para alterar este registro, use “Editar registro”.
         </p>
-        <button
-          type="button"
-          className="mt-6 inline-flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-6 text-lg font-bold text-white"
-          onClick={onNextStep}
-        >
-          Voltar ao fluxo para iniciar produção
-          <ArrowRight size={22} />
-        </button>
+        {onNextStep ? (
+          <button
+            type="button"
+            className="mt-6 inline-flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-6 text-lg font-bold text-white"
+            onClick={onNextStep}
+          >
+            Voltar ao fluxo para iniciar produção
+            <ArrowRight size={22} />
+          </button>
+        ) : null}
         </section>
       </>
     );
@@ -1441,7 +1444,7 @@ function MachineHourlySections({
   );
 }
 
-function ProductEvaluationTabletFlow({
+export function ProductEvaluationTabletFlow({
   columns,
   machines,
   gramaturas,
@@ -3876,7 +3879,7 @@ export function Rg005SubregistroForm({
   });
   const isHourlyRg003 =
     isRg003 &&
-    ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
+    ["produto_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
   const persistedFillings = persistedRecord?.fillings ?? [];
   const fillingHour = (item) =>
     item.subregistro?.apontamentos?.[0]?.horario ??
@@ -4084,8 +4087,8 @@ export function Rg005SubregistroForm({
       !(await requestConfirmation({
         title: "Liberar produto?",
         description:
-          "Ao confirmar, a liberação autorizará a continuidade da produção. O início real permanece vinculado ao preparo da primeira massa.",
-        confirmLabel: "Liberar produto",
+          "Ao confirmar, o controle de liberação será gravado neste horário. O início real permanece vinculado ao preparo da primeira massa.",
+        confirmLabel: "Gravar controle",
       }))
     )
       return false;
@@ -4296,7 +4299,7 @@ export function Rg005SubregistroForm({
     }
     if (
       isRg003 &&
-      ["produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)
+      ["produto_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)
     ) {
       try {
         const storageKey = cycleStorageKey;
@@ -4520,6 +4523,14 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
+        {isRg003 ? (
+          <TabletHourNavigator
+            activeHour={activeHour}
+            onChange={setActiveHour}
+            allowedHours={allowedHours}
+            completedHours={completedHours}
+          />
+        ) : null}
         {isRg003 && openPrerequisiteNcs.length ? (
           <NcResolutionGate
             title="Produto não liberado"
@@ -4538,16 +4549,21 @@ export function Rg005SubregistroForm({
         )}
         {isRg003 ? (
           <TabletRelease
-            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao`}
+            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-${activeHour}`}
             columns={config.liberacaoProdutoColumns}
-            activeHour="Pré-produção"
+            activeHour={activeHourLabel}
             registro={effectiveRegistro}
             onSave={saveProcesso}
-            onNextStep={() =>
-              window.dispatchEvent(
-                new CustomEvent("rg003-advance-process", { detail: {} }),
-              )
-            }
+          />
+          <MachineHourlySections
+            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-maquinas-${activeHour}`}
+            title="Controle de liberação por máquina"
+            machines={config.liberacaoMaquinas ?? config.produtoMaquinas}
+            registro={effectiveRegistro}
+            onSave={saveProcesso}
+            requireMachineSetup
+            gramaturas={config.produtoOptions.gramaturas}
+            activeHour={activeHourLabel}
           />
         ) : (
           <LiberacaoProdutoTable
@@ -4593,18 +4609,11 @@ export function Rg005SubregistroForm({
             onEdit={() => setEditMode(true)}
           />
         ) : isRg003 ? (
-          <ProductEvaluationTabletFlow
+          <TabletProductMetrics
             key={activeHour}
             columns={configuredProductColumns}
-            machines={config.produtoMaquinas}
-            gramaturas={config.produtoOptions.gramaturas}
-            registro={effectiveRegistro}
             activeHour={activeHourLabel}
-            activeSlot={activeHour}
             onSave={saveProcesso}
-            initialConfiguration={latestMachineConfiguration}
-            cycleId={cycleContext?.id}
-            operatorId={effectiveRegistro.operadorId}
           />
         ) : (
           <>
