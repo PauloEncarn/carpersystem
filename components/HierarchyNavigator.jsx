@@ -2324,8 +2324,9 @@ function Rg003ProductionControl({
 
           <section className="production-app-card bg-white p-4 md:p-5">
             <div className="mb-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-cicopal-blue">Acesso rápido</p><h3 className="mt-1 text-xl font-black text-gray-950">Registros da hora</h3></div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
+                ["produto_liberacao", "Controle de liberação por máquina", "release"],
                 ["produto_avaliacao", "Avaliação do produto", "product"],
                 ["processo", "Avaliação do processo", "process"],
                 ["fotografico", "Registro fotográfico", "photo"],
