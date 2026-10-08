@@ -1886,6 +1886,7 @@ export function ProductEvaluationTabletFlow({
 }
 
 function ProcessEvaluationTabletFlow({
+  title = "Avaliação do processo",
   machines,
   gramaturas,
   registro,
@@ -2143,7 +2144,7 @@ function ProcessEvaluationTabletFlow({
         </button>
         <MachineEvaluationWizard
           key={`${activeHour}-${currentMachine.label}`}
-          title={`Avaliação do processo · Máquina ${currentMachineNumber} · ${machineGrams[currentMachine.label]}`}
+          title={`${title} · Máquina ${currentMachineNumber} · ${machineGrams[currentMachine.label]}`}
           machines={[currentMachine]}
           activeHour={activeHour}
           onSave={(payload) => {
@@ -2171,7 +2172,7 @@ function ProcessEvaluationTabletFlow({
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-5">
         <div>
           <p className="text-xs font-black uppercase tracking-wider text-cicopal-blue">
-            Avaliação do processo · {activeHour}
+            {title} · {activeHour}
           </p>
           <h3 className="mt-1 text-2xl font-black text-gray-950">
             Máquinas em operação
@@ -4548,15 +4549,17 @@ export function Rg005SubregistroForm({
           />
         )}
         {isRg003 ? (
-          <MachineHourlySections
+          <ProcessEvaluationTabletFlow
             key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-maquinas-${activeHour}`}
             title="Controle de liberação por máquina"
             machines={config.liberacaoMaquinas ?? config.produtoMaquinas}
+            gramaturas={config.produtoOptions.gramaturas}
             registro={effectiveRegistro}
             onSave={saveProcesso}
-            requireMachineSetup
-            gramaturas={config.produtoOptions.gramaturas}
             activeHour={activeHourLabel}
+            activeSlot={activeHour}
+            initialConfiguration={latestMachineConfiguration}
+            cycleId={cycleContext?.id}
           />
         ) : (
           <LiberacaoProdutoTable
