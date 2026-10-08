@@ -38,6 +38,7 @@ import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
 import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
 import {
   finishActiveBatch,
+  loadProductionTraceability,
   savePackerConfiguration,
 } from "@/lib/productionTraceabilityPersistence";
 import { documentsForProfile } from "@/lib/profileAccess";
@@ -1398,6 +1399,7 @@ function Rg003ProductionControl({
   const [resumeData, setResumeData] = useState({ observacao: "", fotoDepois: "" });
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseData, setPauseData] = useState({ motivo: "", fotoAntes: "" });
+  const repairedProductionStartRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -1482,6 +1484,60 @@ function Rg003ProductionControl({
     return () =>
       window.removeEventListener("rg003-cycle-updated", syncCycleFromProcess);
   }, [cycle?.id]);
+
+  useEffect(() => {
+    const isWaitingForStart = ["awaiting_release", "ready"].includes(
+      cycle?.status,
+    );
+    if (
+      !cycle?.id ||
+      !isWaitingForStart ||
+      cycle.productionStartedAt ||
+      repairedProductionStartRef.current === cycle.id
+    )
+      return;
+
+    let active = true;
+    loadProductionTraceability(cycle.id)
+      .then(async ({ batches }) => {
+        if (!active || !batches?.some((batch) => batch.status === "em_consumo"))
+          return;
+        repairedProductionStartRef.current = cycle.id;
+        const productionStartedAt = new Date().toISOString();
+        const nextCycle = {
+          ...cycle,
+          status: "producing",
+          productionStartedAt,
+          stageStartedAt: productionStartedAt,
+          events: [
+            ...(cycle.events ?? []),
+            {
+              id: `massa-recuperada-${Date.now()}`,
+              label: "Produção iniciada com massa já enviada ao tombador",
+              at: productionStartedAt,
+              operator: operatorName,
+            },
+          ],
+        };
+        store(nextCycle);
+        await persistCycleTransition({
+          cycle: nextCycle,
+          status: "producing",
+          description: "Produção iniciada com massa já enviada ao tombador",
+          operatorId,
+          operatorName,
+          activeAction: null,
+        });
+        if (active) setSyncState("online");
+      })
+      .catch(() => {
+        repairedProductionStartRef.current = null;
+        if (active) setSyncState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [cycle, operatorId, operatorName]);
 
   function store(next) {
     setCycle(next);
