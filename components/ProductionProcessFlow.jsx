@@ -117,6 +117,14 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
   const [problemResolution, setProblemResolution] = useState(null);
   const [scheduleConfirmation, setScheduleConfirmation] = useState(null);
   const [workspace, setWorkspace] = useState("overview");
+  const [compactPackerForm, setCompactPackerForm] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const sync = () => setCompactPackerForm(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   const selected = rows.find((item) => item.codigo === selectedCode);
   const config = ROSCA_SUBPROCESSES.find((item) => item.code === selectedCode);
   const parameter = config?.parameters[fieldIndex];
@@ -124,6 +132,8 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     ["forno", "empacotamento"].includes(selectedCode) && parameter?.group
       ? config.parameters.filter((item) => item.group === parameter.group)
       : [];
+  const isMobilePackerWizard =
+    selectedCode === "empacotamento" && compactPackerForm;
   const selectedMachineNumber = parameter?.group?.match(/^Máquina (\d+)$/)?.[1];
   const selectedMachineAvailability = selectedMachineNumber
     ? packerAvailability(Number(selectedMachineNumber), scheduledAt)
@@ -458,7 +468,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     setMessage("");
   }
   function nextField() {
-    const currentParameters = groupedParameters.length
+    const currentParameters = groupedParameters.length && !isMobilePackerWizard
       ? groupedParameters
       : [parameter];
     if (
@@ -467,7 +477,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     )
       return setMessage("Informe este valor para continuar.");
     setMessage("");
-    const step = groupedParameters.length ? groupedParameters.length : 1;
+    const step =
+      groupedParameters.length && !isMobilePackerWizard
+        ? groupedParameters.length
+        : 1;
     let nextIndex = fieldIndex + step;
     if (selectedCode === "empacotamento") {
       while (
@@ -482,7 +495,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
     else setReview(true);
   }
   function previousField() {
-    const step = groupedParameters.length ? groupedParameters.length : 1;
+    const step =
+      groupedParameters.length && !isMobilePackerWizard
+        ? groupedParameters.length
+        : 1;
     let previousIndex = fieldIndex - step;
     if (selectedCode === "empacotamento") {
       while (
@@ -1365,10 +1381,17 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         {config.parameters.length}
                       </p>
                       <h4 className="mt-2 text-2xl font-black">
-                        {groupedParameters.length
+                        {isMobilePackerWizard
+                          ? parameter.group
+                          : groupedParameters.length
                           ? parameter.group
                           : parameter.label}
                       </h4>
+                      {isMobilePackerWizard ? (
+                        <p className="mt-1 text-base font-bold text-slate-600">
+                          {parameter.label.replace(/^Máquina \d+ · /, "")}
+                        </p>
+                      ) : null}
                       {parameter.hint ? (
                         <p className="mt-2 font-semibold text-gray-600">
                           {parameter.hint}
@@ -1416,7 +1439,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                                 : "Não há leitura para registrar neste horário."}
                             </p>
                           </div>
-                        ) : groupedParameters.length ? (
+                        ) : groupedParameters.length && !isMobilePackerWizard ? (
                           <div
                             className={`grid gap-4 ${selectedCode === "forno" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
                           >
@@ -1679,7 +1702,9 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                       onClick={nextField}
                       className="flex min-h-16 items-center justify-center gap-2 bg-cicopal-blue px-5 font-black text-white"
                     >
-                      Continuar
+                      {isMobilePackerWizard && fieldIndex % 3 === 2
+                        ? `Finalizar máquina ${Math.floor(fieldIndex / 3) + 1}`
+                        : "Continuar"}
                       <ChevronRight />
                     </button>
                   )}
