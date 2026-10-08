@@ -444,6 +444,74 @@ function OvenZonesChart({ process }) {
     </article>
   );
 }
+function OvenZoneCharts({ process }) {
+  const history = [...(process?.recordHistory ?? [])].sort(
+    (a, b) => new Date(a.horario_referencia) - new Date(b.horario_referencia),
+  );
+  const zones = Array.from({ length: 7 }, (_, index) => {
+    const zone = index + 1;
+    const samples = history
+      .map((record) => {
+        const setpoint = Number(record.valores?.[`zona_${zone}_setpoint`]);
+        const real = Number(record.valores?.[`zona_${zone}_real`]);
+        return {
+          label: time(record.horario_referencia),
+          setpoint: Number.isFinite(setpoint) ? setpoint : null,
+          real: Number.isFinite(real) ? real : null,
+        };
+      })
+      .filter((sample) => sample.setpoint !== null || sample.real !== null);
+    return { zone, samples };
+  }).filter((item) => item.samples.length);
+  if (!zones.length) return <OvenZonesChart process={process} />;
+  return (
+    <section className="overflow-hidden border border-slate-200 bg-white">
+      <header className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">Forno · curvas térmicas</p>
+          <h4 className="mt-1 text-xl font-black text-slate-950">Setpoint e real por zona</h4>
+          <p className="mt-1 text-sm font-semibold text-slate-500">Cada gráfico acompanha uma zona ao longo dos apontamentos confirmados.</p>
+        </div>
+        <div className="flex gap-2 text-xs font-black uppercase">
+          <span className="inline-flex items-center gap-2 bg-white px-3 py-2 text-cicopal-blue"><i className="h-0.5 w-5 border-t-2 border-dashed border-cicopal-blue" /> Setpoint</span>
+          <span className="inline-flex items-center gap-2 bg-white px-3 py-2 text-rose-700"><i className="h-0.5 w-5 bg-rose-600" /> Real</span>
+        </div>
+      </header>
+      <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-3">
+        {zones.map(({ zone, samples }) => {
+          const values = samples.flatMap((sample) => [sample.setpoint, sample.real]).filter(Number.isFinite);
+          const min = Math.floor((Math.min(...values) - 8) / 10) * 10;
+          const max = Math.ceil((Math.max(...values) + 8) / 10) * 10 || min + 10;
+          const yFor = (value) => 124 - ((value - min) / Math.max(1, max - min)) * 90;
+          const xFor = (index) => 32 + (index * 242) / Math.max(1, samples.length - 1);
+          const lineFor = (key) => samples
+            .filter((sample) => sample[key] !== null)
+            .map((sample, index) => `${xFor(index)},${yFor(sample[key])}`)
+            .join(" ");
+          const latest = samples.at(-1);
+          const delta = latest.setpoint !== null && latest.real !== null
+            ? latest.real - latest.setpoint
+            : null;
+          return (
+            <article key={zone} className="bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-wider text-slate-500">Zona {zone}</p><h5 className="mt-1 text-lg font-black text-slate-950">{latest.real ?? "—"} °C <span className="text-sm text-slate-400">real</span></h5></div>
+                <div className="text-right"><small className="block font-black uppercase text-slate-400">Desvio</small><b className={delta !== null && Math.abs(delta) > 5 ? "text-rose-700" : "text-emerald-700"}>{delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} °C`}</b></div>
+              </div>
+              <svg viewBox="0 0 300 154" className="mt-3 w-full" role="img" aria-label={`Zona ${zone}: setpoint e temperatura real`}>
+                {[0, 1, 2].map((step) => { const value = min + ((max - min) * step) / 2; const y = yFor(value); return <g key={step}><line x1="32" y1={y} x2="274" y2={y} stroke="#e2e8f0" /><text x="26" y={y + 3} textAnchor="end" fontSize="8" fill="#64748b">{value}°</text></g>; })}
+                <polyline points={lineFor("setpoint")} fill="none" stroke="#202476" strokeWidth="2.5" strokeDasharray="6 4" />
+                <polyline points={lineFor("real")} fill="none" stroke="#e30613" strokeWidth="3" strokeLinejoin="round" />
+                {samples.map((sample, index) => <g key={`${sample.label}-${index}`}><circle cx={xFor(index)} cy={sample.setpoint === null ? 124 : yFor(sample.setpoint)} r="3" fill="#202476" /><circle cx={xFor(index)} cy={sample.real === null ? 124 : yFor(sample.real)} r="3.5" fill="#e30613" /><text x={xFor(index)} y="147" textAnchor="middle" fontSize="8" fill="#64748b">{sample.label}</text></g>)}
+              </svg>
+              <p className="mt-2 border-t border-slate-100 pt-2 text-xs font-bold text-slate-500">Último setpoint: <span className="text-cicopal-blue">{latest.setpoint ?? "—"} °C</span> · leitura {latest.label}</p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 function qualityControlSeries(records = []) {
   const groups = new Map();
   [...records]
@@ -979,7 +1047,7 @@ export function FactorySupervision({ variant = "classic" }) {
                     Leituras consolidadas por processo e horário de apontamento.
                   </p>
                   <div className="mt-3 space-y-3">
-                    <OvenZonesChart process={selectedOvenProcess} />
+                    <OvenZoneCharts process={selectedOvenProcess} />
                     {productionControlSeries(selected.cycle.productionProcesses).map(({ process, metric }) => (
                       <ControlChart
                         key={`${process.id}-${metric.key}`}
