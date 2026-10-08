@@ -283,19 +283,20 @@ function ControlChart({ process, now, metricOverride = null }) {
       )
     : 0;
   return (
-    <article className="border bg-white p-3">
-      <div className="flex items-start justify-between gap-3">
+    <article className="overflow-hidden border border-slate-200 bg-white">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div>
-          <p className="text-xs font-black uppercase text-gray-500">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">
             {process.nome}
           </p>
-          <h4 className="font-black text-cicopal-blue">{metric.label}</h4>
+          <h4 className="mt-1 font-black text-slate-950">{metric.label}</h4>
         </div>
-        <b className="text-xl">
+        <b className="text-right text-lg text-cicopal-blue">
           {rate.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}{" "}
-          <small>{metric.unit}</small>
+          <small className="block text-[10px] uppercase text-slate-500">{metric.unit || "última leitura"}</small>
         </b>
       </div>
+      <div className="p-3">
       <svg
         viewBox="0 0 560 185"
         className="mt-2 w-full"
@@ -350,6 +351,7 @@ function ControlChart({ process, now, metricOverride = null }) {
           );
         })}
       </svg>
+      </div>
       {metric.ranges ? (
         <div className="mb-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black uppercase">
           <span className="bg-red-100 px-2 py-1 text-red-800">Fora do limite</span>
@@ -357,19 +359,19 @@ function ControlChart({ process, now, metricOverride = null }) {
           <span className="bg-green-100 px-2 py-1 text-green-800">Faixa ideal</span>
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-2 bg-slate-950 p-3 text-white">
-        <span>
-          <small className="block text-slate-400">ESTIMADO DESDE ZERO</small>
-          <b>
+      <div className="grid border-t border-slate-200 sm:grid-cols-2">
+        <span className="border-b border-slate-200 px-4 py-3 sm:border-b-0 sm:border-r">
+          <small className="block font-black uppercase text-slate-500">Estimado desde zero</small>
+          <b className="mt-1 block text-slate-950">
             {(rate * elapsedMinutes).toLocaleString("pt-BR", {
               maximumFractionDigits: 1,
             })}{" "}
             {metric.unit.replace("/min", "")}
           </b>
         </span>
-        <span>
-          <small className="block text-slate-400">MINUTOS DECORRIDOS</small>
-          <b>{Math.floor(elapsedMinutes)} min</b>
+        <span className="px-4 py-3">
+          <small className="block font-black uppercase text-slate-500">Último intervalo</small>
+          <b className="mt-1 block text-slate-950">{Math.floor(elapsedMinutes)} min</b>
         </span>
       </div>
     </article>
@@ -1046,8 +1048,12 @@ export function FactorySupervision({ variant = "classic" }) {
                   <p className="mt-1 text-xs font-bold text-gray-500">
                     Leituras consolidadas por processo e horário de apontamento.
                   </p>
-                  <div className="mt-3 space-y-3">
-                    <OvenZoneCharts process={selectedOvenProcess} />
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    {selectedOvenProcess ? (
+                      <div className="lg:col-span-2">
+                        <OvenZoneCharts process={selectedOvenProcess} />
+                      </div>
+                    ) : null}
                     {productionControlSeries(selected.cycle.productionProcesses).map(({ process, metric }) => (
                       <ControlChart
                         key={`${process.id}-${metric.key}`}
@@ -1068,7 +1074,7 @@ export function FactorySupervision({ variant = "classic" }) {
                   <p className="mt-1 text-xs font-bold text-gray-500">
                     Faixas provisórias para visualização. Os limites definitivos poderão ser configurados por produto.
                   </p>
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     {qualityControlSeries(selected.records).map(({ process, metric }) => (
                       <ControlChart
                         key={process.id}
