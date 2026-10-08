@@ -38,7 +38,6 @@ import { ProductionProcessFlow } from "@/components/ProductionProcessFlow";
 import { finishCycleSubprocesses } from "@/lib/productionProcessPersistence";
 import {
   finishActiveBatch,
-  loadProductionTraceability,
   savePackerConfiguration,
 } from "@/lib/productionTraceabilityPersistence";
 import { documentsForProfile } from "@/lib/profileAccess";
@@ -1491,6 +1490,8 @@ function Rg003ProductionControl({
     );
     if (
       !cycle?.id ||
+      !isSupabaseConfigured ||
+      !supabase ||
       !isWaitingForStart ||
       cycle.productionStartedAt ||
       repairedProductionStartRef.current === cycle.id
@@ -1498,12 +1499,22 @@ function Rg003ProductionControl({
       return;
 
     let active = true;
-    loadProductionTraceability(cycle.id)
-      .then(async ({ batches }) => {
-        if (!active || !batches?.some((batch) => batch.status === "em_consumo"))
+    supabase
+      .from("bateladas")
+      .select("id,status,consumo_iniciado_em,enviada_tombador_em")
+      .eq("ciclo_id", cycle.id)
+      .in("status", ["em_consumo", "enviada_tombador"])
+      .limit(1)
+      .then(async ({ data: batches, error }) => {
+        if (error) throw error;
+        const batchAtTumbler = batches?.[0];
+        if (!active || !batchAtTumbler)
           return;
         repairedProductionStartRef.current = cycle.id;
-        const productionStartedAt = new Date().toISOString();
+        const productionStartedAt =
+          batchAtTumbler.enviada_tombador_em ??
+          batchAtTumbler.consumo_iniciado_em ??
+          new Date().toISOString();
         const nextCycle = {
           ...cycle,
           status: "producing",
