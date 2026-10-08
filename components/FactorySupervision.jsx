@@ -142,11 +142,25 @@ function inShift(value, selectedShift) {
   return selectedShift === "all" || shiftFor(value) === selectedShift;
 }
 function humanizeMetric(key = "") {
+  const labels = {
+    peso_10_lado_operacional: "Peso · lado operacional",
+    peso_10_lado_nao_operacional: "Peso · lado não operacional",
+  };
+  if (labels[key]) return labels[key];
   return key
     .replace(/^maq_(\d+)_/, "Máquina $1 · ")
     .replace(/^zona_(\d+)_/, "Zona $1 · ")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function metricUnit(key = "") {
+  if (key.includes("peso_10_") || key.includes("sobrepeso")) return "g";
+  if (key.includes("velocidade_linha_kg_h")) return "kg/h";
+  if (key.includes("velocidade")) return "m/min";
+  if (key.includes("pacotes_min")) return "pacotes/min";
+  if (key.includes("caixas_min")) return "caixas/min";
+  if (key.includes("umidade")) return "%";
+  return "";
 }
 function inferredRanges(values = []) {
   const numeric = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -155,6 +169,11 @@ function inferredRanges(values = []) {
   return [center - span * 2, center - span, center + span, center + span * 2];
 }
 function productionControlSeries(processes = []) {
+  const cutMetrics = new Set([
+    "peso_10_lado_operacional",
+    "peso_10_lado_nao_operacional",
+    "velocidade_linha_kg_h",
+  ]);
   return processes.flatMap((process) => {
     const keys = new Set();
     (process.recordHistory ?? []).forEach((record) =>
@@ -165,7 +184,8 @@ function productionControlSeries(processes = []) {
     return [...keys]
       .filter(
         (key) =>
-          !(process.codigo === "forno" && /^zona_\d+_(setpoint|real)$/.test(key)),
+          !(process.codigo === "forno" && /^zona_\d+_(setpoint|real)$/.test(key)) &&
+          (process.codigo !== "corte_fio" || cutMetrics.has(key)),
       )
       .map((key) => {
       const values = (process.recordHistory ?? []).map((record) =>
@@ -176,7 +196,9 @@ function productionControlSeries(processes = []) {
         metric: {
           key,
           label: humanizeMetric(key),
-          unit: "",
+          unit: controlMetric[process.codigo]?.key === key
+            ? controlMetric[process.codigo].unit
+            : metricUnit(key),
           divisor: 1,
           ranges: controlMetric[process.codigo]?.key === key
             ? controlMetric[process.codigo].ranges
@@ -185,6 +207,14 @@ function productionControlSeries(processes = []) {
       };
       });
   });
+}
+function machineGroupForMetric(process, key) {
+  const machine = key.match(/^maq_(\d+)_/);
+  if (!machine) return null;
+  const number = machine[1];
+  return process.codigo === "encaixotamento"
+    ? `Encaixotadeira ${number}`
+    : `Máquina ${number}`;
 }
 function operationalProblems(processes = []) {
   return processes
@@ -850,10 +880,25 @@ export function FactorySupervision({ variant = "classic" }) {
     ),
   ]
     .filter(Boolean)
-    .map((process) => ({
-      process,
-      charts: productionSeries.filter((item) => item.process.id === process.id),
-    }))
+    .map((process) => {
+      const charts = productionSeries.filter((item) => item.process.id === process.id);
+      const machineGroups = charts.reduce((groups, chart) => {
+        const label = machineGroupForMetric(process, chart.metric.key);
+        if (!label) return groups;
+        const group = groups.find((item) => item.label === label);
+        if (group) group.charts.push(chart);
+        else groups.push({ label, charts: [chart] });
+        return groups;
+      }, []);
+      return {
+        process,
+        charts,
+        generalCharts: charts.filter(
+          (chart) => !machineGroupForMetric(process, chart.metric.key),
+        ),
+        machineGroups,
+      };
+    })
     .filter(
       ({ process, charts }) =>
         charts.length || (process.codigo === "forno" && selectedOvenProcess),
@@ -1075,7 +1120,7 @@ export function FactorySupervision({ variant = "classic" }) {
                     Parâmetros organizados na sequência operacional da linha.
                   </p>
                   <div className="mt-5 space-y-7">
-                    {productionSections.map(({ process, charts }) => (
+                    {productionSections.map(({ process, charts, generalCharts, machineGroups }) => (
                       <section key={process.id} className="border-t-2 border-cicopal-blue pt-4">
                         <header className="mb-3 flex items-baseline justify-between gap-3">
                           <div>
@@ -1084,9 +1129,9 @@ export function FactorySupervision({ variant = "classic" }) {
                           </div>
                           <span className="text-xs font-bold text-slate-500">{charts.length} {charts.length === 1 ? "indicador" : "indicadores"}</span>
                         </header>
-                        {charts.length ? (
+                        {generalCharts.length ? (
                           <div className="grid gap-3 lg:grid-cols-2">
-                            {charts.map(({ metric }) => (
+                            {generalCharts.map(({ metric }) => (
                               <ControlChart
                                 key={`${process.id}-${metric.key}`}
                                 process={process}
@@ -1096,6 +1141,24 @@ export function FactorySupervision({ variant = "classic" }) {
                             ))}
                           </div>
                         ) : null}
+                        {machineGroups.map(({ label, charts: machineCharts }) => (
+                          <section key={label} className="mt-4 border-l-4 border-slate-300 pl-4">
+                            <div className="mb-3 flex items-baseline justify-between gap-3">
+                              <h4 className="font-black text-slate-900">{label}</h4>
+                              <span className="text-xs font-bold text-slate-500">{machineCharts.length} {machineCharts.length === 1 ? "leitura" : "leituras"}</span>
+                            </div>
+                            <div className="grid gap-3 lg:grid-cols-2">
+                              {machineCharts.map(({ metric }) => (
+                                <ControlChart
+                                  key={`${process.id}-${metric.key}`}
+                                  process={process}
+                                  metricOverride={metric}
+                                  now={now}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        ))}
                         {process.codigo === "forno" ? (
                           <div className="mt-3">
                             <OvenZoneCharts process={process} />
