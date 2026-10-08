@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, Cog, PackagePlus, Plus, Power, Save } from "lucide-react";
 import {
   createBatch,
@@ -59,6 +59,7 @@ export function ProductionTraceabilitySetup({
   const [batchDeviationReason, setBatchDeviationReason] = useState("");
   const [batchDeviationConfirm, setBatchDeviationConfirm] = useState(false);
   const [batchClock, setBatchClock] = useState(() => new Date());
+  const resumedProductionRef = useRef(null);
   const [packers, setPackers] = useState(
     Array.from({ length: 4 }, (_, index) => ({
       machine: index + 1,
@@ -80,6 +81,51 @@ export function ProductionTraceabilitySetup({
     const timer = window.setInterval(() => setBatchClock(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+  async function markProductionStarted() {
+    const productionStartedAt = new Date().toISOString();
+    const nextCycle = {
+      ...cycle,
+      status: "producing",
+      productionStartedAt,
+      stageStartedAt: productionStartedAt,
+      events: [
+        ...(cycle.events ?? []),
+        {
+          id: `massa-${Date.now()}`,
+          label: "Produção iniciada com o envio da primeira massa ao tombador",
+          at: productionStartedAt,
+        },
+      ],
+    };
+    window.localStorage.setItem("carper_rg003_cycle_ROS", JSON.stringify(nextCycle));
+    window.dispatchEvent(new CustomEvent("rg003-cycle-updated", { detail: nextCycle }));
+    await persistCycleTransition({
+      cycle: nextCycle,
+      status: "producing",
+      description: "Produção iniciada com o envio da primeira massa ao tombador",
+      operatorId,
+      operatorName: "",
+      activeAction: null,
+    });
+  }
+  useEffect(() => {
+    const hasMassAtTumbler = data?.batches?.some(
+      (batch) => batch.status === "em_consumo",
+    );
+    const productionPending = ["ready", "awaiting_release"].includes(cycle.status);
+    if (
+      !hasMassAtTumbler ||
+      !productionPending ||
+      cycle.productionStartedAt ||
+      resumedProductionRef.current === cycle.id
+    )
+      return;
+    resumedProductionRef.current = cycle.id;
+    markProductionStarted().catch((error) => {
+      resumedProductionRef.current = null;
+      setMessage(error.message);
+    });
+  }, [data?.batches, cycle.id, cycle.productionStartedAt, cycle.status]);
   const activeLots = useMemo(
     () => (data?.lots ?? []).filter((item) => !item.encerrado_em),
     [data],
@@ -276,38 +322,6 @@ export function ProductionTraceabilitySetup({
           ? `Desvio da fórmula: ${batchDeviationReason.trim()}`
           : "Fórmula padrão confirmada",
       });
-      if (!cycle.productionStartedAt) {
-        const productionStartedAt = new Date().toISOString();
-        const nextCycle = {
-          ...cycle,
-          status: "producing",
-          productionStartedAt,
-          stageStartedAt: productionStartedAt,
-          events: [
-            ...(cycle.events ?? []),
-            {
-              id: `massa-${Date.now()}`,
-              label: "Produção iniciada com o preparo da primeira massa",
-              at: productionStartedAt,
-            },
-          ],
-        };
-        window.localStorage.setItem(
-          "carper_rg003_cycle_ROS",
-          JSON.stringify(nextCycle),
-        );
-        window.dispatchEvent(
-          new CustomEvent("rg003-cycle-updated", { detail: nextCycle }),
-        );
-        await persistCycleTransition({
-          cycle: nextCycle,
-          status: "producing",
-          description: "Produção iniciada com o preparo da primeira massa",
-          operatorId,
-          operatorName: "",
-          activeAction: null,
-        });
-      }
       await reload();
       setBatchOpen(false);
       setBatchReview(false);
@@ -397,6 +411,9 @@ export function ProductionTraceabilitySetup({
     setSaving(true);
     try {
       await startBatchConsumption(batchId, cycle.id, operatorId);
+      if (!cycle.productionStartedAt) {
+        await markProductionStarted();
+      }
       await reload();
       openNewBatchForm();
       setMessage(

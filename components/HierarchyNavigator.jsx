@@ -2103,8 +2103,8 @@ function Rg003ProductionControl({
                 ? "Parar produção"
                 : cycle?.status === "blocked" && cycle?.activePause
                   ? "Retomar produção"
-                : cycle?.status === "blocked" && cycle?.activePause
-                  ? "Retomar produção"
+                : cycle?.status === "ready"
+                  ? "Aguardando envio da primeira massa ao tombador"
                   : hygieneDone
                     ? "Aguardando preparo da primeira massa"
                     : "Aguardando higienização"}
