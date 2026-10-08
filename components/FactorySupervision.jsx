@@ -832,6 +832,32 @@ export function FactorySupervision({ variant = "classic" }) {
   const selectedOvenProcess = selected?.cycle?.productionProcesses?.find(
     (process) => process.codigo === "forno",
   );
+  const productionSeries = productionControlSeries(
+    selected?.cycle?.productionProcesses ?? [],
+  );
+  const productionProcessOrder = [
+    "corte_fio",
+    "forno",
+    "empacotamento",
+    "encaixotamento",
+  ];
+  const productionSections = [
+    ...productionProcessOrder.map((codigo) =>
+      selected?.cycle?.productionProcesses?.find((process) => process.codigo === codigo),
+    ),
+    ...(selected?.cycle?.productionProcesses ?? []).filter(
+      (process) => !productionProcessOrder.includes(process.codigo),
+    ),
+  ]
+    .filter(Boolean)
+    .map((process) => ({
+      process,
+      charts: productionSeries.filter((item) => item.process.id === process.id),
+    }))
+    .filter(
+      ({ process, charts }) =>
+        charts.length || (process.codigo === "forno" && selectedOvenProcess),
+    );
   const selectedSpecifications = selected?.cycle?.specifications?.length
     ? selected.cycle.specifications
     : makeTestSpecifications(
@@ -1035,41 +1061,56 @@ export function FactorySupervision({ variant = "classic" }) {
                 </section>
               ) : <>
               <nav className="grid grid-cols-2 gap-1 bg-slate-200 p-1" aria-label="Dados completos da linha">
-                {[["industrial","Dados industriais"],["incidents","NC e problemas"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-14 px-3 font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
+                {[["industrial","Produção e Qualidade"],["incidents","NC e problemas"]].map(([id,label]) => <button key={id} type="button" onClick={() => setDetailTab(id)} className={`min-h-14 px-3 font-black ${detailTab === id ? "bg-cicopal-blue text-white" : "bg-white text-gray-600"}`}>{label}</button>)}
               </nav>
               {detailTab === "incidents" ? <section className="grid gap-3 sm:grid-cols-2"><article className="border-l-4 border-cicopal-blue bg-blue-50 p-3"><small className="font-black uppercase text-blue-700">Interrupções</small><b className="block text-xl">{selected.cycle?.interruptions?.length ?? 0}</b><span className="text-xs font-semibold">Pausas, paradas e bloqueios no turno selecionado</span></article><article className="border-l-4 border-violet-500 bg-violet-50 p-3"><small className="font-black uppercase text-violet-700">Responsável</small><b className="block text-lg">{selected.cycle?.shifts?.[0]?.responsavel_nome ?? "Não informado"}</b><span className="text-xs font-semibold">{selected.cycle?.shifts?.length ?? 0} passagem(ns) registrada(s)</span></article>{(selected.cycle?.interruptions ?? []).map((item) => <article key={item.id} className="border border-amber-200 bg-amber-50 p-4"><b className="uppercase text-amber-950">{item.classificacao}</b><p className="mt-1 font-semibold text-gray-700">{item.motivo}</p><small className="mt-2 block font-bold">{time(item.iniciada_em)}–{time(item.encerrada_em)} · Turno {shiftFor(item.iniciada_em)}</small></article>)}</section> : null}
               {detailTab === "incidents" && operationalProblems(selected.cycle?.productionProcesses ?? []).length ? <section><Title icon={<AlertTriangle size={17} />} text="Problemas dos subprocessos" /><div className="mt-3 grid gap-3 lg:grid-cols-2">{operationalProblems(selected.cycle.productionProcesses).map(({ process, problem, resolution }) => <article key={problem.id} className={`border-l-4 p-4 ${resolution ? "border-green-500 bg-green-50" : "border-red-600 bg-red-50"}`}><div className="flex justify-between gap-3"><div><small className="font-black uppercase text-slate-500">{process.nome} · Turno {shiftFor(problem.ocorrido_em)}</small><b className="mt-1 block text-lg text-slate-950">{problem.dados?.equipamento ?? problem.dados?.causa ?? problem.motivo}</b></div><span className={`h-fit px-2 py-1 text-xs font-black uppercase ${resolution ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>{resolution ? "Resolvido" : "Aberto"}</span></div><p className="mt-2 text-sm font-semibold text-slate-700">{problem.dados?.descricao ?? problem.motivo}</p><p className="mt-2 text-xs font-bold text-slate-600">Início {time(problem.ocorrido_em)}{resolution ? ` · resolução ${time(resolution.ocorrido_em)} · ${resolution.dados?.duracao_minutos ?? "—"} min` : " · ainda ativo"}</p>{(problem.dados?.foto_antes || resolution?.dados?.foto_depois) ? <div className="mt-3 grid grid-cols-2 gap-2">{problem.dados?.foto_antes ? <figure><img src={problem.dados.foto_antes} alt="Antes do problema" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Antes</figcaption></figure> : null}{resolution?.dados?.foto_depois ? <figure><img src={resolution.dados.foto_depois} alt="Depois da resolução" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Depois</figcaption></figure> : null}</div> : null}</article>)}</div></section> : null}
-              {detailTab === "industrial" && (selectedOvenProcess || productionControlSeries(selected.cycle?.productionProcesses ?? []).length) ? (
-                <section>
+              {detailTab === "industrial" && productionSections.length ? (
+                <section className="space-y-8">
                   <Title
                     icon={<Gauge size={17} />}
-                    text="Controle operacional da produção"
+                    text="Dados da produção"
                   />
                   <p className="mt-1 text-xs font-bold text-gray-500">
-                    Leituras consolidadas por processo e horário de apontamento.
+                    Parâmetros organizados na sequência operacional da linha.
                   </p>
-                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    {selectedOvenProcess ? (
-                      <div className="lg:col-span-2">
-                        <OvenZoneCharts process={selectedOvenProcess} />
-                      </div>
-                    ) : null}
-                    {productionControlSeries(selected.cycle.productionProcesses).map(({ process, metric }) => (
-                      <ControlChart
-                        key={`${process.id}-${metric.key}`}
-                        process={process}
-                        metricOverride={metric}
-                        now={now}
-                      />
+                  <div className="mt-5 space-y-7">
+                    {productionSections.map(({ process, charts }) => (
+                      <section key={process.id} className="border-t-2 border-cicopal-blue pt-4">
+                        <header className="mb-3 flex items-baseline justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[.16em] text-cicopal-blue">Etapa da linha</p>
+                            <h3 className="mt-1 text-xl font-black text-slate-950">{process.nome}</h3>
+                          </div>
+                          <span className="text-xs font-bold text-slate-500">{charts.length} {charts.length === 1 ? "indicador" : "indicadores"}</span>
+                        </header>
+                        {charts.length ? (
+                          <div className="grid gap-3 lg:grid-cols-2">
+                            {charts.map(({ metric }) => (
+                              <ControlChart
+                                key={`${process.id}-${metric.key}`}
+                                process={process}
+                                metricOverride={metric}
+                                now={now}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                        {process.codigo === "forno" ? (
+                          <div className="mt-3">
+                            <OvenZoneCharts process={process} />
+                          </div>
+                        ) : null}
+                      </section>
                     ))}
                   </div>
                 </section>
               ) : null}
               {detailTab === "industrial" && qualityControlSeries(selected.records).length ? (
-                <section>
+                <section className="border-t-2 border-slate-300 pt-5">
                   <Title
                     icon={<Gauge size={17} />}
-                    text="Gráficos de controle da Qualidade"
+                    text="Dados da qualidade"
                   />
                   <p className="mt-1 text-xs font-bold text-gray-500">
                     Faixas provisórias para visualização. Os limites definitivos poderão ser configurados por produto.
