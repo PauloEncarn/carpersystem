@@ -1274,59 +1274,6 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                       ))}
                     </nav>
                   ) : null}
-                  {selectedCode === "empacotamento" &&
-                  !viewOnly &&
-                  !review ? (
-                    <nav
-                      className="-mx-4 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:grid-rows-2 sm:overflow-visible sm:px-0 sm:pb-0"
-                      aria-label="Empacotadoras"
-                    >
-                      {[1, 2, 3, 4]
-                        .filter(
-                          (machine) =>
-                            !["not_started", "inactive"].includes(
-                              packerAvailability(machine, scheduledAt).state,
-                            ),
-                        )
-                        .map((machine) => {
-                        const availability = packerAvailability(
-                          machine,
-                          scheduledAt,
-                        );
-                        const running = ![
-                          "unavailable",
-                          "inactive",
-                        ].includes(availability.state);
-                        const active = parameter?.group === `Máquina ${machine}`;
-                        const position = {
-                          1: "sm:col-start-1 sm:row-start-1",
-                          2: "sm:col-start-2 sm:row-start-1",
-                          3: "sm:col-start-1 sm:row-start-2",
-                          4: "sm:col-start-2 sm:row-start-2",
-                        }[machine];
-                        return (
-                          <button
-                            key={machine}
-                            type="button"
-                            onClick={() => setFieldIndex((machine - 1) * 3)}
-                            className={`${position} machine-status-card group relative min-h-28 w-40 shrink-0 snap-start overflow-hidden border p-3 text-left transition sm:w-auto sm:shrink ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
-                          >
-                            <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : availability.state === "final" ? "bg-amber-500" : running ? "bg-emerald-500" : "bg-slate-300"}`} />
-                            <span className="flex items-start justify-between gap-2">
-                              <span className={`grid size-8 place-items-center rounded-lg sm:size-9 ${running ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
-                                <Cog size={19} className={running ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
-                              </span>
-                              <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[9px] font-bold uppercase ${running ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
-                                <Power size={10} className="hidden sm:block" /> {running ? "Operando" : "Parada"}
-                              </span>
-                            </span>
-                            <span className="mt-3 block text-[9px] font-black uppercase tracking-wider text-slate-400">Empacotadeira</span>
-                            <b className="block text-base text-slate-950 sm:text-xl">Máquina {String(machine).padStart(2, "0")}</b>
-                          </button>
-                        );
-                      })}
-                    </nav>
-                  ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
                       className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0"
