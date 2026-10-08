@@ -162,7 +162,12 @@ function productionControlSeries(processes = []) {
         if (value !== "" && Number.isFinite(Number(value))) keys.add(key);
       }),
     );
-    return [...keys].map((key) => {
+    return [...keys]
+      .filter(
+        (key) =>
+          !(process.codigo === "forno" && /^zona_\d+_(setpoint|real)$/.test(key)),
+      )
+      .map((key) => {
       const values = (process.recordHistory ?? []).map((record) =>
         Number(record.valores?.[key]),
       );
@@ -178,7 +183,7 @@ function productionControlSeries(processes = []) {
             : inferredRanges(values),
         },
       };
-    });
+      });
   });
 }
 function operationalProblems(processes = []) {
@@ -366,6 +371,75 @@ function ControlChart({ process, now, metricOverride = null }) {
           <small className="block text-slate-400">MINUTOS DECORRIDOS</small>
           <b>{Math.floor(elapsedMinutes)} min</b>
         </span>
+      </div>
+    </article>
+  );
+}
+function OvenZonesChart({ process }) {
+  const history = [...(process?.recordHistory ?? [])].sort(
+    (a, b) => new Date(a.horario_referencia) - new Date(b.horario_referencia),
+  );
+  const latest = history.at(-1);
+  if (!latest) return null;
+  const zones = Array.from({ length: 7 }, (_, index) => {
+    const zone = index + 1;
+    const setpoint = Number(latest.valores?.[`zona_${zone}_setpoint`]);
+    const real = Number(latest.valores?.[`zona_${zone}_real`]);
+    return {
+      zone,
+      setpoint: Number.isFinite(setpoint) ? setpoint : null,
+      real: Number.isFinite(real) ? real : null,
+    };
+  }).filter((item) => item.setpoint !== null || item.real !== null);
+  if (!zones.length) return null;
+  const values = zones.flatMap((item) => [item.setpoint, item.real]).filter(Number.isFinite);
+  const min = Math.floor((Math.min(...values) - 8) / 10) * 10;
+  const max = Math.ceil((Math.max(...values) + 8) / 10) * 10 || min + 10;
+  const yFor = (value) => 155 - ((value - min) / Math.max(1, max - min)) * 118;
+  const xFor = (index) => 45 + (index * 470) / Math.max(1, zones.length - 1);
+  const lineFor = (key) => zones
+    .filter((item) => item[key] !== null)
+    .map((item, index) => `${xFor(index)},${yFor(item[key])}`)
+    .join(" ");
+  const deviations = zones
+    .filter((item) => item.setpoint !== null && item.real !== null)
+    .map((item) => ({ ...item, delta: item.real - item.setpoint }));
+  const average = (key) => {
+    const numbers = zones.map((item) => item[key]).filter(Number.isFinite);
+    return numbers.length ? numbers.reduce((total, value) => total + value, 0) / numbers.length : 0;
+  };
+  const largestDeviation = [...deviations].sort(
+    (left, right) => Math.abs(right.delta) - Math.abs(left.delta),
+  )[0];
+  return (
+    <article className="overflow-hidden border border-slate-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-cicopal-blue">Forno · leitura consolidada</p>
+          <h4 className="mt-1 text-xl font-black text-slate-950">Temperatura por zona</h4>
+          <p className="mt-1 text-sm font-semibold text-slate-500">Setpoint e temperatura real do último apontamento às {time(latest.horario_referencia)}</p>
+        </div>
+        <div className="flex gap-2 text-xs font-black uppercase">
+          <span className="inline-flex items-center gap-2 bg-white px-3 py-2 text-cicopal-blue"><i className="h-0.5 w-5 border-t-2 border-dashed border-cicopal-blue" /> Setpoint</span>
+          <span className="inline-flex items-center gap-2 bg-white px-3 py-2 text-rose-700"><i className="h-0.5 w-5 bg-rose-600" /> Real</span>
+        </div>
+      </div>
+      <div className="p-3 sm:p-5">
+        <svg viewBox="0 0 560 188" className="w-full" role="img" aria-label="Comparativo de setpoint e temperatura real por zona do forno">
+          {[0, 1, 2, 3].map((step) => {
+            const value = min + ((max - min) * step) / 3;
+            const y = yFor(value);
+            return <g key={step}><line x1="45" y1={y} x2="515" y2={y} stroke="#e2e8f0" /><text x="35" y={y + 4} textAnchor="end" fontSize="10" fill="#64748b">{value}°</text></g>;
+          })}
+          <polyline points={lineFor("setpoint")} fill="none" stroke="#202476" strokeWidth="3" strokeDasharray="7 5" />
+          <polyline points={lineFor("real")} fill="none" stroke="#e30613" strokeWidth="4" strokeLinejoin="round" />
+          {zones.map((item, index) => <g key={item.zone}><circle cx={xFor(index)} cy={item.setpoint === null ? 155 : yFor(item.setpoint)} r="4" fill="#202476" /><circle cx={xFor(index)} cy={item.real === null ? 155 : yFor(item.real)} r="5" fill="#e30613" /><text x={xFor(index)} y="178" textAnchor="middle" fontSize="11" fontWeight="700" fill="#334155">Z{item.zone}</text></g>)}
+        </svg>
+      </div>
+      <div className="grid border-t border-slate-200 sm:grid-cols-[1fr_1fr_1.25fr]">
+        <div className="border-b border-slate-200 px-4 py-3 sm:border-b-0 sm:border-r"><small className="font-black uppercase text-slate-500">Média programada</small><b className="mt-1 block text-lg text-cicopal-blue">{average("setpoint").toLocaleString("pt-BR", { maximumFractionDigits: 1 })} °C</b></div>
+        <div className="border-b border-slate-200 px-4 py-3 sm:border-b-0 sm:border-r"><small className="font-black uppercase text-slate-500">Média real</small><b className="mt-1 block text-lg text-slate-950">{average("real").toLocaleString("pt-BR", { maximumFractionDigits: 1 })} °C</b></div>
+        <div className="px-4 py-3"><small className="font-black uppercase text-slate-500">Maior desvio</small><b className="mt-1 block text-lg text-slate-950">{largestDeviation ? `Z${largestDeviation.zone} · ${largestDeviation.delta > 0 ? "+" : ""}${largestDeviation.delta.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} °C` : "Dados incompletos"}</b></div>
       </div>
     </article>
   );
@@ -685,6 +759,9 @@ export function FactorySupervision({ variant = "classic" }) {
     ...(selectedProductRecord?.valores?.apontamentos ?? []),
     ...(selectedProductRecord?.valores?.avaliacoes ?? []),
   ];
+  const selectedOvenProcess = selected?.cycle?.productionProcesses?.find(
+    (process) => process.codigo === "forno",
+  );
   const selectedSpecifications = selected?.cycle?.specifications?.length
     ? selected.cycle.specifications
     : makeTestSpecifications(
@@ -892,17 +969,17 @@ export function FactorySupervision({ variant = "classic" }) {
               </nav>
               {detailTab === "incidents" ? <section className="grid gap-3 sm:grid-cols-2"><article className="border-l-4 border-cicopal-blue bg-blue-50 p-3"><small className="font-black uppercase text-blue-700">Interrupções</small><b className="block text-xl">{selected.cycle?.interruptions?.length ?? 0}</b><span className="text-xs font-semibold">Pausas, paradas e bloqueios no turno selecionado</span></article><article className="border-l-4 border-violet-500 bg-violet-50 p-3"><small className="font-black uppercase text-violet-700">Responsável</small><b className="block text-lg">{selected.cycle?.shifts?.[0]?.responsavel_nome ?? "Não informado"}</b><span className="text-xs font-semibold">{selected.cycle?.shifts?.length ?? 0} passagem(ns) registrada(s)</span></article>{(selected.cycle?.interruptions ?? []).map((item) => <article key={item.id} className="border border-amber-200 bg-amber-50 p-4"><b className="uppercase text-amber-950">{item.classificacao}</b><p className="mt-1 font-semibold text-gray-700">{item.motivo}</p><small className="mt-2 block font-bold">{time(item.iniciada_em)}–{time(item.encerrada_em)} · Turno {shiftFor(item.iniciada_em)}</small></article>)}</section> : null}
               {detailTab === "incidents" && operationalProblems(selected.cycle?.productionProcesses ?? []).length ? <section><Title icon={<AlertTriangle size={17} />} text="Problemas dos subprocessos" /><div className="mt-3 grid gap-3 lg:grid-cols-2">{operationalProblems(selected.cycle.productionProcesses).map(({ process, problem, resolution }) => <article key={problem.id} className={`border-l-4 p-4 ${resolution ? "border-green-500 bg-green-50" : "border-red-600 bg-red-50"}`}><div className="flex justify-between gap-3"><div><small className="font-black uppercase text-slate-500">{process.nome} · Turno {shiftFor(problem.ocorrido_em)}</small><b className="mt-1 block text-lg text-slate-950">{problem.dados?.equipamento ?? problem.dados?.causa ?? problem.motivo}</b></div><span className={`h-fit px-2 py-1 text-xs font-black uppercase ${resolution ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>{resolution ? "Resolvido" : "Aberto"}</span></div><p className="mt-2 text-sm font-semibold text-slate-700">{problem.dados?.descricao ?? problem.motivo}</p><p className="mt-2 text-xs font-bold text-slate-600">Início {time(problem.ocorrido_em)}{resolution ? ` · resolução ${time(resolution.ocorrido_em)} · ${resolution.dados?.duracao_minutos ?? "—"} min` : " · ainda ativo"}</p>{(problem.dados?.foto_antes || resolution?.dados?.foto_depois) ? <div className="mt-3 grid grid-cols-2 gap-2">{problem.dados?.foto_antes ? <figure><img src={problem.dados.foto_antes} alt="Antes do problema" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Antes</figcaption></figure> : null}{resolution?.dados?.foto_depois ? <figure><img src={resolution.dados.foto_depois} alt="Depois da resolução" className="h-32 w-full bg-white object-cover" /><figcaption className="text-center text-xs font-bold">Depois</figcaption></figure> : null}</div> : null}</article>)}</div></section> : null}
-              {detailTab === "industrial" && productionControlSeries(selected.cycle?.productionProcesses ?? []).length ? (
+              {detailTab === "industrial" && (selectedOvenProcess || productionControlSeries(selected.cycle?.productionProcesses ?? []).length) ? (
                 <section>
                   <Title
                     icon={<Gauge size={17} />}
-                    text="Gráficos de controle da produção"
+                    text="Controle operacional da produção"
                   />
                   <p className="mt-1 text-xs font-bold text-gray-500">
-                    Cada série começa em zero e evolui conforme os apontamentos
-                    confirmados.
+                    Leituras consolidadas por processo e horário de apontamento.
                   </p>
                   <div className="mt-3 space-y-3">
+                    <OvenZonesChart process={selectedOvenProcess} />
                     {productionControlSeries(selected.cycle.productionProcesses).map(({ process, metric }) => (
                       <ControlChart
                         key={`${process.id}-${metric.key}`}
