@@ -4548,23 +4548,25 @@ export function Rg005SubregistroForm({
           />
         )}
         {isRg003 ? (
-          <TabletRelease
-            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-${activeHour}`}
-            columns={config.liberacaoProdutoColumns}
-            activeHour={activeHourLabel}
-            registro={effectiveRegistro}
-            onSave={saveProcesso}
-          />
-          <MachineHourlySections
-            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-maquinas-${activeHour}`}
-            title="Controle de liberação por máquina"
-            machines={config.liberacaoMaquinas ?? config.produtoMaquinas}
-            registro={effectiveRegistro}
-            onSave={saveProcesso}
-            requireMachineSetup
-            gramaturas={config.produtoOptions.gramaturas}
-            activeHour={activeHourLabel}
-          />
+          <>
+            <TabletRelease
+              key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-${activeHour}`}
+              columns={config.liberacaoProdutoColumns}
+              activeHour={activeHourLabel}
+              registro={effectiveRegistro}
+              onSave={saveProcesso}
+            />
+            <MachineHourlySections
+              key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-maquinas-${activeHour}`}
+              title="Controle de liberação por máquina"
+              machines={config.liberacaoMaquinas ?? config.produtoMaquinas}
+              registro={effectiveRegistro}
+              onSave={saveProcesso}
+              requireMachineSetup
+              gramaturas={config.produtoOptions.gramaturas}
+              activeHour={activeHourLabel}
+            />
+          </>
         ) : (
           <LiberacaoProdutoTable
             columns={config.liberacaoProdutoColumns}
