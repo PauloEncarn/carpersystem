@@ -116,6 +116,7 @@ function summarize(
   processRecords = [],
   interruptions = [],
   inputs = [],
+  operators = [],
 ) {
   const cycleFillings = fillings.filter((item) => item.ciclo_id === cycle.id);
   const expectedHours = expectedHourCount(cycle);
@@ -145,7 +146,13 @@ function summarize(
     0,
   );
   const cycleEvents = events.filter((item) => item.ciclo_id === cycle.id);
-  const cycleHygieneRounds = hygieneRounds.filter((item) => item.ciclo_id === cycle.id);
+  const cycleHygieneRounds = hygieneRounds
+    .filter((item) => item.ciclo_id === cycle.id)
+    .map((round) => ({
+      ...round,
+      executorName: operators.find((operator) => operator.id === round.executada_por)?.nome,
+      inspectorName: operators.find((operator) => operator.id === round.inspecionada_por)?.nome,
+    }));
   const operator = [...cycleEvents]
     .reverse()
     .find((item) => item.dados?.operador_nome)?.dados?.operador_nome;
@@ -345,6 +352,7 @@ export function ProductionReports() {
         processRecordsResult,
         interruptionsResult,
         inputsResult,
+        operatorsResult,
       ] = await Promise.all([
         supabase
           .from("preenchimentos")
@@ -381,13 +389,14 @@ export function ProductionReports() {
           .order("horario_previsto"),
         supabase.from("producao_interrupcoes").select("*").in("ciclo_id", ids).order("iniciada_em"),
         supabase.from("insumos").select("id,codigo,nome"),
+        supabase.from("operadores").select("id,nome"),
       ]);
       if (fillingsResult.error) throw fillingsResult.error;
       if (ncsResult.error) throw ncsResult.error;
       if (eventsResult.error) throw eventsResult.error;
       if (hygieneResult.error && !["42P01", "PGRST205"].includes(hygieneResult.error.code)) throw hygieneResult.error;
       if (subprocessResult.error && !["42P01", "PGRST205"].includes(subprocessResult.error.code)) throw subprocessResult.error;
-      for (const result of [automationResult, batchesResult, batchInputsResult, processRecordsResult, interruptionsResult, inputsResult]) {
+      for (const result of [automationResult, batchesResult, batchInputsResult, processRecordsResult, interruptionsResult, inputsResult, operatorsResult]) {
         if (result.error && !["42P01", "PGRST205"].includes(result.error.code)) throw result.error;
       }
       setData(
@@ -406,6 +415,7 @@ export function ProductionReports() {
               processRecordsResult.data ?? [],
               interruptionsResult.data ?? [],
               inputsResult.data ?? [],
+              operatorsResult.data ?? [],
             ),
           ),
         ),
@@ -1334,15 +1344,10 @@ function ExecutiveProductionReport({
   onExportPdf,
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedProcess, setSelectedProcess] = useState(null);
   const interruptionCount = filteredData.reduce(
     (total, cycle) => total + cycle.interruptions.length,
     0,
-  );
-  const attention = filteredData.filter(
-    (cycle) =>
-      cycle.ncCount > 0 ||
-      cycle.compliance < 100 ||
-      cycle.interruptions.some((item) => !item.encerrada_em),
   );
   const productionDays = Object.values(
     filteredData.reduce((result, cycle) => {
@@ -1419,9 +1424,8 @@ function ExecutiveProductionReport({
           </div>
         </div>
 
-        <div className="grid divide-y divide-slate-200 border-t border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+        <div className="grid divide-y divide-slate-200 border-t border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
           <ExecutiveMetric label="Produções" value={totals.cycles} note="no período" />
-          <ExecutiveMetric label="Em andamento" value={totals.active} note="ciclos abertos" />
           <ExecutiveMetric label="Controles" value={`${totals.compliance}%`} note="cumprimento médio" accent={totals.compliance < 90 ? "amber" : "green"} />
           <ExecutiveMetric label="Não conformidades" value={totals.ncs} note="ocorrências registradas" accent={totals.ncs ? "red" : "green"} />
           <ExecutiveMetric label="Interrupções" value={interruptionCount} note="paradas apontadas" accent={interruptionCount ? "amber" : "blue"} />
@@ -1472,18 +1476,6 @@ function ExecutiveProductionReport({
         ) : null}
       </section>
 
-      {attention.length ? (
-        <section className="report-attention rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-800">Atenção necessária</p>
-              <p className="mt-1 font-bold text-slate-900">{attention.length} produção(ões) com pendência, NC ou interrupção.</p>
-            </div>
-            <span className="text-sm font-bold text-amber-900">Priorize os registros destacados abaixo.</span>
-          </div>
-        </section>
-      ) : null}
-
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-5 py-5 sm:px-6">
           <div>
@@ -1496,8 +1488,9 @@ function ExecutiveProductionReport({
         {loading ? <div className="flex min-h-72 items-center justify-center gap-3 font-bold text-cicopal-blue"><LoaderCircle className="animate-spin" /> Atualizando indicadores...</div> : null}
         {!loading && error ? <div className="m-5 border-l-4 border-cicopal-red bg-red-50 p-4 font-bold text-cicopal-red">{error}</div> : null}
         {!loading && !error && !filteredData.length ? <div className="p-12 text-center"><p className="font-black text-slate-900">Nenhuma produção encontrada.</p><p className="mt-1 text-sm font-medium text-slate-500">Ajuste os filtros ou escolha outro período.</p></div> : null}
-        {!loading && !error && filteredData.length ? <div className="divide-y divide-slate-200">{productionDays.map((cycles) => <ProductionDayGroup key={inputDate(new Date(cycles[0].iniciado_em))} cycles={cycles} />)}</div> : null}
+        {!loading && !error && filteredData.length ? <div className="divide-y divide-slate-200">{productionDays.map((cycles) => <ProductionDayGroup key={inputDate(new Date(cycles[0].iniciado_em))} cycles={cycles} onOpenProcess={setSelectedProcess} />)}</div> : null}
       </section>
+      <ProcessModal selection={selectedProcess} onClose={() => setSelectedProcess(null)} />
     </div>
   );
 }
@@ -1516,7 +1509,7 @@ function ExecutiveMetric({ label, value, note, accent = "blue" }) {
   return <article className="border-l-4 border-transparent bg-white px-5 py-4"><p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p><strong className={`mt-2 block text-3xl font-black tracking-tight ${colors[accent]}`}>{value}</strong><span className="mt-1 block text-xs font-semibold text-slate-500">{note}</span></article>;
 }
 
-function ProductionDayGroup({ cycles }) {
+function ProductionDayGroup({ cycles, onOpenProcess }) {
   const day = new Date(cycles[0].iniciado_em);
   const ncCount = cycles.reduce((total, cycle) => total + cycle.ncCount, 0);
   return (
@@ -1533,15 +1526,13 @@ function ProductionDayGroup({ cycles }) {
           <span className="hidden text-cicopal-blue group-open/day:inline">Fechar</span>
         </div>
       </summary>
-      <div className="divide-y divide-slate-200">{cycles.map((cycle) => <ExecutiveCycle key={cycle.id} cycle={cycle} />)}</div>
+      <div className="divide-y divide-slate-200">{cycles.map((cycle) => <ExecutiveCycle key={cycle.id} cycle={cycle} onOpenProcess={onOpenProcess} />)}</div>
     </details>
   );
 }
 
-function ExecutiveCycle({ cycle }) {
+function ExecutiveCycle({ cycle, onOpenProcess }) {
   const needsAttention = cycle.ncCount > 0 || cycle.compliance < 100 || cycle.interruptions.some((item) => !item.encerrada_em);
-  const processGroups = processRecordGroups(cycle);
-  const hourlyControls = hourGroups(cycle);
   return (
     <details className={`report-row group border-l-4 ${needsAttention ? "border-amber-500" : "border-transparent"}`}>
       <summary className="grid cursor-pointer list-none gap-4 px-6 py-6 transition hover:bg-slate-50 sm:px-8 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
@@ -1561,39 +1552,89 @@ function ExecutiveCycle({ cycle }) {
           <span className="border border-cicopal-blue bg-blue-50 px-3 py-2 text-xs font-black text-cicopal-blue hidden group-open:inline">Fechar</span>
         </div>
       </summary>
-      <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-6 sm:px-8">
-        <div className="grid gap-3 md:grid-cols-3">
-          <CycleDatum label="Higienização" value={cycle.hygiene ? "Confirmada" : "Pendente"} tone={cycle.hygiene ? "green" : "amber"} />
-          <CycleDatum label="Liberação da qualidade" value={cycle.release ? "Registrada" : "Não registrada"} tone={cycle.release ? "green" : "amber"} />
-          <CycleDatum label="Registros fotográficos" value={cycle.photos} note="evidências anexadas" />
-        </div>
-
-        <div className="mt-5 grid gap-3 xl:grid-cols-2">
-          <ReportDisclosure title={`Higienização · ${hygieneReportRecords(cycle).length} registro(s)`}>
-            <SimplifiedChecklistByContact records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização neste dia." />
-          </ReportDisclosure>
-          <ReportDisclosure title={`Liberação do produto · ${releaseReportRecords(cycle).length} registro(s)`}>
-            <SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada neste dia." />
-          </ReportDisclosure>
-          <ReportDisclosure title={`Qualidade hora a hora · ${hourlyControls.length} horário(s)`}>
-            <HourlyQualityDetails hours={hourlyControls} />
-          </ReportDisclosure>
-          <ReportDisclosure title={`Rastreabilidade · ${cycle.automationLots.length} lotes · ${cycle.batches.length} bateladas`}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <section><p className="text-xs font-black uppercase text-slate-500">Lotes de insumo</p><div className="mt-2 space-y-2">{cycle.automationLots.length ? cycle.automationLots.map((lot) => <article key={lot.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{lot.input?.nome ?? "Insumo"}</strong><p className="mt-1 text-sm text-slate-600">Lote {lot.lote_fornecedor} · {lot.fornecedor}</p><p className="mt-1 text-xs font-bold text-slate-500">Validade {lot.validade ? new Date(`${lot.validade}T12:00:00`).toLocaleDateString("pt-BR") : "—"}</p></article>) : <EmptyDetail text="Nenhum lote informado." />}</div></section>
-              <section><p className="text-xs font-black uppercase text-slate-500">Bateladas</p><div className="mt-2 space-y-2">{cycle.batches.length ? cycle.batches.map((batch) => <article key={batch.id} className="border border-slate-200 bg-white p-3"><strong>Batelada {batch.numero}</strong><p className="mt-1 text-sm text-slate-600">{batch.status.replaceAll("_", " ")} · {duration(batch.iniciada_em, batch.finalizada_em)}</p><p className="mt-1 text-xs font-bold text-slate-500">{batch.inputs.length} insumo(s) registrado(s)</p></article>) : <EmptyDetail text="Nenhuma batelada registrada." />}</div></section>
-            </div>
-          </ReportDisclosure>
-          <ReportDisclosure title={`Operação · ${cycle.processRecords.length} apontamentos`}>
-            <OperationalProcessDetails groups={processGroups} />
-          </ReportDisclosure>
-          <ReportDisclosure title={`Ocorrências · ${cycle.ncCount} NC · ${cycle.interruptions.length} interrupções`} alert={Boolean(cycle.ncCount || cycle.interruptions.length)}>
-            <div className="space-y-3">{cycle.ncs.map((nc, index) => <article key={nc.id ?? index} className="border-l-4 border-cicopal-red bg-red-50 p-3"><strong className="text-red-900">{nc.item ?? nc.descricao}</strong><p className="mt-1 text-sm text-red-800">{nc.causa ?? nc.descricao ?? "Causa não informada"}</p><p className="mt-1 text-xs font-bold text-red-700">Ação: {nc.acao_tomada ?? nc.acao ?? "Não informada"}</p></article>)}{cycle.interruptions.map((item) => <article key={item.id} className="border-l-4 border-amber-500 bg-amber-50 p-3"><strong className="uppercase text-amber-900">{item.classificacao}</strong><p className="mt-1 text-sm font-semibold text-slate-800">{item.motivo}</p><p className="mt-1 text-xs font-bold text-amber-800">Duração {duration(item.iniciada_em, item.encerrada_em)}</p></article>)}{!cycle.ncs.length && !cycle.interruptions.length ? <EmptyDetail text="Nenhuma ocorrência registrada." /> : null}</div>
-          </ReportDisclosure>
+      <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-5 sm:px-8">
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Consultar processo</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <ProcessButton label="Higienização" note={cycle.hygiene ? "Concluída" : "Pendente"} onClick={() => onOpenProcess({ cycle, type: "hygiene" })} />
+          <ProcessButton label="Liberação do produto" note={cycle.release ? "Registrada" : "Pendente"} onClick={() => onOpenProcess({ cycle, type: "release" })} />
+          <ProcessButton label="Qualidade hora a hora" note={`${hourGroups(cycle).length} horário(s)`} onClick={() => onOpenProcess({ cycle, type: "hourly" })} />
+          <ProcessButton label="Operação" note={`${cycle.processRecords.length} apontamento(s)`} onClick={() => onOpenProcess({ cycle, type: "operation" })} />
+          <ProcessButton label="Rastreabilidade" note={`${cycle.automationLots.length} lotes`} onClick={() => onOpenProcess({ cycle, type: "traceability" })} />
+          <ProcessButton label="Ocorrências" note={`${cycle.ncCount} NC · ${cycle.interruptions.length} parada(s)`} alert={Boolean(cycle.ncCount || cycle.interruptions.length)} onClick={() => onOpenProcess({ cycle, type: "occurrences" })} />
         </div>
       </div>
     </details>
   );
+}
+
+function ProcessButton({ label, note, alert = false, onClick }) {
+  return <button type="button" onClick={onClick} className={`flex min-h-20 items-center justify-between gap-4 border-l-4 bg-white px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${alert ? "border-cicopal-red" : "border-cicopal-blue"}`}><span><strong className="block text-sm text-slate-950">{label}</strong><span className="mt-1 block text-xs font-semibold text-slate-500">{note}</span></span><span className="text-lg font-black text-cicopal-blue">→</span></button>;
+}
+
+function ProcessModal({ selection, onClose }) {
+  if (!selection) return null;
+  const { cycle, type } = selection;
+  const titles = {
+    hygiene: "Higienização",
+    release: "Liberação do produto",
+    hourly: "Qualidade hora a hora",
+    operation: "Apontamentos operacionais",
+    traceability: "Rastreabilidade",
+    occurrences: "Ocorrências",
+  };
+  return (
+    <div className="fixed inset-0 z-[250] grid place-items-center bg-slate-950/45 p-3 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
+      <section role="dialog" aria-modal="true" aria-label={titles[type]} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur sm:px-8">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-cicopal-blue">{cycle.metadata?.productionCode ?? cycle.id}</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">{titles[type]}</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">{cycle.line.name} · {cycle.produto ?? "Produto não informado"} · {new Date(cycle.iniciado_em).toLocaleDateString("pt-BR")}</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue" aria-label="Fechar detalhes"><X size={20} /></button>
+        </header>
+        <div className="px-6 py-6 sm:px-8"><ProcessModalContent cycle={cycle} type={type} /></div>
+      </section>
+    </div>
+  );
+}
+
+function ProcessModalContent({ cycle, type }) {
+  if (type === "hygiene") return <><HygieneTimeline cycle={cycle} /><div className="mt-7"><SimplifiedChecklistByContact records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização neste dia." /></div></>;
+  if (type === "release") return <SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada neste dia." />;
+  if (type === "hourly") return <HourlyQualityDetails hours={hourGroups(cycle)} />;
+  if (type === "operation") return <OperationalProcessDetails groups={processRecordGroups(cycle)} />;
+  if (type === "traceability") return <TraceabilitySummary cycle={cycle} />;
+  return <OccurrenceSummary cycle={cycle} />;
+}
+
+function HygieneTimeline({ cycle }) {
+  if (!cycle.hygieneRounds?.length) return <EmptyDetail text="Não há uma rodada detalhada de higienização para esta produção." />;
+  return (
+    <section>
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Histórico da higienização</p>
+      <div className="mt-3 divide-y divide-slate-200 border-y border-slate-200">
+        {cycle.hygieneRounds.map((round) => {
+          const approved = round.status === "aprovada";
+          const refused = ["reprovada", "em_correcao"].includes(round.status);
+          return <article key={round.id} className="grid gap-4 py-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
+            <div><p className="text-xs font-black uppercase text-slate-400">Operação</p><strong className="mt-1 block text-slate-950">{round.executorName || "Responsável não identificado"}</strong><p className="mt-1 text-sm text-slate-600">Abriu às {round.execucao_iniciada_em ? new Date(round.execucao_iniciada_em).toLocaleString("pt-BR") : "—"} · finalizou às {round.enviada_inspecao_em ? new Date(round.enviada_inspecao_em).toLocaleString("pt-BR") : "—"}</p></div>
+            <div><p className="text-xs font-black uppercase text-slate-400">Qualidade</p><strong className="mt-1 block text-slate-950">{round.inspectorName || "Aguardando avaliação"}</strong><p className="mt-1 text-sm text-slate-600">{round.inspecao_encerrada_em ? `Decisão em ${new Date(round.inspecao_encerrada_em).toLocaleString("pt-BR")}` : "Inspeção ainda não finalizada"}</p></div>
+            <span className={approved ? "justify-self-start bg-green-50 px-3 py-2 text-xs font-black text-cicopal-green md:justify-self-end" : refused ? "justify-self-start bg-red-50 px-3 py-2 text-xs font-black text-cicopal-red md:justify-self-end" : "justify-self-start bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 md:justify-self-end"}>{approved ? "APROVADA" : refused ? "RECUSADA" : "EM AVALIAÇÃO"}</span>
+          </article>;
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TraceabilitySummary({ cycle }) {
+  return <div className="grid gap-7 md:grid-cols-2"><section><p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Lotes de insumo</p><div className="mt-3 divide-y divide-slate-200 border-y border-slate-200">{cycle.automationLots.length ? cycle.automationLots.map((lot) => <article key={lot.id} className="py-3"><strong>{lot.input?.nome ?? "Insumo"}</strong><p className="mt-1 text-sm text-slate-600">Lote {lot.lote_fornecedor} · {lot.fornecedor}</p></article>) : <EmptyDetail text="Nenhum lote informado." />}</div></section><section><p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Bateladas</p><div className="mt-3 divide-y divide-slate-200 border-y border-slate-200">{cycle.batches.length ? cycle.batches.map((batch) => <article key={batch.id} className="py-3"><strong>Batelada {batch.numero}</strong><p className="mt-1 text-sm text-slate-600">{batch.status.replaceAll("_", " ")} · {duration(batch.iniciada_em, batch.finalizada_em)}</p></article>) : <EmptyDetail text="Nenhuma batelada registrada." />}</div></section></div>;
+}
+
+function OccurrenceSummary({ cycle }) {
+  if (!cycle.ncs.length && !cycle.interruptions.length) return <EmptyDetail text="Nenhuma ocorrência registrada." />;
+  return <div className="space-y-3">{cycle.ncs.map((nc, index) => <article key={nc.id ?? index} className="border-l-4 border-cicopal-red bg-red-50 p-4"><strong className="text-red-900">NC · {nc.item ?? nc.descricao}</strong><p className="mt-1 text-sm text-red-800">{nc.causa ?? nc.descricao ?? "Causa não informada"}</p></article>)}{cycle.interruptions.map((item) => <article key={item.id} className="border-l-4 border-amber-500 bg-amber-50 p-4"><strong className="uppercase text-amber-900">{item.classificacao}</strong><p className="mt-1 font-semibold text-slate-800">{item.motivo}</p><p className="mt-1 text-sm text-amber-900">Duração {duration(item.iniciada_em, item.encerrada_em)}</p></article>)}</div>;
 }
 
 function CycleDatum({ label, value, note, tone = "slate" }) {
