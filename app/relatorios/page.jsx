@@ -48,7 +48,7 @@ export default function ReportsPage() {
           setLoggedUser(null);
         }}
       />
-      <div className="mx-auto max-w-[1500px] px-4 py-5">
+      <div className="w-full px-3 py-4 sm:px-6 lg:px-8 xl:px-10">
         <ProductionReports />
       </div>
     </main>

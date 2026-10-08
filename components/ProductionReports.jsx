@@ -1368,7 +1368,7 @@ function ExecutiveProductionReport({
   };
 
   return (
-    <div className="production-report space-y-6 pb-8">
+    <div className="production-report w-full space-y-8 pb-10">
       <style jsx global>{`
         @media print {
           @page { size: A4 portrait; margin: 11mm; }
@@ -1393,8 +1393,8 @@ function ExecutiveProductionReport({
         .report-input:focus { border-color: #2622b5; box-shadow: 0 0 0 2px rgba(38, 34, 181, .12); }
       `}</style>
 
-      <section className="overflow-hidden border border-slate-200 bg-white">
-        <div className="border-l-8 border-cicopal-blue px-5 py-6 sm:px-7">
+      <section className="overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="border-l-8 border-cicopal-blue px-6 py-7 sm:px-9">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-cicopal-blue">
@@ -1428,7 +1428,7 @@ function ExecutiveProductionReport({
         </div>
       </section>
 
-      <section className="report-toolbar border border-slate-200 bg-white p-3 sm:p-4">
+      <section className="report-toolbar rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <label className="flex min-h-12 max-w-xl flex-1 items-center border border-slate-300 bg-slate-50 px-3 focus-within:border-cicopal-blue focus-within:bg-white">
             <Search size={18} className="shrink-0 text-slate-400" />
@@ -1473,7 +1473,7 @@ function ExecutiveProductionReport({
       </section>
 
       {attention.length ? (
-        <section className="report-attention border border-amber-200 bg-amber-50 px-5 py-4">
+        <section className="report-attention rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-800">Atenção necessária</p>
@@ -1484,7 +1484,7 @@ function ExecutiveProductionReport({
         </section>
       ) : null}
 
-      <section className="overflow-hidden border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-5 py-5 sm:px-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Produções encontradas</p>
@@ -1521,7 +1521,7 @@ function ProductionDayGroup({ cycles }) {
   const ncCount = cycles.reduce((total, cycle) => total + cycle.ncCount, 0);
   return (
     <details className="group/day" open>
-      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-slate-50 px-5 py-4 sm:px-6">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 border-l-4 border-cicopal-blue bg-slate-50 px-6 py-5 sm:px-8">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-cicopal-blue">Dia de produção</p>
           <h4 className="mt-1 text-lg font-black capitalize text-slate-950">{day.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</h4>
@@ -1541,9 +1541,10 @@ function ProductionDayGroup({ cycles }) {
 function ExecutiveCycle({ cycle }) {
   const needsAttention = cycle.ncCount > 0 || cycle.compliance < 100 || cycle.interruptions.some((item) => !item.encerrada_em);
   const processGroups = processRecordGroups(cycle);
+  const hourlyControls = hourGroups(cycle);
   return (
     <details className={`report-row group border-l-4 ${needsAttention ? "border-amber-500" : "border-transparent"}`}>
-      <summary className="grid cursor-pointer list-none gap-4 px-5 py-5 transition hover:bg-slate-50 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
+      <summary className="grid cursor-pointer list-none gap-4 px-6 py-6 transition hover:bg-slate-50 sm:px-8 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-black text-cicopal-blue">{cycle.metadata?.productionCode ?? cycle.id}</span>
@@ -1560,7 +1561,7 @@ function ExecutiveCycle({ cycle }) {
           <span className="border border-cicopal-blue bg-blue-50 px-3 py-2 text-xs font-black text-cicopal-blue hidden group-open:inline">Fechar</span>
         </div>
       </summary>
-      <div className="border-t border-slate-200 bg-slate-50 px-5 py-5 sm:px-6">
+      <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-6 sm:px-8">
         <div className="grid gap-3 md:grid-cols-3">
           <CycleDatum label="Higienização" value={cycle.hygiene ? "Confirmada" : "Pendente"} tone={cycle.hygiene ? "green" : "amber"} />
           <CycleDatum label="Liberação da qualidade" value={cycle.release ? "Registrada" : "Não registrada"} tone={cycle.release ? "green" : "amber"} />
@@ -1574,6 +1575,9 @@ function ExecutiveCycle({ cycle }) {
           <ReportDisclosure title={`Liberação do produto · ${releaseReportRecords(cycle).length} registro(s)`}>
             <SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada neste dia." />
           </ReportDisclosure>
+          <ReportDisclosure title={`Qualidade hora a hora · ${hourlyControls.length} horário(s)`}>
+            <HourlyQualityDetails hours={hourlyControls} />
+          </ReportDisclosure>
           <ReportDisclosure title={`Rastreabilidade · ${cycle.automationLots.length} lotes · ${cycle.batches.length} bateladas`}>
             <div className="grid gap-3 md:grid-cols-2">
               <section><p className="text-xs font-black uppercase text-slate-500">Lotes de insumo</p><div className="mt-2 space-y-2">{cycle.automationLots.length ? cycle.automationLots.map((lot) => <article key={lot.id} className="border-l-4 border-cicopal-blue bg-white p-3"><strong>{lot.input?.nome ?? "Insumo"}</strong><p className="mt-1 text-sm text-slate-600">Lote {lot.lote_fornecedor} · {lot.fornecedor}</p><p className="mt-1 text-xs font-bold text-slate-500">Validade {lot.validade ? new Date(`${lot.validade}T12:00:00`).toLocaleDateString("pt-BR") : "—"}</p></article>) : <EmptyDetail text="Nenhum lote informado." />}</div></section>
@@ -1581,7 +1585,7 @@ function ExecutiveCycle({ cycle }) {
             </div>
           </ReportDisclosure>
           <ReportDisclosure title={`Operação · ${cycle.processRecords.length} apontamentos`}>
-            {processGroups.length ? <div className="space-y-2">{processGroups.map(([name, records]) => <article key={name} className="border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{name}</strong><span className="text-xs font-black text-slate-500">{records.length} registro(s)</span></div><p className="mt-2 text-sm text-slate-600">{records.filter((record) => record.status_prazo === "atrasado").length} atraso(s) · {records.filter((record) => record.retificado).length} retificação(ões)</p></article>)}</div> : <EmptyDetail text="Nenhum apontamento operacional." />}
+            <OperationalProcessDetails groups={processGroups} />
           </ReportDisclosure>
           <ReportDisclosure title={`Ocorrências · ${cycle.ncCount} NC · ${cycle.interruptions.length} interrupções`} alert={Boolean(cycle.ncCount || cycle.interruptions.length)}>
             <div className="space-y-3">{cycle.ncs.map((nc, index) => <article key={nc.id ?? index} className="border-l-4 border-cicopal-red bg-red-50 p-3"><strong className="text-red-900">{nc.item ?? nc.descricao}</strong><p className="mt-1 text-sm text-red-800">{nc.causa ?? nc.descricao ?? "Causa não informada"}</p><p className="mt-1 text-xs font-bold text-red-700">Ação: {nc.acao_tomada ?? nc.acao ?? "Não informada"}</p></article>)}{cycle.interruptions.map((item) => <article key={item.id} className="border-l-4 border-amber-500 bg-amber-50 p-3"><strong className="uppercase text-amber-900">{item.classificacao}</strong><p className="mt-1 text-sm font-semibold text-slate-800">{item.motivo}</p><p className="mt-1 text-xs font-bold text-amber-800">Duração {duration(item.iniciada_em, item.encerrada_em)}</p></article>)}{!cycle.ncs.length && !cycle.interruptions.length ? <EmptyDetail text="Nenhuma ocorrência registrada." /> : null}</div>
@@ -1597,8 +1601,122 @@ function CycleDatum({ label, value, note, tone = "slate" }) {
   return <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</p><strong className={`mt-1 block text-sm font-black ${colors[tone]}`}>{value}</strong>{note ? <span className="mt-1 block text-xs font-medium text-slate-500">{note}</span> : null}</div>;
 }
 
+function operationalReadingLabel(key) {
+  const labels = {
+    umidade: "Umidade",
+    velocidade_esteira: "Velocidade da esteira",
+    velocidade_linha: "Velocidade da linha",
+    cortes_hora: "Cortes por hora",
+  };
+  if (labels[key]) return labels[key];
+  const zone = key.match(/^zona_(\d+)_(setpoint|real)$/);
+  if (zone) return `Zona ${zone[1]} · ${zone[2] === "setpoint" ? "Set point" : "Temperatura real"}`;
+  const machine = key.match(/^maq_(\d+)_(.+)$/);
+  if (machine) return `Máquina ${machine[1]} · ${fieldLabel(machine[2])}`;
+  return fieldLabel(key);
+}
+
+function operationalReadingUnit(key) {
+  if (key === "umidade") return "%";
+  if (key.includes("zona_")) return "°C";
+  if (key.includes("peso") || key.includes("sobrepeso")) return "g";
+  if (key.includes("velocidade")) return "m/min";
+  if (key.includes("cortes_hora")) return "cortes/h";
+  if (key.includes("pacotes_min")) return "pacotes/min";
+  if (key.includes("caixas_min")) return "caixas/min";
+  return "";
+}
+
+function HourlyQualityDetails({ hours }) {
+  if (!hours.length) return <EmptyDetail text="Nenhuma avaliação hora a hora registrada." />;
+  return (
+    <div className="divide-y divide-slate-200">
+      {hours.map((hour) => {
+        const product = hour.items.find((item) => item.contexto_tipo === "produto_avaliacao");
+        const process = hour.items.find((item) => item.contexto_tipo === "processo");
+        const productEntries = product ? fillingDetails(product) : [];
+        const processEntries = process ? fillingDetails(process) : [];
+        return (
+          <details key={hour.key} className="group/hour">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-4">
+              <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Horário de controle</p><strong className="mt-1 block text-lg tabular-nums text-slate-950">{hour.label}</strong></div>
+              <span className="text-xs font-black text-cicopal-blue group-open/hour:hidden">Abrir leituras</span>
+              <span className="hidden text-xs font-black text-cicopal-blue group-open/hour:inline">Fechar</span>
+            </summary>
+            <div className="grid gap-5 pb-5 lg:grid-cols-2">
+              <HourlyReadingGroup title="Avaliação do produto" entries={productEntries} emptyText="Não registrada neste horário." />
+              <HourlyReadingGroup title="Avaliação do processo" entries={processEntries} emptyText="Não registrada neste horário." />
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+function HourlyReadingGroup({ title, entries, emptyText }) {
+  const visibleEntries = entries.filter((entry) => {
+    const value = entry.resultado ?? entry.valor ?? entry.av1;
+    return value !== undefined && value !== null && value !== "";
+  });
+  return (
+    <section>
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{title}</p>
+      {visibleEntries.length ? <dl className="mt-2 divide-y divide-slate-200 border-y border-slate-200 bg-white">{visibleEntries.map((entry, index) => {
+        const raw = entry.resultado ?? entry.valor ?? entry.av1;
+        const normalized = String(raw).trim().toUpperCase();
+        const isResult = ["C", "CONFORME", "N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
+        const nc = ["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
+        return <div key={`${entry.item ?? "leitura"}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2"><dt className="text-sm font-semibold text-slate-700">{entry.maquina ? `${entry.maquina} · ` : ""}{entry.item ?? "Leitura"}</dt><dd className={isResult ? (nc ? "shrink-0 bg-red-50 px-2 py-1 text-xs font-black text-cicopal-red" : "shrink-0 bg-green-50 px-2 py-1 text-xs font-black text-cicopal-green") : "shrink-0 text-sm font-black text-slate-950"}>{isResult ? (nc ? "NC" : "C") : `${raw}${entry.unidade ? ` ${entry.unidade}` : ""}`}</dd></div>;
+      })}</dl> : <p className="mt-2 text-sm font-medium text-slate-500">{emptyText}</p>}
+    </section>
+  );
+}
+
+function OperationalProcessDetails({ groups }) {
+  if (!groups.length) return <EmptyDetail text="Nenhum apontamento operacional." />;
+  return (
+    <div className="divide-y divide-slate-200">
+      {groups.map(([name, records]) => (
+        <details key={name} className="group/process" open>
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Processo</p>
+              <strong className="mt-1 block text-lg text-slate-950">{name}</strong>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black text-slate-500">{records.length} leitura(s)</span>
+              <span className="text-xs font-black text-cicopal-blue group-open/process:hidden">Abrir</span>
+              <span className="hidden text-xs font-black text-cicopal-blue group-open/process:inline">Fechar</span>
+            </div>
+          </summary>
+          <div className="space-y-3 pb-5">
+            {records.map((record) => {
+              const readings = Object.entries(record.valores ?? {})
+                .filter(([key, value]) => !key.startsWith("_") && value !== null && value !== "" && ["string", "number", "boolean"].includes(typeof value))
+                .map(([key, value]) => ({ key, value }));
+              return (
+                <article key={record.id} className="border-l-4 border-cicopal-blue bg-white py-4 pl-4 pr-3">
+                  <header className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <strong className="tabular-nums text-slate-950">{new Date(record.horario_previsto ?? record.preenchido_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</strong>
+                      <span className="ml-2 text-xs font-bold text-slate-500">registro operacional</span>
+                    </div>
+                    <span className={record.status_prazo === "atrasado" ? "text-xs font-black text-cicopal-red" : "text-xs font-black text-cicopal-green"}>{record.status_prazo === "atrasado" ? "ATRASADO" : "NO PRAZO"}</span>
+                  </header>
+                  {readings.length ? <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">{readings.map((reading) => <div key={reading.key} className="border-b border-slate-100 pb-3"><dt className="text-[11px] font-black uppercase tracking-wide text-slate-400">{operationalReadingLabel(reading.key)}</dt><dd className="mt-1 text-lg font-black text-slate-900">{String(reading.value)} {operationalReadingUnit(reading.key)}</dd></div>)}</dl> : <p className="mt-3 text-sm font-medium text-slate-500">Não há leituras numéricas neste apontamento.</p>}
+                </article>
+              );
+            })}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function ReportDisclosure({ title, children, alert = false }) {
-  return <details className={`border bg-white ${alert ? "border-amber-200" : "border-slate-200"}`}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-black text-slate-900"><span>{title}</span><span className="text-xs text-cicopal-blue">Abrir</span></summary><div className="border-t border-slate-200 p-4">{children}</div></details>;
+  return <details className={`border-t-2 bg-transparent ${alert ? "border-amber-300" : "border-slate-200"}`}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 font-black text-slate-900"><span>{title}</span><span className="text-xs text-cicopal-blue">Abrir</span></summary><div className="border-t border-slate-200 pb-4 pt-4">{children}</div></details>;
 }
 
 function SimplifiedChecklistByContact({ records, emptyText }) {
@@ -1624,7 +1742,7 @@ function SimplifiedChecklistByContact({ records, emptyText }) {
           },
         ];
         return (
-          <article key={record.id} className="border border-slate-200 bg-slate-50 p-4">
+          <article key={record.id} className="border-t-2 border-slate-200 py-4">
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
                 <strong className="text-sm text-slate-950">{record.label}</strong>
@@ -1641,7 +1759,7 @@ function SimplifiedChecklistByContact({ records, emptyText }) {
                 {groups.map((group) => (
                   <section key={group.title}>
                     <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{group.title}</p>
-                    <div className="mt-2 divide-y divide-slate-200 border border-slate-200 bg-white">
+                    <div className="mt-2 divide-y divide-slate-200 border-y border-slate-200 bg-white">
                       {group.entries.length ? group.entries.map((entry) => {
                         const nc = ["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(entry.result);
                         return (
