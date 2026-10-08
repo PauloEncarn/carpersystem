@@ -1152,16 +1152,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
           ) : null}
           {workspace === "box" ? (
             <section className="mt-5 border border-slate-200 bg-white p-4 sm:p-5">
-              <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase text-cicopal-blue">Encaixotamento</p>
                   <h3 className="text-xl font-bold">Encaixotadeiras</h3>
                 </div>
                 <b className="text-sm text-slate-600">2 máquinas cadastradas</b>
               </div>
-              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3">
+              <div className="-mx-4 mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 sm:mx-auto sm:grid sm:max-w-3xl sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0">
                 {[1, 2].map((machine) => (
-                  <article key={machine} className="group relative min-h-36 min-w-0 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm sm:min-h-40 sm:p-4">
+                  <article key={machine} className="group relative min-h-36 w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm sm:min-h-40 sm:w-auto sm:shrink sm:p-4">
                     <span className="absolute inset-x-0 top-0 h-1 bg-cicopal-blue" />
                     <span className="flex items-start justify-between gap-3">
                       <span className="grid size-9 place-items-center rounded-xl bg-blue-100 text-cicopal-blue sm:size-11"><Cog size={20} className="sm:hidden" /><Cog size={23} className="hidden sm:block" /></span>
@@ -1278,7 +1278,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   !viewOnly &&
                   !review ? (
                     <nav
-                      className="mt-3 grid grid-cols-2 gap-2 sm:grid-rows-2"
+                      className="-mx-4 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:grid-rows-2 sm:overflow-visible sm:px-0 sm:pb-0"
                       aria-label="Empacotadoras"
                     >
                       {[1, 2, 3, 4]
@@ -1309,7 +1309,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex((machine - 1) * 3)}
-                            className={`${position} machine-status-card group relative min-h-28 min-w-0 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
+                            className={`${position} machine-status-card group relative min-h-28 w-40 shrink-0 snap-start overflow-hidden border p-3 text-left transition sm:w-auto sm:shrink ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
                           >
                             <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : availability.state === "final" ? "bg-amber-500" : running ? "bg-emerald-500" : "bg-slate-300"}`} />
                             <span className="flex items-start justify-between gap-2">
@@ -1329,7 +1329,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
-                      className="mt-4 grid grid-cols-2 gap-3"
+                      className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0"
                       aria-label="Encaixotadeiras"
                     >
                       {[1, 2].map((machine, index) => {
@@ -1339,7 +1339,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex(index)}
-                            className={`machine-status-card group relative min-h-28 min-w-0 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : "is-running border-emerald-400 bg-white hover:border-cicopal-blue"}`}
+                            className={`machine-status-card group relative min-h-28 w-40 shrink-0 snap-start overflow-hidden border p-3 text-left transition sm:w-auto sm:shrink ${active ? "is-current border-cicopal-blue bg-white" : "is-running border-emerald-400 bg-white hover:border-cicopal-blue"}`}
                           >
                             <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : "bg-emerald-500"}`} />
                             <span className="flex items-start justify-between gap-2">

@@ -771,7 +771,7 @@ export function ProductionTraceabilitySetup({
     };
     return (
       <section className="border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-cicopal-blue">
               Empacotamento
@@ -783,7 +783,7 @@ export function ProductionTraceabilitySetup({
           </b>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 sm:grid-rows-2">
+        <div className="-mx-4 mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 sm:mx-auto sm:grid sm:max-w-3xl sm:grid-cols-2 sm:grid-rows-2 sm:overflow-visible sm:px-0 sm:pb-0">
           {packers.map((machine) => (
             <button
               key={machine.machine}
@@ -797,7 +797,7 @@ export function ProductionTraceabilitySetup({
                   at: new Date(),
                 })
               }
-              className={`${machinePosition[machine.machine]} group relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-default disabled:hover:translate-y-0 ${machine.active ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-emerald-950" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-500"}`}
+              className={`${machinePosition[machine.machine]} group relative min-h-40 w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-default disabled:hover:translate-y-0 sm:w-auto sm:shrink ${machine.active ? "border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-emerald-950" : "border-slate-200 bg-gradient-to-br from-white to-slate-100 text-slate-500"}`}
             >
               <span className={`absolute inset-x-0 top-0 h-1 ${machine.active ? "bg-emerald-500" : "bg-slate-300"}`} />
               <span className="flex items-start justify-between gap-3">
