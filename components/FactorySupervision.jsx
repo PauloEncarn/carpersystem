@@ -204,7 +204,9 @@ function operationalProblems(processes = []) {
 function processLiveValue(process) {
   const values = process?.latestRecord?.valores ?? {};
   if (process?.codigo === "corte_fio")
-    return `${(Number(values.cortes_hora || 0) / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} cortes/min`;
+    return values.velocidade_linha_kg_h !== undefined
+      ? `${Number(values.velocidade_linha_kg_h).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg/h`
+      : "Sem apontamento";
   if (process?.codigo === "empacotamento")
     return `${[1, 2, 3, 4].reduce((total, index) => total + Number(values[`maq_${index}_pacotes_min`] || 0), 0).toLocaleString("pt-BR")} pacotes/min`;
   if (process?.codigo === "encaixotamento")
@@ -217,11 +219,10 @@ function processLiveValue(process) {
 }
 const controlMetric = {
   corte_fio: {
-    key: "cortes_hora",
-    label: "Cortes projetados",
-    unit: "cortes/min",
-    divisor: 60,
-    ranges: [60, 80, 120, 140],
+    key: "velocidade_linha_kg_h",
+    label: "Velocidade da linha",
+    unit: "kg/h",
+    divisor: 1,
   },
   forno: { key: "umidade", label: "Umidade", unit: "%", divisor: 1, ranges: [1.5, 2, 4, 4.5] },
   empacotamento: {

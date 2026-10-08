@@ -161,7 +161,7 @@ insert into public.subprocesso_registros(id,subprocesso_id,ciclo_id,chave_slot,h
 select md5('demo-operational-reading-'||s.day||'-'||p.code||'-'||s.h)::uuid,
  md5('demo-operational-process-'||s.day||'-'||p.code)::uuid,s.cycle_id,'demo:'||s.h,s.day+make_interval(hours=>s.h),s.day+make_interval(hours=>s.h),'horario',(s.h-7)/2,s.day+make_interval(hours=>s.h),s.day+make_interval(hours=>s.h+1),
  case p.code
-  when 'corte_fio' then jsonb_build_object('peso_10_lado_operacional',89+(s.h%4),'peso_10_lado_nao_operacional',88.5+(s.h%3),'umidade',3.4+(s.h%3)*0.35,'cortes_hora',6900+s.h*38)
+  when 'corte_fio' then jsonb_build_object('peso_10_lado_operacional',89+(s.h%4),'peso_10_lado_nao_operacional',88.5+(s.h%3),'velocidade_linha_kg_h',660+s.h*5)
   when 'forno' then jsonb_build_object('velocidade_esteira',18+(s.h%2),'velocidade_linha',20+(s.h%2),'umidade',case when s.day='2026-08-18' and s.h=11 then 5.3 else 3.2+(s.h%3)*0.3 end,'zona_1_setpoint',180,'zona_1_real',178+(s.h%4),'zona_2_setpoint',185,'zona_2_real',184+(s.h%3),'zona_3_setpoint',190,'zona_3_real',188+(s.h%4),'zona_4_setpoint',195,'zona_4_real',193+(s.h%3),'zona_5_setpoint',190,'zona_5_real',189+(s.h%2),'zona_6_setpoint',185,'zona_6_real',184+(s.h%2),'zona_7_setpoint',175,'zona_7_real',174+(s.h%3))
   when 'empacotamento' then jsonb_build_object('maq_1_pacotes_min',48+(s.h%4),'maq_1_sobrepeso',1.8,'maq_2_pacotes_min',25+(s.h%3),'maq_2_sobrepeso',2.7,'maq_3_pacotes_min',24+(s.h%2),'maq_3_sobrepeso',3.1,'maq_4_pacotes_min',case when s.h>=17 then 20 else 0 end,'maq_4_sobrepeso',2.4)
   else jsonb_build_object('caixas_min',4.8+(s.h%4)*0.4) end,

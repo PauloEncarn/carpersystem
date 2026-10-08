@@ -1159,16 +1159,16 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                 </div>
                 <b className="text-sm text-slate-600">2 máquinas cadastradas</b>
               </div>
-              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-3">
                 {[1, 2].map((machine) => (
-                  <article key={machine} className="group relative min-h-40 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-4 text-left shadow-sm">
+                  <article key={machine} className="group relative min-h-36 min-w-0 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-3 text-left shadow-sm sm:min-h-40 sm:p-4">
                     <span className="absolute inset-x-0 top-0 h-1 bg-cicopal-blue" />
                     <span className="flex items-start justify-between gap-3">
-                      <span className="grid size-11 place-items-center rounded-xl bg-blue-100 text-cicopal-blue"><Cog size={23} /></span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase text-cicopal-blue"><Power size={12} /> Disponível</span>
+                      <span className="grid size-9 place-items-center rounded-xl bg-blue-100 text-cicopal-blue sm:size-11"><Cog size={20} className="sm:hidden" /><Cog size={23} className="hidden sm:block" /></span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black uppercase text-cicopal-blue sm:gap-1.5 sm:px-2.5 sm:text-[10px]"><Power size={12} className="hidden sm:block" /> Disponível</span>
                     </span>
                     <span className="mt-4 block text-[10px] font-black uppercase tracking-[.18em] text-slate-400">Encaixotadeira</span>
-                    <b className="mt-0.5 block text-2xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
+                    <b className="mt-0.5 block text-lg text-slate-950 sm:text-2xl">Máquina {String(machine).padStart(2, "0")}</b>
                     <span className="mt-3 block border-t border-slate-200/80 pt-3 text-xs font-bold text-slate-500">Avaliação liberada nos horários de produção</span>
                   </article>
                 ))}
@@ -1278,10 +1278,10 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   !viewOnly &&
                   !review ? (
                     <nav
-                      className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:grid-rows-2"
+                      className="mt-3 grid grid-cols-2 gap-2 sm:grid-rows-2"
                       aria-label="Empacotadoras"
                     >
-                      {[1, 3, 4, 2]
+                      {[1, 2, 3, 4]
                         .filter(
                           (machine) =>
                             !["not_started", "inactive"].includes(
@@ -1300,28 +1300,28 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                         const active = parameter?.group === `Máquina ${machine}`;
                         const position = {
                           1: "sm:col-start-1 sm:row-start-1",
-                          2: "sm:col-start-2 sm:row-start-2",
-                          3: "sm:col-start-2 sm:row-start-1",
-                          4: "sm:col-start-1 sm:row-start-2",
+                          2: "sm:col-start-2 sm:row-start-1",
+                          3: "sm:col-start-1 sm:row-start-2",
+                          4: "sm:col-start-2 sm:row-start-2",
                         }[machine];
                         return (
                           <button
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex((machine - 1) * 3)}
-                            className={`${position} machine-status-card group relative min-h-28 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
+                            className={`${position} machine-status-card group relative min-h-28 min-w-0 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : availability.state === "final" ? "border-amber-400 bg-amber-50" : running ? "is-running border-emerald-400 bg-white" : "is-stopped border-slate-300 bg-slate-50 text-slate-500"}`}
                           >
                             <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : availability.state === "final" ? "bg-amber-500" : running ? "bg-emerald-500" : "bg-slate-300"}`} />
                             <span className="flex items-start justify-between gap-2">
-                              <span className={`grid size-9 place-items-center rounded-lg ${running ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              <span className={`grid size-8 place-items-center rounded-lg sm:size-9 ${running ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
                                 <Cog size={19} className={running ? "motion-safe:animate-[spin_6s_linear_infinite]" : ""} />
                               </span>
                               <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[9px] font-bold uppercase ${running ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}>
-                                <Power size={10} /> {running ? "Operando" : "Parada"}
+                                <Power size={10} className="hidden sm:block" /> {running ? "Operando" : "Parada"}
                               </span>
                             </span>
                             <span className="mt-3 block text-[9px] font-black uppercase tracking-wider text-slate-400">Empacotadeira</span>
-                            <b className="block text-xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
+                            <b className="block text-base text-slate-950 sm:text-xl">Máquina {String(machine).padStart(2, "0")}</b>
                           </button>
                         );
                       })}
@@ -1329,7 +1329,7 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                   ) : null}
                   {selectedCode === "encaixotamento" && !viewOnly && !review ? (
                     <nav
-                      className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
+                      className="mt-4 grid grid-cols-2 gap-3"
                       aria-label="Encaixotadeiras"
                     >
                       {[1, 2].map((machine, index) => {
@@ -1339,15 +1339,15 @@ export function ProductionProcessFlow({ cycle, operatorId, profileCode = "", onO
                             key={machine}
                             type="button"
                             onClick={() => setFieldIndex(index)}
-                            className={`machine-status-card group relative min-h-28 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : "is-running border-emerald-400 bg-white hover:border-cicopal-blue"}`}
+                            className={`machine-status-card group relative min-h-28 min-w-0 overflow-hidden border p-3 text-left transition ${active ? "is-current border-cicopal-blue bg-white" : "is-running border-emerald-400 bg-white hover:border-cicopal-blue"}`}
                           >
                             <span className={`absolute inset-x-0 top-0 h-1 ${active ? "bg-cicopal-blue" : "bg-emerald-500"}`} />
                             <span className="flex items-start justify-between gap-2">
-                              <span className="grid size-9 place-items-center rounded-lg bg-emerald-100 text-emerald-700"><Cog size={19} className="motion-safe:animate-[spin_6s_linear_infinite]" /></span>
-                              <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[9px] font-bold uppercase ${active ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}><Power size={10} /> {active ? "Em avaliação" : "Operando"}</span>
+                              <span className="grid size-8 place-items-center rounded-lg bg-emerald-100 text-emerald-700 sm:size-9"><Cog size={19} className="motion-safe:animate-[spin_6s_linear_infinite]" /></span>
+                              <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[8px] font-bold uppercase sm:text-[9px] ${active ? "border-blue-200 bg-blue-50 text-cicopal-blue" : "border-emerald-300 bg-emerald-50 text-emerald-800"}`}><Power size={10} className="hidden sm:block" /> {active ? "Em avaliação" : "Operando"}</span>
                             </span>
                             <span className="mt-3 block text-[9px] font-black uppercase tracking-wider text-slate-400">Encaixotadeira</span>
-                            <b className="block text-xl text-slate-950">Máquina {String(machine).padStart(2, "0")}</b>
+                            <b className="block text-base text-slate-950 sm:text-xl">Máquina {String(machine).padStart(2, "0")}</b>
                           </button>
                         );
                       })}

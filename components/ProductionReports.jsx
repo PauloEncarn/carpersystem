@@ -1647,7 +1647,7 @@ function operationalReadingLabel(key) {
     umidade: "Umidade",
     velocidade_esteira: "Velocidade da esteira",
     velocidade_linha: "Velocidade da linha",
-    cortes_hora: "Cortes por hora",
+    velocidade_linha_kg_h: "Velocidade da linha",
   };
   if (labels[key]) return labels[key];
   const zone = key.match(/^zona_(\d+)_(setpoint|real)$/);
@@ -1662,7 +1662,7 @@ function operationalReadingUnit(key) {
   if (key.includes("zona_")) return "°C";
   if (key.includes("peso") || key.includes("sobrepeso")) return "g";
   if (key.includes("velocidade")) return "m/min";
-  if (key.includes("cortes_hora")) return "cortes/h";
+  if (key.includes("velocidade_linha_kg_h")) return "kg/h";
   if (key.includes("pacotes_min")) return "pacotes/min";
   if (key.includes("caixas_min")) return "caixas/min";
   return "";
