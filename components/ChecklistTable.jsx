@@ -415,29 +415,31 @@ export function ChecklistTable({
     const reference = referenceEvaluations.find(
       (item) => item.item === row?.item,
     );
-    const progress = rows.length
-      ? Math.round(((activeIndex + 1) / rows.length) * 100)
-      : 0;
     const groupRows = rows.filter((item) => item.group === row?.group);
     const groupPosition =
       groupRows.findIndex((item) => item.item === row?.item) + 1;
-    const fronts = groups.map((group, groupIndex) => {
+    const groupCompleted = groupRows.filter(isRowComplete).length;
+    const progress = groupRows.length
+      ? Math.round((groupCompleted / groupRows.length) * 100)
+      : 0;
+    const completedItems = rows.filter(isRowComplete).length;
+    const checklistComplete = completedItems === rows.length;
+    const fronts = groups.map((group) => {
       const frontRows = rows.filter((item) => item.group === group.title);
       const completed = frontRows.filter(isRowComplete).length;
       const firstIndex = rows.findIndex((item) => item.group === group.title);
-      const previousCompleted = groups
-        .slice(0, groupIndex)
-        .every((previous) =>
-          rows
-            .filter((item) => item.group === previous.title)
-            .every(isRowComplete),
-        );
+      const firstPendingIndex = rows.findIndex(
+        (item) => item.group === group.title && !isRowComplete(item),
+      );
       return {
         ...group,
         completed,
         total: frontRows.length,
         firstIndex,
-        available: previousCompleted,
+        firstPendingIndex,
+        progress: frontRows.length
+          ? Math.round((completed / frontRows.length) * 100)
+          : 0,
         active: row?.group === group.title,
       };
     });
@@ -468,7 +470,7 @@ export function ChecklistTable({
               </h2>
             </div>
             <span className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-bold text-gray-600">
-              {activeIndex + 1}/{rows.length}
+              {completedItems}/{rows.length} concluídos
             </span>
           </div>
           <div className="checklist-progress-track mt-4 overflow-hidden bg-gray-200">
@@ -478,7 +480,7 @@ export function ChecklistTable({
             />
           </div>
           <p className="mt-2 text-xs font-semibold text-gray-500">
-            Item {groupPosition} de {groupRows.length} nesta seção
+            {groupCompleted}/{groupRows.length} concluídos nesta seção · item {groupPosition} de {groupRows.length}
           </p>
         </header>
         <nav className="checklist-fronts" aria-label="Seções da higienização">
@@ -486,12 +488,24 @@ export function ChecklistTable({
             <button
               key={front.id}
               type="button"
-              disabled={!front.available || saving}
-              onClick={() => front.firstIndex >= 0 && setActiveIndex(front.firstIndex)}
-              className={`min-h-20 border-2 p-3 text-left ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : front.available ? "border-gray-300 bg-white text-gray-800" : "border-gray-200 bg-gray-100 text-gray-400"}`}
+              aria-current={front.active ? "step" : undefined}
+              disabled={saving}
+              onClick={() => {
+                const targetIndex = front.firstPendingIndex >= 0
+                  ? front.firstPendingIndex
+                  : front.firstIndex;
+                if (targetIndex >= 0) setActiveIndex(targetIndex);
+              }}
+              className={`min-h-24 border-2 p-3 text-left transition-colors ${front.active ? "border-cicopal-blue bg-blue-50 text-cicopal-blue" : front.completed === front.total ? "border-green-300 bg-green-50 text-cicopal-green" : "border-gray-300 bg-white text-gray-800 hover:border-cicopal-blue hover:bg-blue-50"}`}
             >
               <strong className="block text-sm uppercase md:text-base">{front.title}</strong>
-              <span className="mt-2 block text-xs font-bold">{front.completed}/{front.total} itens concluídos{!front.available ? " · conclua a seção anterior" : ""}</span>
+              <span className="mt-2 block text-xs font-bold">{front.completed}/{front.total} itens concluídos · {front.progress}%</span>
+              <span className="mt-2 block h-1.5 overflow-hidden bg-gray-200" aria-hidden="true">
+                <span
+                  className={`block h-full transition-all ${front.completed === front.total ? "bg-cicopal-green" : "bg-cicopal-blue"}`}
+                  style={{ width: `${front.progress}%` }}
+                />
+              </span>
             </button>
           ))}
         </nav>
@@ -616,7 +630,7 @@ export function ChecklistTable({
             <ArrowLeft size={22} />
             Voltar
           </button>
-          {activeIndex === rows.length - 1 ? (
+          {checklistComplete ? (
             <button
               type="button"
               disabled={!isRowComplete(row) || saving}
