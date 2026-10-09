@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Factory,
   LogOut,
+  Search,
   Settings2,
   UserRound,
 } from "lucide-react";
@@ -17,6 +18,7 @@ const destinations = [
   { href: "/", label: "Operação", Icon: ClipboardCheck },
   { href: "/supervisao", label: "Supervisão", Icon: Factory },
   { href: "/relatorios", label: "Relatórios", Icon: BarChart3 },
+  { href: "/rastreabilidade", label: "Rastreabilidade", Icon: Search, permission: "admin" },
   { href: "/configurador", label: "Configuração", Icon: Settings2, permission: "configurator" },
 ];
 
@@ -33,6 +35,7 @@ export function AppHeader({
   const visibleDestinations = destinations.filter(
     (item) => {
       if (item.permission === "configurator") return canAccessConfigurator;
+      if (item.permission === "admin") return user?.perfil?.codigo === "admin" || user?.permissoes?.includes("admin:acessar");
       if (item.href === "/supervisao") return access.supervision;
       if (item.href === "/relatorios") return access.reports;
       return access.operation;

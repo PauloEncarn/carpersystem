@@ -3011,9 +3011,31 @@ function AssinaturasRegistro({ registro }) {
   );
 }
 
-function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
+function productionTurn(date) {
+  const hour = date.getHours();
+  return hour >= 8 && hour < 16 ? "A" : hour >= 16 ? "B" : "C";
+}
+
+function expirationDate(productionDate) {
+  const source = new Date(productionDate);
+  const target = new Date(source.getFullYear(), source.getMonth() + 8, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(source.getDate(), lastDay));
+  return target;
+}
+
+function formatTraceDate(date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [], cycle, operatorName = "" }) {
   const [photo, setPhoto] = useState(null);
-  const [observation, setObservation] = useState("");
+  const [machine, setMachine] = useState("");
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -3052,16 +3074,34 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
   }
 
   async function savePhoto() {
-    if (!photo || saving) return;
+    if (!photo || !machine || saving) return;
     setSaving(true);
     try {
+      const capturedAt = new Date();
+      const productionDate = new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? capturedAt);
+      const machineNumber = String(machine).padStart(2, "0");
+      const dateCode = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(productionDate).replaceAll("-", "");
+      const traceability = {
+        lote: `${dateCode}-${machineNumber}`,
+        maquina: machineNumber,
+        data_producao: formatTraceDate(productionDate),
+        validade: formatTraceDate(expirationDate(productionDate)),
+        horario: capturedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        turno: productionTurn(capturedAt),
+        responsavel: operatorName,
+      };
       await onSave?.({
         apontamentos: [
           {
             horario: activeHour,
             item: "Registro fotográfico",
             resultado: "Anexado",
-            observacao: observation,
+            ...traceability,
           },
         ],
         fotografias: [
@@ -3070,7 +3110,7 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
             nome: photo.name,
             tipo: photo.type,
             imagem: photo.data,
-            observacao: observation,
+            rastreabilidade: traceability,
           },
         ],
       });
@@ -3155,25 +3195,20 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
               Capture ou selecione uma imagem para continuar.
             </p>
           )}
-          <label className="mt-4 block">
-            <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
-              Observacao
-            </span>
-            <textarea
-              rows={4}
-              value={observation}
-              onChange={(event) => setObservation(event.target.value)}
-              className="w-full rounded-xl border border-gray-300 p-3 font-semibold"
-              placeholder="Opcional"
-            />
-          </label>
+          <div className="mt-4">
+            <span className="mb-2 block text-xs font-bold uppercase text-gray-500">Máquina da amostra</span>
+            <div className="grid grid-cols-2 gap-2">
+              {[1, 2, 3, 4].map((item) => <button key={item} type="button" onClick={() => setMachine(item)} className={`min-h-12 border font-black ${machine === item ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-300 bg-white text-gray-700"}`}>Máquina {String(item).padStart(2, "0")}</button>)}
+            </div>
+          </div>
+          {machine ? <div className="mt-4 border-l-4 border-cicopal-blue bg-white p-3 text-sm font-semibold text-slate-700"><p><b>Lote:</b> {new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now())).replaceAll("-", "")}-{String(machine).padStart(2, "0")}</p><p className="mt-1"><b>Validade:</b> {formatTraceDate(expirationDate(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now())))}</p></div> : null}
           <button
             type="button"
-            disabled={!photo || processing || saving}
+            disabled={!photo || !machine || processing || saving}
             onClick={savePhoto}
             className="mt-4 min-h-16 w-full rounded-xl bg-cicopal-green text-lg font-black text-white disabled:bg-gray-300"
           >
-            {saving ? "Salvando imagem..." : `Salvar foto de ${activeHour}`}
+            {saving ? "Salvando imagem..." : `Salvar rastreabilidade de ${activeHour}`}
           </button>
         </aside>
       </div>
@@ -3200,6 +3235,7 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [] }) {
                 />
                 <figcaption className="p-3 text-sm font-black text-gray-700">
                   {item.horario}
+                  {item.rastreabilidade?.lote ? <span className="mt-1 block text-xs text-cicopal-blue">Lote {item.rastreabilidade.lote}</span> : null}
                 </figcaption>
               </figure>
             ))}
@@ -4789,6 +4825,8 @@ export function Rg005SubregistroForm({
             activeHour={isRg003 ? activeHourLabel : ""}
             onSave={saveProcesso}
             recentPhotos={recentPhotos}
+            cycle={cycleContext}
+            operatorName={effectiveRegistro.operador}
           />
         )}
         {!isRg003 || savedAt ? (
