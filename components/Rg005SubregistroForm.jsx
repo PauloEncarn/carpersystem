@@ -974,11 +974,17 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
   const [saveFeedback, setSaveFeedback] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [index, setIndex] = useState(0);
   const saveInFlightRef = useRef(false);
   async function save() {
     if (saveInFlightRef.current) return;
+    if (!columns.every((item) => values[item])) {
+      setSaveError("Conclua todos os critérios antes de confirmar a liberação.");
+      return;
+    }
     saveInFlightRef.current = true;
+    setSaveError("");
     const apontamentos = columns
       .filter((item) => values[item])
       .map((item) => ({ horario: activeHour, item, resultado: values[item] }));
@@ -995,18 +1001,23 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
       }));
     let confirmed;
     try {
+      if (typeof onSave !== "function") {
+        throw new Error("Não há conexão de salvamento disponível para esta liberação.");
+      }
       confirmed = await onSave?.(
         { apontamentos, ncs },
         { onConfirmed: () => setSaveFeedback("saving") },
       );
     } catch (error) {
       setSaveFeedback("");
-      throw error;
+      setSaveError(error?.message ?? "Não foi possível gravar a liberação. Tente novamente.");
+      return;
     } finally {
       saveInFlightRef.current = false;
     }
     if (confirmed === false) {
       setSaveFeedback("");
+      setSaveError("O banco não confirmou o salvamento. Tente novamente.");
       return;
     }
     setSavedAt(
@@ -1110,6 +1121,7 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
             </button>
           )}
         </footer>
+        {saveError ? <p role="alert" className="mt-3 border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm font-bold text-red-800">{saveError}</p> : null}
         {savedAt ? (
           <p className="mt-3 text-center font-black text-cicopal-green">
             Gravado às {savedAt}
@@ -4583,12 +4595,19 @@ export function Rg005SubregistroForm({
             options={config.produtoOptions}
           />
         )}
-        {!isRg003 || !openPrerequisiteNcs.length ? <LiberacaoProdutoTable
-          columns={config.liberacaoProdutoColumns}
-          registro={effectiveRegistro}
-          onSave={saveProcesso}
-          initialRelease={isRg003}
-        /> : null}
+        {!isRg003 || !openPrerequisiteNcs.length ? (
+          isRg003 ? <TabletRelease
+            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-inicial`}
+            columns={config.liberacaoProdutoColumns}
+            activeHour={activeHourLabel}
+            registro={effectiveRegistro}
+            onSave={saveProcesso}
+          /> : <LiberacaoProdutoTable
+            columns={config.liberacaoProdutoColumns}
+            registro={effectiveRegistro}
+            onSave={saveProcesso}
+          />
+        ) : null}
         {!isRg003 || savedAt ? (
           <AssinaturasRegistro registro={effectiveRegistro} />
         ) : null}
