@@ -293,10 +293,12 @@ function hygieneReportRecords(cycle) {
 
 function releaseReportRecords(cycle) {
   return cycle.fillings
-    .filter((item) => item.contexto_tipo === "produto_liberacao")
+    .filter((item) => ["produto_liberacao", "controle_liberacao"].includes(item.contexto_tipo))
     .map((item) => ({
       id: item.id,
-      label: "Avaliação geral da liberação",
+      label: item.contexto_tipo === "controle_liberacao"
+        ? "Controle de liberação por máquina"
+        : "Liberação inicial do produto",
       at: item.preenchido_em,
       operator: item.operador_id,
       status: item.status,

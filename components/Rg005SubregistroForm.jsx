@@ -482,10 +482,13 @@ function LiberacaoProdutoTable({
   columns = liberacaoProdutoColumns,
   registro,
   onSave,
+  initialRelease = false,
 }) {
   const [rows, setRows] = useState([{ id: 1 }]);
   const [values, setValues] = useState({});
   const [savedAt, setSavedAt] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   function valueKey(rowId, column) {
     return `${rowId}|${column}`;
@@ -495,7 +498,19 @@ function LiberacaoProdutoTable({
     setValues((current) => ({ ...current, [valueKey(rowId, column)]: value }));
   }
 
-  function saveLiberacao() {
+  const completeRows = rows.every(
+    (row) =>
+      Boolean(row.horario) &&
+      columns.every((column) => Boolean(values[valueKey(row.id, column)])),
+  );
+
+  async function saveLiberacao() {
+    if (!completeRows || saving) {
+      setSaveError("Informe o horário e o resultado de todos os itens antes de confirmar a liberação.");
+      return;
+    }
+    setSaving(true);
+    setSaveError("");
     const apontamentos = rows.reduce((acc, row) => {
       const rowApontamentos = columns
         .filter((column) => values[valueKey(row.id, column)])
@@ -525,13 +540,23 @@ function LiberacaoProdutoTable({
         assinaturaSupervisorAt: null,
       }));
 
-    onSave?.({ apontamentos, ncs });
-    setSavedAt(
-      new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
+    try {
+      if (typeof onSave !== "function") {
+        throw new Error("Não há conexão de salvamento disponível para esta liberação.");
+      }
+      const saved = await onSave?.({ apontamentos, ncs });
+      if (saved === false) throw new Error("O banco não confirmou o salvamento.");
+      setSavedAt(
+        new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+    } catch (error) {
+      setSaveError(error?.message ?? "Não foi possível gravar a liberação. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -540,10 +565,12 @@ function LiberacaoProdutoTable({
         <Check size={24} className="text-cicopal-blue" />
         <div>
           <h2 className="text-xl font-bold text-gray-950">
-            Liberacao do Produto
+            {initialRelease ? "Liberação inicial do produto" : "Liberação do Produto"}
           </h2>
           <p className="text-sm font-semibold text-gray-600">
-            Registre cada horario em que o produto for liberado
+            {initialRelease
+              ? "Aprovação única da Qualidade antes de iniciar a produção."
+              : "Registre cada horário em que o produto for liberado"}
           </p>
         </div>
       </div>
@@ -592,8 +619,9 @@ function LiberacaoProdutoTable({
         </table>
       </div>
       <div className="border-t border-gray-200 p-3">
+        {saveError ? <p role="alert" className="mb-3 border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm font-bold text-red-800">{saveError}</p> : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button
+          {!initialRelease ? <button
             type="button"
             className="inline-flex min-h-12 items-center gap-2 rounded-md bg-cicopal-blue px-4 font-bold text-white"
             onClick={() =>
@@ -602,19 +630,20 @@ function LiberacaoProdutoTable({
           >
             <Plus size={18} />
             Adicionar horario
-          </button>
+          </button> : <p className="text-sm font-bold text-slate-500">Registro único da liberação inicial.</p>}
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-bold text-gray-500">
               {savedAt
-                ? `Liberacao gravada as ${savedAt}`
-                : "Dois toques em item C/NC geram NC ao gravar."}
+                ? `Liberação gravada às ${savedAt}`
+                : "Preencha todos os itens para habilitar a confirmação."}
             </span>
             <button
               type="button"
-              className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 font-bold text-white"
+              disabled={!completeRows || saving}
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-cicopal-blue px-4 font-bold text-white disabled:bg-gray-300"
               onClick={saveLiberacao}
             >
-              Gravar liberacao
+              {saving ? "Gravando..." : initialRelease ? "Confirmar liberação" : "Gravar liberação"}
             </button>
           </div>
         </div>
@@ -696,10 +725,7 @@ function TabletHourNavigator({
     entries.findIndex((entry) => entry.value === activeHour),
   );
   const activeEntry = entries[activeIndex];
-  const missing = entries.filter(
-    (entry) =>
-      !completedHours.includes(entry.value),
-  ).length;
+  const missing = entries.filter((entry) => !completedHours.includes(entry.value)).length;
   const overdue = entries.filter(
     (entry) =>
       !completedHours.includes(entry.value) &&
@@ -759,22 +785,39 @@ function TabletHourNavigator({
           const isPast = !isCurrent && !isFuture;
           const isOverdue =
             isPast && !completed;
-          const relation = isCurrent
-            ? "Horário atual"
-            : isFuture
-              ? "Preenchimento"
-              : isPast
-                ? "Pendente"
-                : "Preenchimento";
+          const status = completed
+            ? "completed"
+            : isCurrent
+              ? "current"
+              : isOverdue
+                ? "overdue"
+                : isFuture
+                  ? "upcoming"
+                  : "pending";
+          const stateLabel = {
+            completed: "Preenchido",
+            current: "Em preenchimento",
+            overdue: "Pendente · atrasado",
+            upcoming: "Próximo horário",
+            pending: "Pendente",
+          }[status];
+          const statusClass = {
+            completed: "border-emerald-300 bg-emerald-50 text-emerald-800",
+            current: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
+            overdue: "border-red-500 bg-red-50 text-red-800",
+            upcoming: "border-slate-300 bg-slate-50 text-slate-600 hover:border-cicopal-blue",
+            pending: "border-amber-400 bg-amber-50 text-amber-900",
+          }[status];
           return (
             <button
               key={entry.key}
               type="button"
-              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${isSelected ? isOverdue ? "border-red-700 bg-red-600 text-white shadow-lg" : "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isCurrent ? "border-cicopal-blue bg-cicopal-blue text-white shadow-lg" : isOverdue ? "border-2 border-red-500 bg-red-50 text-red-800" : completed ? "border-green-200 bg-green-50 text-cicopal-green" : isFuture ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-cicopal-blue" : "border-slate-300 bg-white text-slate-700"}`}
+              aria-current={isSelected ? "step" : undefined}
+              className={`relative min-h-20 min-w-36 border px-3 py-2 text-left text-sm font-bold transition ${statusClass} ${isSelected ? "ring-2 ring-cicopal-blue ring-offset-2" : ""}`}
               onClick={() => requestHour(entry)}
             >
               <span className="block text-[10px] uppercase opacity-70">
-                {relation}
+                {isSelected ? "Selecionado" : stateLabel}
               </span>
               <span className="mt-1 block text-lg tabular-nums">
                 {entry.hour ?? entry.label}
@@ -785,17 +828,17 @@ function TabletHourNavigator({
                 </span>
               ) : null}
               <span className="mt-1 block text-[10px] uppercase">
-                {completed
-                  ? "Preenchido"
-                  : isFuture
-                    ? "Preenchimento"
-                    : isOverdue
-                      ? "ATRASADO · PREENCHER"
-                      : "Pendente"}
+                {stateLabel}
               </span>
             </button>
           );
         })}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+        <span><i className="mr-1 inline-block size-2 bg-cicopal-blue" />Em preenchimento</span>
+        <span><i className="mr-1 inline-block size-2 bg-emerald-500" />Preenchido</span>
+        <span><i className="mr-1 inline-block size-2 bg-amber-400" />Pendente</span>
+        <span><i className="mr-1 inline-block size-2 bg-red-500" />Atrasado</span>
       </div>
       <div
         className={`mt-2 flex flex-wrap justify-between gap-2 border-t pt-3 text-sm font-bold ${missing ? "text-amber-800" : "text-cicopal-green"}`}
@@ -997,7 +1040,7 @@ function TabletRelease({ columns, activeHour, registro, onSave, onNextStep }) {
         <p className="mt-2 font-semibold text-gray-500">
           Confirmada às {savedAt}. {onNextStep
             ? "A continuidade da produção foi autorizada."
-            : "Conclua abaixo o controle de liberação por máquina."} Para alterar este registro, use “Editar registro”.
+            : "Conclua abaixo o controle de liberação por máquina."} Para alterar este registro, use “Alterar registro”.
         </p>
         {onNextStep ? (
           <button
@@ -3514,17 +3557,17 @@ function PersistedRg003Summary({ data, onEdit }) {
           className="min-h-14 rounded-xl border border-amber-300 bg-amber-50 px-5 font-black text-amber-900"
           onClick={() => setConfirmEdit(true)}
         >
-          Editar registro
+          Alterar registro
         </button>
       </footer>
       <SystemConfirmationDialog
         confirmation={
           confirmEdit
             ? {
-                title: "Editar registro confirmado?",
+                title: "Alterar registro confirmado?",
                 description:
                   "A alteração criará uma nova versão com a identidade do técnico, data e hora da modificação.",
-                confirmLabel: "Abrir para edição",
+                confirmLabel: "Alterar registro",
               }
             : null
         }
@@ -3880,7 +3923,7 @@ export function Rg005SubregistroForm({
   });
   const isHourlyRg003 =
     isRg003 &&
-    ["produto_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
+    ["controle_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id);
   const persistedFillings = persistedRecord?.fillings ?? [];
   const fillingHour = (item) =>
     item.subregistro?.apontamentos?.[0]?.horario ??
@@ -4088,8 +4131,8 @@ export function Rg005SubregistroForm({
       !(await requestConfirmation({
         title: "Liberar produto?",
         description:
-          "Ao confirmar, o controle de liberação será gravado neste horário. O início real permanece vinculado ao preparo da primeira massa.",
-        confirmLabel: "Gravar controle",
+          "Ao confirmar, a Qualidade aprova a liberação inicial do produto. Os controles por máquina serão realizados hora a hora depois que a produção iniciar.",
+        confirmLabel: "Confirmar liberação",
       }))
     )
       return false;
@@ -4300,7 +4343,7 @@ export function Rg005SubregistroForm({
     }
     if (
       isRg003 &&
-      ["produto_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)
+    ["controle_liberacao", "produto_avaliacao", "processo", "fotografico"].includes(subregistro.id)
     ) {
       try {
         const storageKey = cycleStorageKey;
@@ -4524,14 +4567,6 @@ export function Rg005SubregistroForm({
   if (subregistro.id === "produto_liberacao") {
     return (
       <>
-        {isRg003 ? (
-          <TabletHourNavigator
-            activeHour={activeHour}
-            onChange={setActiveHour}
-            allowedHours={allowedHours}
-            completedHours={completedHours}
-          />
-        ) : null}
         {isRg003 && openPrerequisiteNcs.length ? (
           <NcResolutionGate
             title="Produto não liberado"
@@ -4548,9 +4583,44 @@ export function Rg005SubregistroForm({
             options={config.produtoOptions}
           />
         )}
+        {!isRg003 || !openPrerequisiteNcs.length ? <LiberacaoProdutoTable
+          columns={config.liberacaoProdutoColumns}
+          registro={effectiveRegistro}
+          onSave={saveProcesso}
+          initialRelease={isRg003}
+        /> : null}
+        {!isRg003 || savedAt ? (
+          <AssinaturasRegistro registro={effectiveRegistro} />
+        ) : null}
+        <SystemConfirmationDialog
+          confirmation={confirmation}
+          onAnswer={answerConfirmation}
+        />
+      </>
+    );
+  }
+
+  if (subregistro.id === "controle_liberacao") {
+    return (
+      <>
+        <HourlySaveOverlay state={hourlySaveFeedback} />
         {isRg003 ? (
+          <TabletHourNavigator
+            activeHour={activeHour}
+            onChange={setActiveHour}
+            allowedHours={allowedHours}
+            completedHours={completedHours}
+          />
+        ) : null}
+        {isRg003 ? <Rg003ProductContext cycle={cycleContext} /> : null}
+        {isRg003 && activePersisted && !editMode ? (
+          <PersistedRg003Summary
+            data={activePersisted}
+            onEdit={() => setEditMode(true)}
+          />
+        ) : (
           <ProcessEvaluationTabletFlow
-            key={`${cycleContext?.id ?? "sem-ciclo"}-liberacao-maquinas-${activeHour}`}
+            key={`${cycleContext?.id ?? "sem-ciclo"}-controle-liberacao-${activeHour}`}
             title="Controle de liberação por máquina"
             machines={config.liberacaoMaquinas ?? config.produtoMaquinas}
             gramaturas={config.produtoOptions.gramaturas}
@@ -4561,20 +4631,7 @@ export function Rg005SubregistroForm({
             initialConfiguration={latestMachineConfiguration}
             cycleId={cycleContext?.id}
           />
-        ) : (
-          <LiberacaoProdutoTable
-            columns={config.liberacaoProdutoColumns}
-            registro={effectiveRegistro}
-            onSave={saveProcesso}
-          />
         )}
-        {!isRg003 || savedAt ? (
-          <AssinaturasRegistro registro={effectiveRegistro} />
-        ) : null}
-        <SystemConfirmationDialog
-          confirmation={confirmation}
-          onAnswer={answerConfirmation}
-        />
       </>
     );
   }

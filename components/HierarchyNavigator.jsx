@@ -55,7 +55,12 @@ const processCatalog = [
   {
     id: "produto_liberacao",
     nome: "Liberacao do Produto",
-    frequencia: "Por horario liberado",
+    frequencia: "Por producao",
+  },
+  {
+    id: "controle_liberacao",
+    nome: "Controle de Liberacao por Maquina",
+    frequencia: "Hora em hora",
   },
   {
     id: "produto_avaliacao",
@@ -112,6 +117,7 @@ function dateHasNc(data) {
 const processDisplayPrefixes = {
   higienizacao: "HIG",
   produto_liberacao: "LIBP",
+  controle_liberacao: "CTRLIB",
   produto_avaliacao: "AVP",
   processo: "RGP",
   fotografico: "REGF",
@@ -241,6 +247,7 @@ function Rg003ProcessFlow({
   const order = [
     "higienizacao",
     "produto_liberacao",
+    "controle_liberacao",
     "produto_avaliacao",
     "processo",
     "fotografico",
@@ -378,6 +385,7 @@ function ProgressiveRg003Flow({
   const ids = [
     "higienizacao",
     "produto_liberacao",
+    "controle_liberacao",
     "produto_avaliacao",
     "processo",
     "fotografico",
@@ -2326,7 +2334,7 @@ function Rg003ProductionControl({
             <div className="mb-4"><p className="text-xs font-bold uppercase tracking-[.14em] text-cicopal-blue">Acesso rápido</p><h3 className="mt-1 text-xl font-black text-gray-950">Registros da hora</h3></div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                ["produto_liberacao", "Controle de liberação por máquina", "release"],
+                ["controle_liberacao", "Controle de liberação por máquina", "release"],
                 ["produto_avaliacao", "Avaliação do produto", "product"],
                 ["processo", "Avaliação do processo", "process"],
                 ["fotografico", "Registro fotográfico", "photo"],
