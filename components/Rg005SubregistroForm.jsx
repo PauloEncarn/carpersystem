@@ -775,7 +775,7 @@ function TabletHourNavigator({
         </div>
       </div>
       <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-2">
-        {entries.map((entry, index) => {
+        {entries.map((entry) => {
           const completed = completedHours.includes(entry.value);
           const isSelected = entry.value === activeHour;
           const isCurrent =
@@ -787,8 +787,8 @@ function TabletHourNavigator({
             isPast && !completed;
           const status = completed
             ? "completed"
-            : isCurrent
-              ? "current"
+            : isSelected
+              ? "editing"
               : isOverdue
                 ? "overdue"
                 : isFuture
@@ -796,14 +796,14 @@ function TabletHourNavigator({
                   : "pending";
           const stateLabel = {
             completed: "Preenchido",
-            current: "Em preenchimento",
+            editing: "Em preenchimento",
             overdue: "Pendente · atrasado",
             upcoming: "Próximo horário",
             pending: "Pendente",
           }[status];
           const statusClass = {
             completed: "border-emerald-300 bg-emerald-50 text-emerald-800",
-            current: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
+            editing: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
             overdue: "border-red-500 bg-red-50 text-red-800",
             upcoming: "border-slate-300 bg-slate-50 text-slate-600 hover:border-cicopal-blue",
             pending: "border-amber-400 bg-amber-50 text-amber-900",
