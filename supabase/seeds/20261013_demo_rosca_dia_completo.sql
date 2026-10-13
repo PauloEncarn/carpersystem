@@ -1,16 +1,38 @@
 -- CARGA FICTÍCIA · Rosca Leite · 13/10/2026 · turno completo (07h–21h).
 -- Uso: execute no SQL Editor do Supabase depois de aplicar todas as migrations.
--- A carga é idempotente e não fecha nem altera uma produção real ativa.
+-- ATENÇÃO: esta carga substitui os dados de produção da linha ROS deste ambiente de testes.
+-- Ela preserva cadastros mestres (receitas, insumos, operadores e configurações gerais).
+
+begin;
+
+create temporary table ciclos_rosca_para_substituir on commit drop as
+select id from public.ciclos_producao where linha_id = 'ROS';
+
+-- Apaga apenas os registros dependentes dos ciclos da linha Rosca.
+delete from public.subprocesso_retificacoes
+where registro_id in (
+  select id from public.subprocesso_registros
+  where ciclo_id in (select id from ciclos_rosca_para_substituir)
+);
+delete from public.subprocesso_registros where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.preenchimentos where ciclo_id in (select id from ciclos_rosca_para_substituir);
+-- A estrutura legada usa um lote único por linha/data; a exclusão em cascata
+-- também remove seus registros e preenchimentos associados.
+delete from public.lotes where linha_id = 'ROS';
+delete from public.bateladas where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.automacao_lotes where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.producao_interrupcoes where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.empacotamento_configuracoes where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.deteccao_metal_testes where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.ciclo_pausas where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.higienizacao_rodadas where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.ciclo_nao_conformidades where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.eventos_ciclo where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.producao_subprocessos where ciclo_id in (select id from ciclos_rosca_para_substituir);
+delete from public.ciclos_producao where id in (select id from ciclos_rosca_para_substituir);
 
 do $$
 begin
-  if exists (
-    select 1 from public.ciclos_producao
-    where linha_id = 'ROS' and encerrado_em is null
-      and coalesce((metadata->>'demo')::boolean, false) = false
-  ) then
-    raise exception 'Existe uma produção real ativa na linha ROS. Use um ambiente de teste.';
-  end if;
   if not exists (select 1 from public.receitas where lower(produto) = 'rosca leite' and ativa) then
     raise exception 'Cadastre uma receita ativa para Rosca Leite antes de executar esta carga.';
   end if;
@@ -189,3 +211,5 @@ values
  (md5('demo-dia-completo-evento-inicio')::uuid,md5('demo-dia-completo-rosca-2026-10-13')::uuid,'producao_iniciada','Primeira massa enviada ao tombador','00000000-0000-0000-0000-000000000201','2026-10-13 06:10-03','{"demo":true}'::jsonb),
  (md5('demo-dia-completo-evento-fim')::uuid,md5('demo-dia-completo-rosca-2026-10-13')::uuid,'producao_encerrada','Produção do dia encerrada','00000000-0000-0000-0000-000000000205','2026-10-13 21:45-03','{"demo":true}'::jsonb)
 on conflict(id) do update set descricao=excluded.descricao,ocorrido_em=excluded.ocorrido_em;
+
+commit;
