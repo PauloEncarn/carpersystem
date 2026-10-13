@@ -3033,11 +3033,56 @@ function formatTraceDate(date) {
   }).format(date);
 }
 
-function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [], cycle, operatorName = "" }) {
+function finishedProductLot(date, machine) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+  }).formatToParts(date);
+  const value = Object.fromEntries(
+    parts
+      .filter((part) => ["day", "month"].includes(part.type))
+      .map((part) => [part.type, part.value]),
+  );
+  return `D${value.day}${value.month}${String(machine).padStart(2, "0")}`;
+}
+
+function batchTraceSnapshot(batch) {
+  return {
+    id: batch.id,
+    numero: batch.numero,
+    consumo_iniciado_em: batch.consumo_iniciado_em ?? batch.enviada_tombador_em,
+    consumida_em: batch.consumida_em ?? null,
+    insumos: (batch.batelada_insumos ?? []).map((input) => ({
+      insumo: input.insumos?.nome ?? "Insumo",
+      lote: input.lote_fornecedor,
+      fornecedor: input.fornecedor ?? "Não informado",
+      validade: input.validade,
+      quantidade: input.quantidade_utilizada,
+      unidade: input.unidade,
+    })),
+  };
+}
+
+function batchesInConsumptionAt(batches, capturedAt) {
+  const moment = capturedAt.getTime();
+  return batches.filter((batch) => {
+    const startedAt = new Date(
+      batch.consumo_iniciado_em ?? batch.enviada_tombador_em ?? 0,
+    ).getTime();
+    const finishedAt = batch.consumida_em
+      ? new Date(batch.consumida_em).getTime()
+      : Number.POSITIVE_INFINITY;
+    return Number.isFinite(startedAt) && startedAt <= moment && moment < finishedAt;
+  });
+}
+
+function PhotoHourlyGrid({ activeHour = "", activeSlot, onSave, recentPhotos = [], cycle, operatorName = "" }) {
   const [photo, setPhoto] = useState(null);
   const [machines, setMachines] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [traceabilityMessage, setTraceabilityMessage] = useState("");
 
   function toggleMachine(machine) {
     setMachines((current) =>
@@ -3084,25 +3129,36 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [], cycle, op
   async function savePhoto() {
     if (!photo || !machines.length || saving) return;
     setSaving(true);
+    setTraceabilityMessage("");
     try {
       const capturedAt = new Date();
       const productionDate = new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? capturedAt);
-      const dateCode = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Sao_Paulo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(productionDate).replaceAll("-", "");
+      const sourceTraceability = cycle?.id
+        ? await loadProductionTraceability(cycle.id)
+        : null;
+      const consumedBatches = sourceTraceability?.remote
+        ? batchesInConsumptionAt(sourceTraceability.batches, capturedAt)
+        : [];
+      if (sourceTraceability?.remote && !consumedBatches.length) {
+        setTraceabilityMessage(
+          "Nenhuma batelada estava em consumo neste momento. Envie a massa ao tombador antes de registrar a foto.",
+        );
+        return;
+      }
+      const batchTraceability = consumedBatches.map(batchTraceSnapshot);
       const traceabilities = machines.map((machine) => {
         const machineNumber = String(machine).padStart(2, "0");
         return {
-          lote: `${dateCode}-${machineNumber}`,
+          lote: finishedProductLot(productionDate, machine),
           maquina: machineNumber,
           data_producao: formatTraceDate(productionDate),
           validade: formatTraceDate(expirationDate(productionDate)),
           horario: capturedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          horario_referencia: activeHour,
+          slot_referencia: activeSlot ?? null,
           turno: productionTurn(capturedAt),
           responsavel: operatorName,
+          bateladas: batchTraceability,
         };
       });
       await onSave?.({
@@ -3138,7 +3194,7 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [], cycle, op
             RG - Registro Fotografico
           </h2>
           <p className="text-sm font-semibold text-gray-600">
-            Registro visual do produto de hora em hora
+            Registro visual do produto de hora em hora, vinculado à massa em consumo
           </p>
         </div>
       </div>
@@ -3211,7 +3267,8 @@ function PhotoHourlyGrid({ activeHour = "", onSave, recentPhotos = [], cycle, op
               {[1, 2, 3, 4].map((item) => <button key={item} type="button" aria-pressed={machines.includes(item)} onClick={() => toggleMachine(item)} className={`min-h-12 border font-black ${machines.includes(item) ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-gray-300 bg-white text-gray-700"}`}>Máquina {String(item).padStart(2, "0")}</button>)}
             </div>
           </div>
-          {machines.length ? <div className="mt-4 border-l-4 border-cicopal-blue bg-white p-3 text-sm font-semibold text-slate-700"><p className="text-xs font-black uppercase tracking-wide text-cicopal-blue">Rastreabilidades que serão criadas</p><div className="mt-2 space-y-1">{machines.map((machine) => <p key={machine}><b>Máquina {String(machine).padStart(2, "0")}:</b> {new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now())).replaceAll("-", "")}-{String(machine).padStart(2, "0")}</p>)}</div><p className="mt-2"><b>Validade:</b> {formatTraceDate(expirationDate(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now())))}</p></div> : null}
+          {machines.length ? <div className="mt-4 border-l-4 border-cicopal-blue bg-white p-3 text-sm font-semibold text-slate-700"><p className="text-xs font-black uppercase tracking-wide text-cicopal-blue">Rastreabilidades que serão criadas</p><div className="mt-2 space-y-1">{machines.map((machine) => <p key={machine}><b>Máquina {String(machine).padStart(2, "0")}:</b> {finishedProductLot(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now()), machine)}</p>)}</div><p className="mt-2"><b>Validade:</b> {formatTraceDate(expirationDate(new Date(cycle?.productionStartedAt ?? cycle?.startedAt ?? Date.now())))}</p></div> : null}
+          {traceabilityMessage ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-800">{traceabilityMessage}</p> : null}
           <button
             type="button"
             disabled={!photo || !machines.length || processing || saving}
@@ -4833,6 +4890,7 @@ export function Rg005SubregistroForm({
         ) : (
           <PhotoHourlyGrid
             activeHour={isRg003 ? activeHourLabel : ""}
+            activeSlot={isRg003 ? activeHour : null}
             onSave={saveProcesso}
             recentPhotos={recentPhotos}
             cycle={cycleContext}
