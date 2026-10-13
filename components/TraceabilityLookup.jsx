@@ -30,13 +30,20 @@ export function TraceabilityLookup() {
           .limit(500);
         if (queryError) throw queryError;
         const entries = (data ?? []).flatMap((record) =>
-          (record.valores?.fotografias ?? []).map((photo, index) => ({
-            id: `${record.id}-${index}`,
-            photo,
-            savedAt: record.preenchido_em,
-            slot: record.horario,
-            trace: photo.rastreabilidade ?? {},
-          })),
+          (record.valores?.fotografias ?? []).flatMap((photo, photoIndex) => {
+            const traces = photo.rastreabilidades?.length
+              ? photo.rastreabilidades
+              : photo.rastreabilidade
+                ? [photo.rastreabilidade]
+                : [];
+            return traces.map((trace, traceIndex) => ({
+              id: `${record.id}-${photoIndex}-${traceIndex}`,
+              photo,
+              savedAt: record.preenchido_em,
+              slot: record.horario,
+              trace,
+            }));
+          }),
         ).filter((entry) => entry.trace.lote);
         if (active) setRecords(entries);
       } catch (loadError) {
