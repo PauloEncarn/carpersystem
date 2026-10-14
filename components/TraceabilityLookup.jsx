@@ -20,7 +20,7 @@ function formatDateTime(value) {
 }
 
 function hourLabel(value = "") {
-  const match = String(value).match(/^(\d{1,2}):/);
+  const match = String(value).trim().match(/^(\d{1,2})(?::|h\b|$)/i);
   return match ? `${String(Number(match[1])).padStart(2, "0")}:00` : "";
 }
 
