@@ -1397,6 +1397,11 @@ function ExecutiveProductionReport({
           body[data-report-export="process"] .process-report-modal > section { max-height: none !important; max-width: none !important; overflow: visible !important; border-radius: 0 !important; box-shadow: none !important; }
           body[data-report-export="process"] .process-report-modal > section > header { display: none !important; }
           body[data-report-export="process"] .process-report-actions { display: none !important; }
+          body[data-report-export="process"] .hourly-matrix { break-inside: avoid; page-break-inside: avoid; }
+          body[data-report-export="process"] .hourly-matrix table { min-width: 0 !important; font-size: 7px !important; }
+          body[data-report-export="process"] .hourly-matrix th,
+          body[data-report-export="process"] .hourly-matrix td { min-width: 0 !important; padding: 3px 1px !important; }
+          body[data-report-export="process"] .hourly-matrix th:first-child { width: 7rem; }
           .report-document-header { border-radius: 0 !important; box-shadow: none !important; }
           .report-document-header__caption { display: none !important; }
           .report-summary { border-radius: 0 !important; box-shadow: none !important; }
@@ -1776,48 +1781,76 @@ function operationalReadingUnit(key) {
 
 function HourlyQualityDetails({ hours }) {
   if (!hours.length) return <EmptyDetail text="Nenhuma avaliação hora a hora registrada." />;
+  const matrices = hourlyControlMatrices(hours);
   return (
-    <div className="divide-y divide-slate-200">
-      {hours.map((hour) => {
-        const product = hour.items.find((item) => item.contexto_tipo === "produto_avaliacao");
-        const process = hour.items.find((item) => item.contexto_tipo === "processo");
-        const productEntries = product ? fillingDetails(product) : [];
-        const processEntries = process ? fillingDetails(process) : [];
-        return (
-          <details key={hour.key} className="group/hour">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-4">
-              <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Horário de controle</p><strong className="mt-1 block text-lg tabular-nums text-slate-950">{hour.label}</strong></div>
-              <span className="text-xs font-black text-cicopal-blue group-open/hour:hidden">Abrir leituras</span>
-              <span className="hidden text-xs font-black text-cicopal-blue group-open/hour:inline">Fechar</span>
-            </summary>
-            <div className="grid gap-5 pb-5 lg:grid-cols-2">
-              <HourlyReadingGroup title="Avaliação do produto" entries={productEntries} emptyText="Não registrada neste horário." />
-              <HourlyReadingGroup title="Avaliação do processo" entries={processEntries} emptyText="Não registrada neste horário." />
-            </div>
-          </details>
-        );
-      })}
+    <div className="space-y-7">
+      <p className="text-sm font-medium leading-6 text-slate-600">Consolidação dos controles por janela horária. C = conforme, NC = não conforme e — = sem registro.</p>
+      {matrices.map((matrix) => <HourlyControlMatrix key={matrix.machine} matrix={matrix} />)}
     </div>
   );
 }
 
-function HourlyReadingGroup({ title, entries, emptyText }) {
-  const visibleEntries = entries.filter((entry) => {
-    const value = entry.resultado ?? entry.valor ?? entry.av1;
-    return value !== undefined && value !== null && value !== "";
-  });
-  return (
-    <section>
-      <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{title}</p>
-      {visibleEntries.length ? <dl className="mt-2 divide-y divide-slate-200 border-y border-slate-200 bg-white">{visibleEntries.map((entry, index) => {
+function hourlyControlMatrices(hours) {
+  const hourColumns = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+  const matrices = new Map();
+  const matrixFor = (machine) => {
+    if (!matrices.has(machine)) matrices.set(machine, { machine, values: new Map() });
+    return matrices.get(machine);
+  };
+
+  hours.forEach((hour) => {
+    const time = hour.label.match(/(\d{2}:\d{2})$/)?.[1];
+    if (!time) return;
+    hour.items.forEach((record) => {
+      const source = record.contexto_tipo === "produto_avaliacao" ? "Produto" : "Processo";
+      fillingDetails(record).forEach((entry) => {
         const raw = entry.resultado ?? entry.valor ?? entry.av1;
-        const normalized = String(raw).trim().toUpperCase();
-        const isResult = ["C", "CONFORME", "N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
-        const nc = ["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
-        return <div key={`${entry.item ?? "leitura"}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2"><dt className="text-sm font-semibold text-slate-700">{entry.maquina ? `${entry.maquina} · ` : ""}{entry.item ?? "Leitura"}</dt><dd className={isResult ? (nc ? "shrink-0 bg-red-50 px-2 py-1 text-xs font-black text-cicopal-red" : "shrink-0 bg-green-50 px-2 py-1 text-xs font-black text-cicopal-green") : "shrink-0 text-sm font-black text-slate-950"}>{isResult ? (nc ? "NC" : "C") : `${raw}${entry.unidade ? ` ${entry.unidade}` : ""}`}</dd></div>;
-      })}</dl> : <p className="mt-2 text-sm font-medium text-slate-500">{emptyText}</p>}
+        if (raw === undefined || raw === null || raw === "") return;
+        const machineMatch = String(entry.maquina ?? "").match(/(\d+)/);
+        const machine = machineMatch ? `MÁQUINA: ${machineMatch[1].padStart(2, "0")}` : "CONTROLE GERAL";
+        const item = entry.item ?? "Leitura";
+        const rowKey = `${source}:${item}`;
+        const matrix = matrixFor(machine);
+        if (!matrix.values.has(rowKey)) matrix.values.set(rowKey, { label: item, source, readings: {} });
+        matrix.values.get(rowKey).readings[time] = { raw, unit: entry.unidade };
+      });
+    });
+  });
+
+  return [...matrices.values()].map((matrix) => ({
+    ...matrix,
+    hours: hourColumns,
+    rows: [...matrix.values.values()],
+  })).sort((first, second) => first.machine.localeCompare(second.machine, "pt-BR"));
+}
+
+function HourlyControlMatrix({ matrix }) {
+  return (
+    <section className="hourly-matrix overflow-hidden border border-slate-400 bg-white">
+      <header className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-slate-400 bg-[#c9c9c9] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-900">
+        <span>{matrix.machine}</span><span>Controle hora a hora</span>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="min-w-[58rem] w-full border-collapse text-center text-[11px]">
+          <thead className="bg-[#e2e2e2] text-slate-900">
+            <tr><th scope="col" className="sticky left-0 z-[1] min-w-36 border-b border-r border-slate-400 bg-[#d2d2d2] px-3 py-2 text-left">Item avaliado</th>{matrix.hours.map((hour) => <th key={hour} scope="col" className="min-w-9 border-b border-r border-slate-400 px-1 py-2 font-black tabular-nums">{hour}</th>)}</tr>
+          </thead>
+          <tbody>
+            {matrix.rows.map((row) => <tr key={`${row.source}-${row.label}`}><th scope="row" className="sticky left-0 z-[1] border-b border-r border-slate-400 bg-white px-3 py-2 text-left text-[11px] font-bold text-slate-800"><span className="block">{row.label}</span><span className="mt-0.5 block text-[9px] font-medium uppercase tracking-wide text-slate-400">{row.source}</span></th>{matrix.hours.map((hour) => <HourlyMatrixCell key={hour} reading={row.readings[hour]} />)}</tr>)}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
+}
+
+function HourlyMatrixCell({ reading }) {
+  if (!reading) return <td className="border-b border-r border-slate-300 px-1 py-2 text-slate-300">—</td>;
+  const normalized = String(reading.raw).trim().toUpperCase();
+  const nc = ["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
+  const conforming = ["C", "CONFORME"].includes(normalized);
+  const value = conforming ? "C" : nc ? "NC" : `${reading.raw}${reading.unit ? ` ${reading.unit}` : ""}`;
+  return <td className={nc ? "border-b border-r border-slate-300 bg-red-100 px-1 py-2 font-black text-cicopal-red" : conforming ? "border-b border-r border-slate-300 bg-emerald-100 px-1 py-2 font-black text-cicopal-green" : "border-b border-r border-slate-300 px-1 py-2 font-bold text-slate-900"}>{value}</td>;
 }
 
 function OperationalProcessDetails({ groups }) {
