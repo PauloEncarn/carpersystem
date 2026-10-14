@@ -35,6 +35,15 @@ function possibleHours(value = "") {
   return [first, `${String(hour + 1).padStart(2, "0")}:00`];
 }
 
+function traceWindowHour(photo, trace, recordHour) {
+  return photo?.horario_referencia
+    ?? trace?.horario_referencia
+    ?? photo?.slot_referencia
+    ?? trace?.slot_referencia
+    ?? recordHour
+    ?? "";
+}
+
 function TimelinePoint({ icon: Icon, tone = "blue", title, children, last = false }) {
   const tones = {
     blue: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
@@ -64,7 +73,7 @@ function BiscuitTimeline({ entry }) {
         <figure className="border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
           <img src={entry.photo.imagem} alt={`Evidência do lote ${trace.lote}`} className="h-52 w-full object-cover lg:h-full lg:min-h-[340px]" />
           <figcaption className="border-t border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-600">
-            Evidência fotográfica · {trace.horario ?? entry.slot ?? "—"}
+            Evidência fotográfica · janela {entry.windowHour || "—"}
           </figcaption>
         </figure>
         <div className="p-5 sm:p-6">
@@ -81,7 +90,7 @@ function BiscuitTimeline({ entry }) {
           <ol className="mt-6">
             <TimelinePoint icon={PackageCheck} title="Produto acabado" tone="green">
               <p className="font-bold text-slate-900">Produzido em {trace.data_producao ?? "—"} · validade {trace.validade ?? "—"}</p>
-              <p className="mt-1 text-sm font-semibold text-slate-600">Foto e rastreabilidade registradas às {trace.horario ?? entry.slot ?? "—"} por {trace.responsavel || "Não informado"}.</p>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Janela de produção {entry.windowHour || "—"} · foto registrada por {trace.responsavel || "Não informado"}.</p>
             </TimelinePoint>
             {batches.length ? batches.map((batch, batchIndex) => (
               <TimelinePoint key={batch.id ?? batch.numero} icon={Factory} title={`Massa · batelada ${batch.numero}`} tone="blue" last={batchIndex === batches.length - 1}>
@@ -141,7 +150,7 @@ export function TraceabilityLookup() {
               id: `${record.id}-${photoIndex}-${traceIndex}`,
               photo,
               savedAt: record.preenchido_em,
-              slot: record.horario,
+              windowHour: traceWindowHour(photo, trace, record.horario),
               trace,
             }));
           }),
@@ -165,7 +174,7 @@ export function TraceabilityLookup() {
 
   const filtered = useMemo(() => {
     if (!selectedHour) return [];
-    return lotMatches.filter((entry) => hourLabel(entry.trace.horario ?? entry.slot) === selectedHour);
+    return lotMatches.filter((entry) => hourLabel(entry.windowHour) === selectedHour);
   }, [lotMatches, selectedHour]);
 
   function updateLot(value) {
