@@ -1392,6 +1392,11 @@ function ExecutiveProductionReport({
           .production-report, .production-report * { visibility: visible !important; }
           .production-report { position: absolute; inset: 0; width: 100%; padding: 0 !important; }
           .report-toolbar, .report-filters, .report-attention { display: none !important; }
+          body[data-report-export="process"] .production-report > :not(.process-report-modal) { display: none !important; }
+          body[data-report-export="process"] .process-report-modal { position: static !important; display: block !important; background: #fff !important; padding: 0 !important; }
+          body[data-report-export="process"] .process-report-modal > section { max-height: none !important; max-width: none !important; overflow: visible !important; border-radius: 0 !important; box-shadow: none !important; }
+          body[data-report-export="process"] .process-report-modal > section > header { display: none !important; }
+          body[data-report-export="process"] .process-report-actions { display: none !important; }
           .report-document-header { border-radius: 0 !important; box-shadow: none !important; }
           .report-document-header__caption { display: none !important; }
           .report-summary { border-radius: 0 !important; box-shadow: none !important; }
@@ -1415,12 +1420,21 @@ function ExecutiveProductionReport({
         .report-input:focus { border-color: #2622b5; box-shadow: 0 0 0 2px rgba(38, 34, 181, .12); }
       `}</style>
 
-      <ControlledDocumentHeader
-        startDate={startDate}
-        endDate={endDate}
-        lineId={lineId}
-        productionCount={filteredData.length}
-      />
+      <section className="overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="border-l-8 border-cicopal-blue px-6 py-7 sm:px-9">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cicopal-blue">Inteligência de produção</p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Visão operacional do período</h2>
+              <p className="mt-2 text-sm font-medium leading-6 text-slate-600">Acompanhe o que exige decisão agora e abra somente a produção que precisa de investigação.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-600">
+              <span className="border border-slate-200 bg-slate-50 px-3 py-2">{new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} — {new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}</span>
+              <span className="border border-blue-100 bg-blue-50 px-3 py-2 text-cicopal-blue">{filteredData.length} produção(ões)</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="report-summary overflow-hidden rounded-[1.25rem] border border-slate-300 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
         <div className="border-b border-slate-300 bg-[#d6d6d6] px-5 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-800">
@@ -1458,7 +1472,7 @@ function ExecutiveProductionReport({
               <Download size={17} /> CSV
             </button>
             <button type="button" onClick={onExportPdf} disabled={!filteredData.length} className="inline-flex min-h-12 items-center justify-center gap-2 bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-40">
-              <Printer size={17} /> Salvar em PDF
+              <Printer size={17} /> Resumo PDF
             </button>
           </div>
         </div>
@@ -1501,12 +1515,14 @@ function ReportField({ label, children }) {
   return <label className="block"><span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</span>{children}</label>;
 }
 
-function ControlledDocumentHeader({ startDate, endDate, lineId, productionCount }) {
-  const line = lineId === "ALL" ? null : lines[lineId];
-  const period = `${new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} a ${new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}`;
-  const title = line
-    ? `CONTROLE DE LIBERAÇÃO E PRODUÇÃO — ${line.name.toUpperCase()}`
-    : "CONTROLE DE LIBERAÇÃO E PRODUÇÃO — CONSOLIDADO";
+function ControlledDocumentHeader({ cycle, reportTitle, reportType }) {
+  const line = cycle.line;
+  const productionDate = new Date(cycle.iniciado_em).toLocaleDateString("pt-BR");
+  const isOperation = reportType === "operation";
+  const identification = isOperation
+    ? `RG.PROD.${cycle.linha_id}.001`
+    : line.rg;
+  const title = `${reportTitle.toUpperCase()} — ${line.name.toUpperCase()}`;
 
   return (
     <section className="report-document-header overflow-hidden rounded-[1.25rem] border border-slate-400 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
@@ -1524,9 +1540,9 @@ function ControlledDocumentHeader({ startDate, endDate, lineId, productionCount 
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-600">Registro geral digital</p>
           </div>
           <div className="grid border-b border-slate-400 sm:grid-cols-2">
-            <DocumentDatum label="Identificação" value={line?.rg ?? "RG.QUA · CONSOLIDADO"} bordered />
+            <DocumentDatum label="Identificação" value={identification} bordered />
             <DocumentDatum label="Revisão" value="03" />
-            <DocumentDatum label="Período" value={period} bordered />
+            <DocumentDatum label="Data de produção" value={productionDate} bordered />
             <DocumentDatum label="Folha" value="Consulta digital / PDF" />
           </div>
         </div>
@@ -1539,9 +1555,9 @@ function ControlledDocumentHeader({ startDate, endDate, lineId, productionCount 
         <div className="border-b border-slate-400 lg:border-b-0 lg:border-r">
           <div className="bg-[#c9c9c9] px-5 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-900">Escopo do registro</div>
           <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-            <DocumentContext label="Linha" value={line?.name ?? "Todas as linhas"} />
-            <DocumentContext label="Produções" value={`${productionCount} no período`} />
-            <DocumentContext label="Status" value="Dados rastreáveis por ciclo" />
+            <DocumentContext label="Linha" value={line.name} />
+            <DocumentContext label="Produto" value={cycle.produto ?? "Não informado"} />
+            <DocumentContext label="Lote da produção" value={cycle.metadata?.productionCode ?? cycle.id} />
           </div>
         </div>
         <div>
@@ -1552,7 +1568,7 @@ function ControlledDocumentHeader({ startDate, endDate, lineId, productionCount 
           </div>
         </div>
       </div>
-      <p className="report-document-header__caption border-t border-slate-200 bg-slate-50 px-5 py-2 text-xs font-medium text-slate-500 sm:px-7">Selecione uma produção abaixo para consultar os registros completos por processo. Na exportação, use a opção “Salvar como PDF” do navegador.</p>
+      <p className="report-document-header__caption border-t border-slate-200 bg-slate-50 px-5 py-2 text-xs font-medium text-slate-500 sm:px-7">Registro emitido a partir dos apontamentos do ciclo. Para gerar o arquivo, use “PDF” e escolha “Salvar como PDF” no navegador.</p>
     </section>
   );
 }
@@ -1622,6 +1638,7 @@ function ExecutiveCycle({ cycle, onOpenProcess }) {
         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Consultar processo</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <ProcessButton label="Higienização" note={cycle.hygiene ? "Concluída" : "Pendente"} onClick={() => onOpenProcess({ cycle, type: "hygiene" })} />
+          <ProcessButton label="Relatório completo" note="Todos os registros desta produção" onClick={() => onOpenProcess({ cycle, type: "full" })} />
           <ProcessButton label="Liberação do produto" note={cycle.release ? "Registrada" : "Pendente"} onClick={() => onOpenProcess({ cycle, type: "release" })} />
           <ProcessButton label="Qualidade hora a hora" note={`${hourGroups(cycle).length} horário(s)`} onClick={() => onOpenProcess({ cycle, type: "hourly" })} />
           <ProcessButton label="Operação" note={`${cycle.processRecords.length} apontamento(s)`} onClick={() => onOpenProcess({ cycle, type: "operation" })} />
@@ -1641,6 +1658,7 @@ function ProcessModal({ selection, onClose }) {
   if (!selection) return null;
   const { cycle, type } = selection;
   const titles = {
+    full: "Registro geral da produção",
     hygiene: "Higienização",
     release: "Liberação do produto",
     hourly: "Qualidade hora a hora",
@@ -1648,8 +1666,21 @@ function ProcessModal({ selection, onClose }) {
     traceability: "Rastreabilidade",
     occurrences: "Ocorrências",
   };
+  const exportReport = () => {
+    const previousTitle = document.title;
+    const code = cycle.metadata?.productionCode ?? cycle.id;
+    const restore = () => {
+      document.title = previousTitle;
+      delete document.body.dataset.reportExport;
+      window.removeEventListener("afterprint", restore);
+    };
+    document.title = `${titles[type].toLowerCase().replaceAll(" ", "-")}-${code}`;
+    document.body.dataset.reportExport = "process";
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
   return (
-    <div className="fixed inset-0 z-[250] grid place-items-center bg-slate-950/45 p-3 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
+    <div className="process-report-modal fixed inset-0 z-[250] grid place-items-center bg-slate-950/45 p-3 backdrop-blur-sm" role="presentation" onMouseDown={onClose}>
       <section role="dialog" aria-modal="true" aria-label={titles[type]} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur sm:px-8">
           <div>
@@ -1657,21 +1688,30 @@ function ProcessModal({ selection, onClose }) {
             <h2 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">{titles[type]}</h2>
             <p className="mt-1 text-sm font-semibold text-slate-500">{cycle.line.name} · {cycle.produto ?? "Produto não informado"} · {new Date(cycle.iniciado_em).toLocaleDateString("pt-BR")}</p>
           </div>
-          <button type="button" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue" aria-label="Fechar detalhes"><X size={20} /></button>
+          <div className="process-report-actions flex shrink-0 gap-2"><button type="button" onClick={exportReport} className="inline-flex min-h-11 items-center gap-2 border border-slate-300 px-3 text-sm font-black text-slate-800 hover:border-cicopal-blue hover:text-cicopal-blue"><Printer size={17} /> PDF</button><button type="button" onClick={onClose} className="grid size-11 place-items-center rounded-full border border-slate-200 text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue" aria-label="Fechar detalhes"><X size={20} /></button></div>
         </header>
-        <div className="px-6 py-6 sm:px-8"><ProcessModalContent cycle={cycle} type={type} /></div>
+        <div className="px-6 py-6 sm:px-8"><ControlledDocumentHeader cycle={cycle} reportTitle={titles[type]} reportType={type} /><div className="mt-7"><ProcessModalContent cycle={cycle} type={type} /></div></div>
       </section>
     </div>
   );
 }
 
 function ProcessModalContent({ cycle, type }) {
+  if (type === "full") return <FullProductionReport cycle={cycle} />;
   if (type === "hygiene") return <><HygieneTimeline cycle={cycle} /><div className="mt-7"><SimplifiedChecklistByContact records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização neste dia." /></div></>;
   if (type === "release") return <SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada neste dia." />;
   if (type === "hourly") return <HourlyQualityDetails hours={hourGroups(cycle)} />;
   if (type === "operation") return <OperationalProcessDetails groups={processRecordGroups(cycle)} />;
   if (type === "traceability") return <TraceabilitySummary cycle={cycle} />;
   return <OccurrenceSummary cycle={cycle} />;
+}
+
+function FullProductionReport({ cycle }) {
+  return <div className="space-y-8"><section><ReportSectionTitle>Higienização</ReportSectionTitle><HygieneTimeline cycle={cycle} /></section><section><ReportSectionTitle>Liberação do produto</ReportSectionTitle><SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada nesta produção." /></section><section><ReportSectionTitle>Qualidade hora a hora</ReportSectionTitle><HourlyQualityDetails hours={hourGroups(cycle)} /></section><section><ReportSectionTitle>Apontamentos operacionais</ReportSectionTitle><OperationalProcessDetails groups={processRecordGroups(cycle)} /></section><section><ReportSectionTitle>Rastreabilidade</ReportSectionTitle><TraceabilitySummary cycle={cycle} /></section><section><ReportSectionTitle>Ocorrências</ReportSectionTitle><OccurrenceSummary cycle={cycle} /></section></div>;
+}
+
+function ReportSectionTitle({ children }) {
+  return <h3 className="mb-4 border-y border-slate-400 bg-[#c9c9c9] px-4 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-900">{children}</h3>;
 }
 
 function HygieneTimeline({ cycle }) {
