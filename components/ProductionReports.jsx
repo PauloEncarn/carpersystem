@@ -299,6 +299,7 @@ function releaseReportRecords(cycle) {
       label: item.contexto_tipo === "controle_liberacao"
         ? "Controle de liberação por máquina"
         : "Liberação inicial do produto",
+      kind: item.contexto_tipo === "controle_liberacao" ? "machine" : "product",
       at: item.preenchido_em,
       operator: item.operador_id,
       status: item.status,
@@ -1402,6 +1403,10 @@ function ExecutiveProductionReport({
           body[data-report-export="process"] .hourly-matrix th,
           body[data-report-export="process"] .hourly-matrix td { min-width: 0 !important; padding: 3px 1px !important; }
           body[data-report-export="process"] .hourly-matrix th:first-child { width: 7rem; }
+          body[data-report-export="process"] .product-release-table { break-inside: avoid; page-break-inside: avoid; }
+          body[data-report-export="process"] .product-release-table table { min-width: 0 !important; font-size: 7px !important; }
+          body[data-report-export="process"] .product-release-table th,
+          body[data-report-export="process"] .product-release-table td { min-width: 0 !important; padding: 3px 1px !important; }
           .report-document-header { border-radius: 0 !important; box-shadow: none !important; }
           .report-document-header__caption { display: none !important; }
           .report-summary { border-radius: 0 !important; box-shadow: none !important; }
@@ -1703,8 +1708,8 @@ function ProcessModal({ selection, onClose }) {
 
 function ProcessModalContent({ cycle, type }) {
   if (type === "full") return <FullProductionReport cycle={cycle} />;
-  if (type === "hygiene") return <><HygieneTimeline cycle={cycle} /><div className="mt-7"><SimplifiedChecklistByContact records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização neste dia." /></div></>;
-  if (type === "release") return <SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada neste dia." />;
+  if (type === "hygiene") return <><HygieneTimeline cycle={cycle} /><div className="mt-7"><HygieneEvaluationTable records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização neste dia." /></div></>;
+  if (type === "release") return <ProductReleaseReport records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada nesta produção." />;
   if (type === "hourly") return <HourlyQualityDetails hours={hourGroups(cycle)} />;
   if (type === "operation") return <OperationalProcessDetails groups={processRecordGroups(cycle)} />;
   if (type === "traceability") return <TraceabilitySummary cycle={cycle} />;
@@ -1712,7 +1717,7 @@ function ProcessModalContent({ cycle, type }) {
 }
 
 function FullProductionReport({ cycle }) {
-  return <div className="space-y-8"><section><ReportSectionTitle>Higienização</ReportSectionTitle><HygieneTimeline cycle={cycle} /></section><section><ReportSectionTitle>Liberação do produto</ReportSectionTitle><SimplifiedChecklistByContact records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada nesta produção." /></section><section><ReportSectionTitle>Qualidade hora a hora</ReportSectionTitle><HourlyQualityDetails hours={hourGroups(cycle)} /></section><section><ReportSectionTitle>Apontamentos operacionais</ReportSectionTitle><OperationalProcessDetails groups={processRecordGroups(cycle)} /></section><section><ReportSectionTitle>Rastreabilidade</ReportSectionTitle><TraceabilitySummary cycle={cycle} /></section><section><ReportSectionTitle>Ocorrências</ReportSectionTitle><OccurrenceSummary cycle={cycle} /></section></div>;
+  return <div className="space-y-8"><section><ReportSectionTitle>Higienização</ReportSectionTitle><HygieneTimeline cycle={cycle} /><div className="mt-6"><HygieneEvaluationTable records={hygieneReportRecords(cycle)} emptyText="Nenhum checklist de higienização nesta produção." /></div></section><section><ReportSectionTitle>Liberação do produto</ReportSectionTitle><ProductReleaseReport records={releaseReportRecords(cycle)} emptyText="Nenhuma liberação registrada nesta produção." /></section><section><ReportSectionTitle>Qualidade hora a hora</ReportSectionTitle><HourlyQualityDetails hours={hourGroups(cycle)} /></section><section><ReportSectionTitle>Apontamentos operacionais</ReportSectionTitle><OperationalProcessDetails groups={processRecordGroups(cycle)} /></section><section><ReportSectionTitle>Rastreabilidade</ReportSectionTitle><TraceabilitySummary cycle={cycle} /></section><section><ReportSectionTitle>Ocorrências</ReportSectionTitle><OccurrenceSummary cycle={cycle} /></section></div>;
 }
 
 function ReportSectionTitle({ children }) {
@@ -1897,6 +1902,66 @@ function OperationalProcessDetails({ groups }) {
 
 function ReportDisclosure({ title, children, alert = false }) {
   return <details className={`border-t-2 bg-transparent ${alert ? "border-amber-300" : "border-slate-200"}`}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 font-black text-slate-900"><span>{title}</span><span className="text-xs text-cicopal-blue">Abrir</span></summary><div className="border-t border-slate-200 pb-4 pt-4">{children}</div></details>;
+}
+
+function HygieneEvaluationTable({ records, emptyText }) {
+  const groups = new Map();
+  records.forEach((record) => {
+    const isQuality = /qualidade/i.test(record.label);
+    checklistEntries(record.payload).forEach((entry) => {
+      const group = entry.group || "Itens avaliados";
+      if (!groups.has(group)) groups.set(group, new Map());
+      const items = groups.get(group);
+      if (!items.has(entry.item)) items.set(entry.item, { item: entry.item, first: "", second: "" });
+      const row = items.get(entry.item);
+      if (isQuality) row.second = entry.qualityResult ?? entry.result;
+      else {
+        row.first = entry.result;
+        if (entry.qualityResult) row.second = entry.qualityResult;
+      }
+    });
+  });
+  if (!groups.size) return <EmptyDetail text={emptyText} />;
+
+  return <div className="space-y-6">{[...groups.entries()].map(([group, entries]) => <section key={group} className="report-checklist-table overflow-hidden border border-slate-400 bg-white"><table className="w-full border-collapse text-sm"><thead><tr className="bg-[#c9c9c9] text-slate-950"><th scope="col" className="border-b border-r border-slate-400 px-4 py-3 text-left font-black">{group}</th><th scope="col" className="w-28 border-b border-r border-slate-400 px-2 py-3 text-center text-xs font-black">1ª Avaliação</th><th scope="col" className="w-28 border-b border-slate-400 px-2 py-3 text-center text-xs font-black">2ª Avaliação</th></tr></thead><tbody>{[...entries.values()].map((entry) => <tr key={entry.item}><th scope="row" className="border-b border-r border-slate-300 px-4 py-2 text-left font-semibold text-slate-800">{entry.item}</th><ResultTableCell value={entry.first} /><ResultTableCell value={entry.second} /></tr>)}</tbody></table></section>)}</div>;
+}
+
+const productReleaseGroups = [
+  {
+    title: "LIBERAÇÃO DO PRODUTO",
+    fields: ["Sabor e odor", "Textura", "Aspecto visual", "Peso do pacote (g)", "Selagem", "Datador", "Impressão", "Micro furo · máquina 1", "Micro furo · máquina 2", "Micro furo · máquina 3", "Micro furo · máquina 4"],
+  },
+  {
+    title: "PARÂMETROS DO PROCESSO",
+    fields: ["Ponto de massa", "Peso corte a fio lado operacional", "Peso corte a fio lado não operacional", "Peso 10 biscoitos lado operacional", "Peso 10 biscoitos lado não operacional"],
+  },
+];
+
+function normalizedReportField(value) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function ProductReleaseReport({ records, emptyText }) {
+  const productRecords = records.filter((record) => record.kind !== "machine");
+  if (!productRecords.length) return <EmptyDetail text={emptyText} />;
+  const readings = productRecords.map((record) => ({
+    ...record,
+    byField: new Map(checklistEntries(record.payload).map((entry) => [normalizedReportField(entry.item), entry.result])),
+  }));
+  return <div className="space-y-6">{productReleaseGroups.map((group) => <section key={group.title} className="product-release-table overflow-hidden border border-slate-400 bg-white"><div className="border-b border-slate-400 bg-[#c9c9c9] px-4 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-900">{group.title}</div><div className="overflow-x-auto"><table className="min-w-[58rem] w-full border-collapse text-center text-xs"><thead><tr className="bg-white text-slate-950"><th scope="col" className="min-w-16 border-b border-r border-slate-400 px-2 py-3 font-black">Hora</th>{group.fields.map((field) => <th key={field} scope="col" className="min-w-24 border-b border-r border-slate-400 px-2 py-3 font-black leading-tight">{field}</th>)}</tr></thead><tbody>{readings.map((record) => <tr key={record.id}><th scope="row" className="border-b border-r border-slate-300 px-2 py-3 font-black tabular-nums text-slate-800">{releaseDecisionTime(record.at)}</th>{group.fields.map((field) => <ResultTableCell key={field} value={record.byField.get(normalizedReportField(field))} />)}</tr>)}</tbody></table></div></section>)}</div>;
+}
+
+function releaseDecisionTime(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function ResultTableCell({ value }) {
+  if (value === undefined || value === null || value === "") return <td className="border-b border-r border-slate-300 px-2 py-2 text-slate-300">—</td>;
+  const normalized = String(value).trim().toUpperCase();
+  const nc = ["N", "NC", "NÃO CONFORME", "NAO CONFORME"].includes(normalized);
+  const conforming = ["C", "CONFORME"].includes(normalized);
+  return <td className={nc ? "border-b border-r border-slate-300 bg-red-100 px-2 py-2 font-black text-cicopal-red" : conforming ? "border-b border-r border-slate-300 bg-emerald-100 px-2 py-2 font-black text-cicopal-green" : "border-b border-r border-slate-300 px-2 py-2 font-bold text-slate-900"}>{conforming ? "C" : nc ? "NC" : String(value)}</td>;
 }
 
 function SimplifiedChecklistByContact({ records, emptyText }) {
