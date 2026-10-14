@@ -44,6 +44,37 @@ function traceWindowHour(photo, trace, recordHour) {
     ?? "";
 }
 
+function inputSignature(input = {}) {
+  return [input.lote, input.fornecedor, input.validade].map((value) => String(value ?? "").trim()).join("|");
+}
+
+function buildIngredientTimeline(records, entry) {
+  const currentBatch = Math.max(...(entry.trace.bateladas ?? []).map((batch) => Number(batch.numero) || 0), 0);
+  const batchMap = new Map();
+  records
+    .filter((item) => item.cycleId === entry.cycleId)
+    .flatMap((item) => item.trace.bateladas ?? [])
+    .forEach((batch) => {
+      const key = batch.id ?? `numero-${batch.numero}`;
+      const existing = batchMap.get(key);
+      if (!existing || (batch.insumos?.length ?? 0) > (existing.insumos?.length ?? 0)) batchMap.set(key, batch);
+    });
+  const batches = [...batchMap.values()]
+    .filter((batch) => !currentBatch || Number(batch.numero) <= currentBatch)
+    .sort((first, second) => Number(first.numero) - Number(second.numero));
+  const previousInputs = new Map();
+  return batches.flatMap((batch, batchIndex) => {
+    const changes = (batch.insumos ?? []).flatMap((input) => {
+      const key = String(input.insumo ?? "Insumo");
+      const previous = previousInputs.get(key);
+      previousInputs.set(key, input);
+      if (!previous || inputSignature(previous) !== inputSignature(input)) return [{ input, previous }];
+      return [];
+    });
+    return changes.length ? [{ batch, initial: batchIndex === 0, changes }] : [];
+  });
+}
+
 function TimelinePoint({ icon: Icon, tone = "blue", title, children, last = false }) {
   const tones = {
     blue: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
@@ -64,53 +95,33 @@ function TimelinePoint({ icon: Icon, tone = "blue", title, children, last = fals
   );
 }
 
-function BiscuitTimeline({ entry }) {
+function BiscuitTimeline({ entry, records }) {
   const { trace } = entry;
-  const batches = trace.bateladas ?? [];
+  const ingredientTimeline = buildIngredientTimeline(records, entry);
   return (
     <article className="overflow-hidden border border-slate-200 bg-white shadow-sm">
-      <div className="grid lg:grid-cols-[260px_minmax(0,1fr)]">
-        <figure className="border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
-          <img src={entry.photo.imagem} alt={`Evidência do lote ${trace.lote}`} className="h-52 w-full object-cover lg:h-full lg:min-h-[340px]" />
-          <figcaption className="border-t border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-600">
-            Evidência fotográfica · janela {entry.windowHour || "—"}
-          </figcaption>
-        </figure>
-        <div className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[.16em] text-cicopal-blue">Linha do tempo do biscoito</p>
-              <h2 className="mt-1 text-3xl font-black text-slate-950">{trace.lote}</h2>
-            </div>
-            <div className="flex gap-2 text-xs font-black">
-              <span className="border border-blue-200 bg-blue-50 px-3 py-2 text-cicopal-blue">MÁQUINA {trace.maquina ?? "—"}</span>
-              <span className="border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">TURNO {trace.turno ?? "—"}</span>
-            </div>
-          </div>
-          <ol className="mt-6">
-            <TimelinePoint icon={PackageCheck} title="Produto acabado" tone="green">
-              <p className="font-bold text-slate-900">Produzido em {trace.data_producao ?? "—"} · validade {trace.validade ?? "—"}</p>
-              <p className="mt-1 text-sm font-semibold text-slate-600">Janela de produção {entry.windowHour || "—"} · foto registrada por {trace.responsavel || "Não informado"}.</p>
-            </TimelinePoint>
-            {batches.length ? batches.map((batch, batchIndex) => (
-              <TimelinePoint key={batch.id ?? batch.numero} icon={Factory} title={`Massa · batelada ${batch.numero}`} tone="blue" last={batchIndex === batches.length - 1}>
-                <p className="font-bold text-slate-900">Em consumo: {formatDateTime(batch.consumo_iniciado_em)}{batch.consumida_em ? ` até ${formatDateTime(batch.consumida_em)}` : ""}</p>
-                <div className="mt-3 divide-y divide-blue-100 border-y border-blue-100 bg-blue-50/60">
-                  {(batch.insumos ?? []).map((input, index) => (
-                    <div key={`${input.insumo}-${input.lote}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1 px-3 py-2 text-sm">
-                      <strong className="text-slate-900">{input.insumo}</strong>
-                      <span className="font-bold text-slate-700">Lote {input.lote ?? "—"} · {input.fornecedor ?? "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              </TimelinePoint>
-            )) : (
-              <TimelinePoint icon={Clock3} title="Massa não vinculada" tone="slate" last>
-                <p className="text-sm font-semibold text-slate-600">Este é um registro anterior à vinculação automática da batelada.</p>
-              </TimelinePoint>
-            )}
-          </ol>
+      <figure className="relative bg-slate-950">
+        <img src={entry.photo.imagem} alt={`Evidência do lote ${trace.lote}`} className="h-72 w-full object-cover sm:h-96" />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-transparent px-5 pb-5 pt-20 text-white sm:px-7">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-200">Registro fotográfico · janela {entry.windowHour || "—"}</p>
+          <div className="mt-1 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-3xl font-black">{trace.lote}</h2><p className="mt-1 text-sm font-bold text-slate-200">Produzido em {trace.data_producao ?? "—"} · validade {trace.validade ?? "—"}</p></div><div className="flex gap-2 text-xs font-black"><span className="border border-white/40 bg-white/10 px-3 py-2">MÁQUINA {trace.maquina ?? "—"}</span><span className="border border-white/30 bg-slate-950/30 px-3 py-2">TURNO {trace.turno ?? "—"}</span></div></div>
         </div>
+      </figure>
+      <div className="p-5 sm:p-7">
+        <div className="border-b border-slate-100 pb-5"><p className="text-[10px] font-black uppercase tracking-[.16em] text-cicopal-blue">Linha do tempo dos insumos</p><p className="mt-1 font-semibold text-slate-600">Apenas a composição inicial e as alterações de lote são exibidas.</p></div>
+        <ol className="mt-6">
+          <TimelinePoint icon={PackageCheck} title="Produto acabado" tone="green">
+            <p className="font-bold text-slate-900">Foto registrada por {trace.responsavel || "Não informado"}.</p>
+          </TimelinePoint>
+          {ingredientTimeline.length ? ingredientTimeline.map((event, eventIndex) => (
+            <TimelinePoint key={event.batch.id ?? event.batch.numero} icon={Factory} title={event.initial ? `Composição inicial · batelada ${event.batch.numero}` : `Alteração de insumo · batelada ${event.batch.numero}`} tone="blue" last={eventIndex === ingredientTimeline.length - 1}>
+              <p className="font-bold text-slate-900">Em consumo: {formatDateTime(event.batch.consumo_iniciado_em)}{event.batch.consumida_em ? ` até ${formatDateTime(event.batch.consumida_em)}` : ""}</p>
+              <div className="mt-3 divide-y divide-blue-100 border-y border-blue-100 bg-blue-50/60">
+                {event.changes.map(({ input, previous }, index) => <div key={`${input.insumo}-${input.lote}-${index}`} className="px-3 py-2 text-sm"><strong className="text-slate-900">{input.insumo}</strong>{previous ? <p className="mt-1 font-semibold text-slate-600">Lote alterado de <span className="line-through">{previous.lote ?? "—"}</span> para <span className="font-black text-cicopal-blue">{input.lote ?? "—"}</span> · {input.fornecedor ?? "—"}</p> : <p className="mt-1 font-semibold text-slate-600">Lote inicial: <span className="font-black text-cicopal-blue">{input.lote ?? "—"}</span> · {input.fornecedor ?? "—"}</p>}</div>)}
+              </div>
+            </TimelinePoint>
+          )) : <TimelinePoint icon={Clock3} title="Sem alterações de lote registradas" tone="slate" last><p className="text-sm font-semibold text-slate-600">Não há mudança de insumo vinculada às bateladas deste biscoito.</p></TimelinePoint>}
+        </ol>
       </div>
     </article>
   );
@@ -148,6 +159,7 @@ export function TraceabilityLookup() {
                 : [];
             return traces.map((trace, traceIndex) => ({
               id: `${record.id}-${photoIndex}-${traceIndex}`,
+              cycleId: record.ciclo_id,
               photo,
               savedAt: record.preenchido_em,
               windowHour: traceWindowHour(photo, trace, record.horario),
@@ -166,11 +178,16 @@ export function TraceabilityLookup() {
     return () => { active = false; };
   }, []);
 
-  const candidateHours = useMemo(() => possibleHours(time), [time]);
   const lotMatches = useMemo(() => {
     const term = normalize(query);
     return term ? records.filter((entry) => normalize(entry.trace.lote).includes(term)) : [];
   }, [query, records]);
+
+  const candidateHours = useMemo(() =>
+    possibleHours(time).filter((hour) =>
+      lotMatches.some((entry) => hourLabel(entry.windowHour) === hour),
+    ),
+  [time, lotMatches]);
 
   const filtered = useMemo(() => {
     if (!selectedHour) return [];
@@ -203,16 +220,17 @@ export function TraceabilityLookup() {
             <input type="time" value={time} onChange={(event) => updateTime(event.target.value)} aria-label="Horário impresso" className="min-w-0 flex-1 bg-transparent font-bold outline-none" />
           </label>
         </div>
-        {normalize(query) && candidateHours.length ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Horários possíveis para consulta</p><div className="mt-2 flex flex-wrap gap-2">{candidateHours.map((hour) => <button type="button" key={hour} onClick={() => setSelectedHour(hour)} className={`min-h-11 border px-4 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cicopal-blue ${selectedHour === hour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-slate-300 bg-white text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue"}`}>{hour}</button>)}</div></div> : null}
+        {normalize(query) && time && candidateHours.length ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Janelas com registro para este lote</p><div className="mt-2 flex flex-wrap gap-2">{candidateHours.map((hour) => <button type="button" key={hour} onClick={() => setSelectedHour(hour)} className={`min-h-11 border px-4 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cicopal-blue ${selectedHour === hour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-slate-300 bg-white text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue"}`}>{hour}</button>)}</div></div> : null}
       </header>
       <div className="mt-5">
         {loading ? <p className="border border-slate-200 bg-white p-6 font-bold text-slate-500">Carregando registros...</p> : null}
         {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 p-4 font-bold text-red-800">{error}</p> : null}
         {!loading && !error && (!normalize(query) || !time) ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Consulta pronta para iniciar</h2><p className="mt-1 font-semibold text-slate-500">Informe o lote e o horário impresso no produto.</p></div> : null}
-        {!loading && !error && normalize(query) && time && !selectedHour ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Clock3 className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Escolha a janela horária</h2><p className="mt-1 font-semibold text-slate-500">Selecione um dos horários possíveis acima para ver a rastreabilidade.</p></div> : null}
+        {!loading && !error && normalize(query) && time && !selectedHour && candidateHours.length ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Clock3 className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Escolha a janela horária</h2><p className="mt-1 font-semibold text-slate-500">Selecione uma das janelas com registro acima para ver a rastreabilidade.</p></div> : null}
+        {!loading && !error && normalize(query) && time && !selectedHour && !candidateHours.length ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Nenhuma janela encontrada</h2><p className="mt-1 font-semibold text-slate-500">Não há registro desse lote nos horários próximos ao horário informado.</p></div> : null}
         {!loading && !error && selectedHour && !filtered.length ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Nenhum registro nessa janela</h2><p className="mt-1 font-semibold text-slate-500">Verifique o lote ou selecione o outro horário sugerido.</p></div> : null}
         <div className="space-y-5">
-          {filtered.map((entry) => <BiscuitTimeline key={entry.id} entry={entry} />)}
+          {filtered.map((entry) => <BiscuitTimeline key={entry.id} entry={entry} records={records} />)}
         </div>
       </div>
     </section>
