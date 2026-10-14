@@ -19,6 +19,22 @@ function formatDateTime(value) {
     : "—";
 }
 
+function hourLabel(value = "") {
+  const match = String(value).match(/^(\d{1,2}):/);
+  return match ? `${String(Number(match[1])).padStart(2, "0")}:00` : "";
+}
+
+function possibleHours(value = "") {
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return [];
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return [];
+  const first = `${String(hour).padStart(2, "0")}:00`;
+  if (minute === 0 || hour === 23) return [first];
+  return [first, `${String(hour + 1).padStart(2, "0")}:00`];
+}
+
 function TimelinePoint({ icon: Icon, tone = "blue", title, children, last = false }) {
   const tones = {
     blue: "border-cicopal-blue bg-blue-50 text-cicopal-blue",
@@ -94,6 +110,8 @@ function BiscuitTimeline({ entry }) {
 export function TraceabilityLookup() {
   const [records, setRecords] = useState([]);
   const [query, setQuery] = useState("");
+  const [time, setTime] = useState("");
+  const [selectedHour, setSelectedHour] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -139,26 +157,51 @@ export function TraceabilityLookup() {
     return () => { active = false; };
   }, []);
 
-  const filtered = useMemo(() => {
+  const candidateHours = useMemo(() => possibleHours(time), [time]);
+  const lotMatches = useMemo(() => {
     const term = normalize(query);
-    return term ? records.filter((entry) => normalize(entry.trace.lote).includes(term)) : records;
+    return term ? records.filter((entry) => normalize(entry.trace.lote).includes(term)) : [];
   }, [query, records]);
+
+  const filtered = useMemo(() => {
+    if (!selectedHour) return [];
+    return lotMatches.filter((entry) => hourLabel(entry.trace.horario ?? entry.slot) === selectedHour);
+  }, [lotMatches, selectedHour]);
+
+  function updateLot(value) {
+    setQuery(value);
+    setSelectedHour("");
+  }
+
+  function updateTime(value) {
+    setTime(value);
+    setSelectedHour("");
+  }
 
   return (
     <section className="mx-auto max-w-7xl">
       <header className="border-l-8 border-cicopal-blue bg-white px-5 py-6 shadow-sm sm:px-7">
         <p className="text-xs font-black uppercase tracking-[.16em] text-cicopal-blue">Consulta administrativa</p>
         <h1 className="mt-1 text-3xl font-black text-slate-950">Rastreabilidade por lote</h1>
-        <p className="mt-2 max-w-3xl font-semibold text-slate-600">Localize o biscoito e acompanhe, em sequência, o registro fotográfico, a batelada em consumo e os lotes de insumos usados.</p>
-        <label className="mt-5 flex min-h-14 max-w-xl items-center gap-3 border border-slate-300 bg-slate-50 px-4 focus-within:border-cicopal-blue focus-within:bg-white">
-          <Search className="text-cicopal-blue" size={21} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Informe o lote, por exemplo: D071001" className="min-w-0 flex-1 bg-transparent font-bold outline-none" />
-        </label>
+        <p className="mt-2 max-w-3xl font-semibold text-slate-600">Informe o lote e o horário impresso. O sistema indicará a janela horária correspondente para reconstruir a origem do biscoito.</p>
+        <div className="mt-5 grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+          <label className="flex min-h-14 items-center gap-3 border border-slate-300 bg-slate-50 px-4 focus-within:border-cicopal-blue focus-within:bg-white">
+            <Search className="text-cicopal-blue" size={21} />
+            <input value={query} onChange={(event) => updateLot(event.target.value)} placeholder="Lote, por exemplo: D071001" className="min-w-0 flex-1 bg-transparent font-bold outline-none" />
+          </label>
+          <label className="flex min-h-14 items-center gap-3 border border-slate-300 bg-slate-50 px-4 focus-within:border-cicopal-blue focus-within:bg-white">
+            <Clock3 className="text-cicopal-blue" size={20} />
+            <input type="time" value={time} onChange={(event) => updateTime(event.target.value)} aria-label="Horário impresso" className="min-w-0 flex-1 bg-transparent font-bold outline-none" />
+          </label>
+        </div>
+        {normalize(query) && candidateHours.length ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Horários possíveis para consulta</p><div className="mt-2 flex flex-wrap gap-2">{candidateHours.map((hour) => <button type="button" key={hour} onClick={() => setSelectedHour(hour)} className={`min-h-11 border px-4 text-sm font-black transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cicopal-blue ${selectedHour === hour ? "border-cicopal-blue bg-cicopal-blue text-white" : "border-slate-300 bg-white text-slate-700 hover:border-cicopal-blue hover:text-cicopal-blue"}`}>{hour}</button>)}</div></div> : null}
       </header>
       <div className="mt-5">
         {loading ? <p className="border border-slate-200 bg-white p-6 font-bold text-slate-500">Carregando registros...</p> : null}
         {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 p-4 font-bold text-red-800">{error}</p> : null}
-        {!loading && !error && !filtered.length ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Nenhum lote localizado</h2><p className="mt-1 font-semibold text-slate-500">Pesquise pelo lote completo ou por parte dele.</p></div> : null}
+        {!loading && !error && (!normalize(query) || !time) ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Consulta pronta para iniciar</h2><p className="mt-1 font-semibold text-slate-500">Informe o lote e o horário impresso no produto.</p></div> : null}
+        {!loading && !error && normalize(query) && time && !selectedHour ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Clock3 className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Escolha a janela horária</h2><p className="mt-1 font-semibold text-slate-500">Selecione um dos horários possíveis acima para ver a rastreabilidade.</p></div> : null}
+        {!loading && !error && selectedHour && !filtered.length ? <div className="border border-dashed border-slate-300 bg-white p-10 text-center"><Tag className="mx-auto text-slate-400" /><h2 className="mt-3 text-xl font-black text-slate-800">Nenhum registro nessa janela</h2><p className="mt-1 font-semibold text-slate-500">Verifique o lote ou selecione o outro horário sugerido.</p></div> : null}
         <div className="space-y-5">
           {filtered.map((entry) => <BiscuitTimeline key={entry.id} entry={entry} />)}
         </div>
