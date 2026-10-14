@@ -558,6 +558,14 @@ export function ProductionReports() {
   }
 
   function exportPdf() {
+    const previousTitle = document.title;
+    const documentScope = lineId === "ALL" ? "consolidado" : lines[lineId]?.name?.toLowerCase() ?? "producao";
+    const restoreTitle = () => {
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restoreTitle);
+    };
+    document.title = `registro-geral-${documentScope}-${startDate}-${endDate}`;
+    window.addEventListener("afterprint", restoreTitle);
     window.print();
   }
 
@@ -1378,9 +1386,16 @@ function ExecutiveProductionReport({
     <div className="production-report w-full space-y-8 pb-10">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 11mm; }
+          @page { size: A4 portrait; margin: 8mm; }
           body { background: #fff !important; }
+          body > * { visibility: hidden !important; }
+          .production-report, .production-report * { visibility: visible !important; }
+          .production-report { position: absolute; inset: 0; width: 100%; padding: 0 !important; }
           .report-toolbar, .report-filters, .report-attention { display: none !important; }
+          .report-document-header { border-radius: 0 !important; box-shadow: none !important; }
+          .report-document-header__caption { display: none !important; }
+          .report-summary { border-radius: 0 !important; box-shadow: none !important; }
+          .report-results { border-radius: 0 !important; box-shadow: none !important; }
           .report-row details { display: block !important; }
           .report-row { break-inside: avoid; page-break-inside: avoid; }
           .production-report details > * { display: block !important; }
@@ -1400,33 +1415,18 @@ function ExecutiveProductionReport({
         .report-input:focus { border-color: #2622b5; box-shadow: 0 0 0 2px rgba(38, 34, 181, .12); }
       `}</style>
 
-      <section className="overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-        <div className="border-l-8 border-cicopal-blue px-6 py-7 sm:px-9">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cicopal-blue">
-                Inteligência de produção
-              </p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                Visão operacional do período
-              </h2>
-              <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                Acompanhe o que exige decisão agora e abra somente a produção
-                que precisa de investigação.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-600">
-              <span className="border border-slate-200 bg-slate-50 px-3 py-2">
-                {new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} — {new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}
-              </span>
-              <span className="border border-blue-100 bg-blue-50 px-3 py-2 text-cicopal-blue">
-                {filteredData.length} produção(ões)
-              </span>
-            </div>
-          </div>
-        </div>
+      <ControlledDocumentHeader
+        startDate={startDate}
+        endDate={endDate}
+        lineId={lineId}
+        productionCount={filteredData.length}
+      />
 
-        <div className="grid divide-y divide-slate-200 border-t border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+      <section className="report-summary overflow-hidden rounded-[1.25rem] border border-slate-300 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        <div className="border-b border-slate-300 bg-[#d6d6d6] px-5 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-800">
+          Resumo do período
+        </div>
+        <div className="grid divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
           <ExecutiveMetric label="Produções" value={totals.cycles} note="no período" />
           <ExecutiveMetric label="Controles" value={`${totals.compliance}%`} note="cumprimento médio" accent={totals.compliance < 90 ? "amber" : "green"} />
           <ExecutiveMetric label="Não conformidades" value={totals.ncs} note="ocorrências registradas" accent={totals.ncs ? "red" : "green"} />
@@ -1458,7 +1458,7 @@ function ExecutiveProductionReport({
               <Download size={17} /> CSV
             </button>
             <button type="button" onClick={onExportPdf} disabled={!filteredData.length} className="inline-flex min-h-12 items-center justify-center gap-2 bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-40">
-              <Printer size={17} /> PDF
+              <Printer size={17} /> Salvar em PDF
             </button>
           </div>
         </div>
@@ -1478,7 +1478,7 @@ function ExecutiveProductionReport({
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+      <section className="report-results overflow-hidden rounded-[1.25rem] border border-slate-300 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-5 py-5 sm:px-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Produções encontradas</p>
@@ -1499,6 +1499,70 @@ function ExecutiveProductionReport({
 
 function ReportField({ label, children }) {
   return <label className="block"><span className="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</span>{children}</label>;
+}
+
+function ControlledDocumentHeader({ startDate, endDate, lineId, productionCount }) {
+  const line = lineId === "ALL" ? null : lines[lineId];
+  const period = `${new Date(`${startDate}T12:00:00`).toLocaleDateString("pt-BR")} a ${new Date(`${endDate}T12:00:00`).toLocaleDateString("pt-BR")}`;
+  const title = line
+    ? `CONTROLE DE LIBERAÇÃO E PRODUÇÃO — ${line.name.toUpperCase()}`
+    : "CONTROLE DE LIBERAÇÃO E PRODUÇÃO — CONSOLIDADO";
+
+  return (
+    <section className="report-document-header overflow-hidden rounded-[1.25rem] border border-slate-400 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+      <div className="grid md:grid-cols-[10.5rem_1fr]">
+        <div className="flex min-h-36 items-center justify-center border-b border-slate-400 p-6 md:border-b-0 md:border-r">
+          <img
+            src="/images/logo-cicopal.png"
+            alt="Cicopal"
+            className="h-auto w-32 object-contain"
+          />
+        </div>
+        <div>
+          <div className="border-b border-slate-400 px-5 py-3 text-center sm:px-7">
+            <p className="text-sm font-black tracking-tight text-slate-950 sm:text-base">SISTEMA DE GESTÃO DA QUALIDADE</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-600">Registro geral digital</p>
+          </div>
+          <div className="grid border-b border-slate-400 sm:grid-cols-2">
+            <DocumentDatum label="Identificação" value={line?.rg ?? "RG.QUA · CONSOLIDADO"} bordered />
+            <DocumentDatum label="Revisão" value="03" />
+            <DocumentDatum label="Período" value={period} bordered />
+            <DocumentDatum label="Folha" value="Consulta digital / PDF" />
+          </div>
+        </div>
+      </div>
+      <div className="border-b border-slate-400 px-5 py-3 sm:px-7">
+        <span className="mr-1 text-xs font-black uppercase tracking-wide text-slate-500">Título:</span>
+        <span className="text-sm font-black text-slate-950 sm:text-base">{title}</span>
+      </div>
+      <div className="grid lg:grid-cols-[1fr_17rem]">
+        <div className="border-b border-slate-400 lg:border-b-0 lg:border-r">
+          <div className="bg-[#c9c9c9] px-5 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-900">Escopo do registro</div>
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
+            <DocumentContext label="Linha" value={line?.name ?? "Todas as linhas"} />
+            <DocumentContext label="Produções" value={`${productionCount} no período`} />
+            <DocumentContext label="Status" value="Dados rastreáveis por ciclo" />
+          </div>
+        </div>
+        <div>
+          <div className="bg-[#c9c9c9] px-5 py-2 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-900">Legenda</div>
+          <div className="grid grid-cols-[3.25rem_1fr] divide-x divide-slate-300 px-5 py-3 text-xs font-bold">
+            <div className="space-y-1 pr-3"><span className="block bg-emerald-500 px-2 py-1 text-center text-emerald-950">C</span><span className="block bg-red-500 px-2 py-1 text-center text-red-950">NC</span><span className="block bg-slate-300 px-2 py-1 text-center text-slate-800">NA</span></div>
+            <div className="space-y-1 pl-3 text-slate-700"><span className="block py-1">Conforme</span><span className="block py-1">Não conforme</span><span className="block py-1">Não se aplica</span></div>
+          </div>
+        </div>
+      </div>
+      <p className="report-document-header__caption border-t border-slate-200 bg-slate-50 px-5 py-2 text-xs font-medium text-slate-500 sm:px-7">Selecione uma produção abaixo para consultar os registros completos por processo. Na exportação, use a opção “Salvar como PDF” do navegador.</p>
+    </section>
+  );
+}
+
+function DocumentDatum({ label, value, bordered = false }) {
+  return <div className={`flex min-h-11 items-center gap-1 px-4 py-2 text-sm ${bordered ? "border-b border-slate-300 sm:border-b-0 sm:border-r" : ""}`}><span className="font-black text-slate-900">{label}:</span><span className="font-semibold text-slate-700">{value}</span></div>;
+}
+
+function DocumentContext({ label, value }) {
+  return <div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">{label}</p><p className="mt-1 text-sm font-bold text-slate-900">{value}</p></div>;
 }
 
 function ExecutiveMetric({ label, value, note, accent = "blue" }) {
